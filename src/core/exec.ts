@@ -6,6 +6,7 @@ import type { FileVariable, HttpFile, HttpRequest, HttpResponse, ParsedRequest }
 import { authReferences, readAuthConfig, tokenValue, type OAuth2Manager } from './oauth2.ts';
 import { bodyFileRef, normalizeBasicAuth, toWireForm } from './preview.ts';
 import { ensureScheme, sendRequest, type SendOptions } from './send.ts';
+import { isWebSocketRequest, parseWsScript, sendWebSocket, type WsScript } from './websocket.ts';
 import type { SseEvent } from './sse.ts';
 
 export { bodyFileRef, normalizeBasicAuth } from './preview.ts';
@@ -135,15 +136,29 @@ export class Executor {
     let resolved = resolveRequest(req, ctx);
     normalizeBasicAuth(resolved);
 
+    const ws = isWebSocketRequest(resolved);
+    let wsScript: WsScript | undefined;
+    if (ws) {
+      // Each message may be a `< ./file` (sent as binary) or `<@ ./file` (text with variables).
+      const script = parseWsScript(resolved.body);
+      for (const st of script.steps) {
+        const r = typeof st.message === 'string' ? bodyFileRef(st.message) : undefined;
+        if (!r) continue;
+        const bytes = await this.host.readBodyFile(r.path, file);
+        st.message = r.resolveVariables ? resolveText(new TextDecoder().decode(bytes), ctx) : bytes;
+      }
+      wsScript = script;
+    }
+
     let bodyOverride: Uint8Array | undefined;
-    const ref = bodyFileRef(resolved.body);
+    const ref = ws ? undefined : bodyFileRef(resolved.body);
     if (ref) {
       const bytes = await this.host.readBodyFile(ref.path, file);
       if (ref.resolveVariables) resolved.body = resolveText(new TextDecoder().decode(bytes), ctx);
       else bodyOverride = bytes;
     }
     // X-REQUEST-TYPE: GraphQL → JSON {query, variables}; after {{var}} substitution, so both can use variables.
-    if (isGraphqlRequest(resolved)) {
+    if (!ws && isGraphqlRequest(resolved)) {
       if (bodyOverride) {
         resolved.body = new TextDecoder().decode(bodyOverride);
         bodyOverride = undefined;
@@ -153,7 +168,8 @@ export class Executor {
 
     try {
       const cookieJar = req.meta?.['no-cookie-jar'] === undefined ? this.host.cookieJar : undefined;
-      const response = await sendRequest(resolved, { ...this.host.sendOptions(req), ...requestSendOptions(req), signal, bodyOverride, onEvent: opts.onEvent, cookieJar });
+      const sendOpts: SendOptions = { ...this.host.sendOptions(req), ...requestSendOptions(req), signal, bodyOverride, onEvent: opts.onEvent, cookieJar };
+      const response = wsScript ? await sendWebSocket(resolved, wsScript, sendOpts) : await sendRequest(resolved, sendOpts);
       if (req.name) {
         named.set(req.name, {
           request: { url: resolved.url, headers: resolved.headers.map((h) => [h.name, h.value]), body: resolved.body },

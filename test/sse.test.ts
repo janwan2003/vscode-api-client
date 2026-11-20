@@ -161,5 +161,5 @@ test('requestSendOptions: units and bad values', () => {
 test('events assertions on a non-stream response fail with a clear message', async () => {
   const { runAssertions } = await import('../src/core/assert.ts');
   const res = { status: 200, statusText: 'OK', headers: [], body: '{}', bodyEncoding: 'utf8' as const, size: 2, timeMs: 1, url: 'x' };
-  assert.match(runAssertions(['events.length == 1'], res)[0].message, /not a server-sent events response/);
+  assert.match(runAssertions(['events.length == 1'], res)[0].message, /not a server-sent events/);
 });

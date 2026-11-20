@@ -97,13 +97,20 @@ export interface HttpResponse {
   timeMs: number;
   /** The URL after redirects. */
   url: string;
-  /** Server-sent events, for a `text/event-stream` response (the raw stream is in `body`). */
+  /**
+   * Server-sent events, for a `text/event-stream` response (the raw stream is in `body`). For a
+   * WebSocket: every message in order, `event` = `sent`, `message` (received text) or `binary`
+   * (received bytes, `data` in base64).
+   */
   events?: SseEvent[];
   /**
-   * Why a `text/event-stream` response ended: the server closed it, you stopped it, the timeout ran
-   * out, or `# @max-events` was reached. A stream that ends any of these ways is still a response.
+   * Why a `text/event-stream` response or a WebSocket ended: the server closed it, you stopped it, the
+   * timeout ran out, or `# @max-events` was reached; `done` = a WebSocket script ended with
+   * `=== wait-for-server` and every wait was met, so Plainwire closed it. Each is still a response.
    */
-  streamEnd?: 'closed' | 'stopped' | 'timeout' | 'max-events';
+  streamEnd?: 'closed' | 'stopped' | 'timeout' | 'max-events' | 'done';
+  /** WebSocket: the close code and reason, when a close frame was received (`1000 bye`). */
+  closeReason?: string;
   /** The `Cookie` header sent on the last hop when a cookie jar was used (the request's own cookies + the jar's). */
   sentCookie?: string;
 }

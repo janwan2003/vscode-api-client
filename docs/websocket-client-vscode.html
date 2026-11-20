@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebSocket client in VS Code: test WebSockets from a .http file | Plainwire</title>
+<meta name="description" content="Connect to a WebSocket from a .http file in VS Code, Cursor or VSCodium: send messages, wait for replies, see every message both ways, and check the replies in tests and in CI. JetBrains HTTP Client syntax. Free, no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/websocket-client-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="A WebSocket client in VS Code, from a .http file">
+<meta property="og:description" content="Send messages, wait for replies and check them: WebSocket requests in plain .http files, in the editor and in CI.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/websocket-client-vscode.html">
+<meta property="og:image" content="https://janwan2003.github.io/vscode-api-client/websocket.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>A WebSocket client in VS Code, from a <code>.http</code> file</h1>
+    <p>Plainwire 0.12 opens WebSocket connections from the same <code>.http</code> files as your HTTP requests. You write the messages under the request line, press <strong>Send</strong>, and see every message in both directions with its time. The script can wait for the server&rsquo;s replies, and <code># @assert</code> checks run on what came back, in the editor and in CI.</p>
+    <p>The syntax is the JetBrains HTTP Client&rsquo;s (<code>WEBSOCKET</code>, <code>===</code> between messages, <code>=== wait-for-server</code>), so a file works in IntelliJ IDEA, WebStorm and VS Code alike. REST Client, the most-installed <code>.http</code> extension, has no WebSocket support: <a href="https://github.com/Huachao/vscode-restclient/issues/173">issue #173</a> asks for it and is still open (28 reactions when we read it on 20 November 2026).</p>
+
+    <figure>
+      <img src="websocket.png" width="900" height="700" alt="Plainwire's request panel for WEBSOCKET wss://echo.websocket.org with two JSON messages separated by wait-for-server lines, and the response: 101 Switching Protocols, 2 sent, 3 received, done, 3 checks passed, and a table of messages with arrows for sent and received.">
+      <figcaption class="small">A real run against the public echo server: messages sent (&uarr;) and received (&darr;), with milliseconds since the connection started.</figcaption>
+    </figure>
+
+    <h2>Try it on a public echo server</h2>
+    <p>Put this in a file such as <code>socket.http</code> and press <strong>Send</strong> above the request:</p>
+<pre>### Echo
+# @assert status == 101
+# @assert messages[-1].data.type == ping
+WEBSOCKET wss://echo.websocket.org
+Content-Type: application/json
+
+{"type": "subscribe", "channel": "orders"}
+=== wait-for-server
+{"type": "ping", "id": 1}
+=== wait-for-server
+=== wait-for-server</pre>
+    <p>The first message goes out as soon as the connection is open. Each <code>=== wait-for-server</code> line waits for one more message from the server before the next message is sent. Because the script ends with wait lines, Plainwire closes the connection once those replies have arrived, then runs the checks. This echo server sends a greeting first, so the greeting counts as the first reply.</p>
+
+    <h2>The syntax</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Line</th><th scope="col">Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>WEBSOCKET wss://host/path</code></td><td>Opens a WebSocket. <code>ws://</code> and <code>wss://</code> both work; a bare <code>wss://&hellip;</code> URL, or httpYac&rsquo;s <code>WS</code> keyword, works too.</td></tr>
+          <tr><td>Header lines</td><td>Sent with the opening handshake: <code>Authorization</code>, <code>Cookie</code>, <code>Sec-WebSocket-Protocol</code>, <code>Origin</code> and so on. <code>Content-Type</code> is not sent; as in JetBrains, it only says what the messages look like.</td></tr>
+          <tr><td>Text after the blank line</td><td>The first message, sent on connect. Several lines make one message.</td></tr>
+          <tr><td><code>===</code></td><td>Ends a message; the next one is sent right after it. A <code>// comment</code> may follow on the same line.</td></tr>
+          <tr><td><code>=== wait-for-server</code></td><td>Wait for one message from the server (counted since the previous message was sent) before sending the next one. Repeat the line to wait for more.</td></tr>
+          <tr><td><code>&lt; ./frame.bin</code> as a message</td><td>Sends that file as a binary message. <code>&lt;@ ./message.json</code> sends it as text with <code>{{variables}}</code> filled in.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><code>{{variables}}</code> from environments, <code>.env</code> files, chained requests and <code>{{$auth.token("id")}}</code> OAuth tokens work in the URL, headers and every message. Cookies saved by an earlier login request are sent with the handshake, as a browser does.</p>
+
+    <h2>How a connection ends</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Ends because</th><th scope="col">Shown as</th></tr></thead>
+        <tbody>
+          <tr><td>The script ends with <code>=== wait-for-server</code> and those replies arrived; Plainwire closes with code 1000</td><td>done, all replies arrived</td></tr>
+          <tr><td>The server closed the connection (its close code and reason are shown, e.g. <code>4000 bye</code>)</td><td>closed by the server</td></tr>
+          <tr><td>You pressed <strong>Stop</strong></td><td>stopped</td></tr>
+          <tr><td><code># @max-events N</code>: N messages received from the server</td><td>max events reached</td></tr>
+          <tr><td>The time limit ran out: <code># @timeout 10s</code> on the request, else the <code>plainwire.timeoutMs</code> setting (60 s by default), or <code>--timeout</code> in the CLI</td><td>timed out</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A script that does not end with a wait line keeps listening, the way a chat window does, until one of the other endings. All of them keep the messages that arrived. If the server refuses the upgrade (for example <code>401</code> without a valid token), you get that normal HTTP response with its body, so you can see why.</p>
+
+    <h2>Checks on messages</h2>
+    <ul>
+      <li><code>messages</code> is the list of messages received from the server: <code>messages.length</code>, <code>messages[0].data</code>, <code>messages[-1].data.type</code> (JSON messages are parsed).</li>
+      <li><code>events</code> is every message in both directions, in order; each has <code>event</code> (<code>sent</code>, <code>message</code>, or <code>binary</code> for bytes in base64), <code>data</code> and <code>timeMs</code>.</li>
+      <li>A plain JSONPath such as <code>$.status</code> reads the last JSON message received.</li>
+      <li><code>status == 101</code> checks that the upgrade worked; the handshake response&rsquo;s headers work with <code>header &lt;name&gt;</code>.</li>
+    </ul>
+
+    <h2>In CI</h2>
+    <p>The free <code>plainwire</code> CLI runs the same file. End each script with <code>=== wait-for-server</code> (or add <code># @max-events</code> or <code># @timeout</code>) so the job does not wait for the full timeout:</p>
+<pre>$ plainwire run live.http
+  ✓ WEBSOCKET Echo over wss 101 · 228 ms · 1 sent, 2 received (done) · 3/3 checks</pre>
+    <p>That line is from a real run against <code>wss://echo.websocket.org</code> on 20 November 2026. See <a href="run-http-files-in-ci.html">running .http files in CI</a> for the GitHub Action and JUnit reports.</p>
+
+    <h2>Details and limits</h2>
+    <ul>
+      <li>Ping frames are answered automatically and not listed. Fragmented messages are joined. Messages up to 64 MB.</li>
+      <li>No compression extension (<code>permessage-deflate</code>) is offered; servers must accept connections without it.</li>
+      <li><code>wss://</code> through an HTTP proxy uses <code>CONNECT</code>, like HTTPS; self-signed certificates work with <code># @insecure</code>. Plain <code>ws://</code> through a proxy is sent as an absolute-URL request, which some proxies refuse.</li>
+      <li>You cannot type messages into an open connection yet; edit the script and send again.</li>
+      <li>Copy as code is for HTTP requests only. Socket.IO, STOMP and other protocols on top of WebSocket are not decoded: you see their frames as text.</li>
+      <li>JetBrains response handler scripts (<code>&gt; {% %}</code>) are kept in the file but not run, as for every request.</li>
+    </ul>
+
+    <h2>FAQ</h2>
+    <details><summary>Does it work in Cursor, Windsurf and VSCodium?</summary><p>Yes, it is the same extension. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a>; see <a href="api-client-for-cursor-vscodium.html">installing in Cursor and VSCodium</a>.</p></details>
+    <details><summary>What about server-sent events?</summary><p>They are plain HTTP and work with any method; see <a href="server-sent-events-vscode.html">server-sent events in VS Code</a>.</p></details>
+    <details><summary>Is anything sent to Plainwire?</summary><p>No. There is no account and no telemetry. The extension makes no network requests except the ones you send, and the source is on <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a> (MIT).</p></details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

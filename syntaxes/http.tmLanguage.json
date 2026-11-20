@@ -4,6 +4,7 @@
   "scopeName": "source.http.plainwire",
   "patterns": [
     { "include": "#separator" },
+    { "include": "#wsSeparator" },
     { "include": "#metadata" },
     { "include": "#httpyacAssert" },
     { "include": "#comment" },
@@ -17,6 +18,7 @@
   ],
   "repository": {
     "separator": { "match": "^###.*$", "name": "markup.heading.separator.http" },
+    "wsSeparator": { "match": "^\\s*(===)(?:\\s+(wait-for-server))?\\s*(//.*)?$", "captures": { "1": { "name": "keyword.operator.separator.websocket.http" }, "2": { "name": "keyword.control.wait.websocket.http" }, "3": { "name": "comment.line.double-slash.http" } } },
     "jetbrainsDirective": {
       "match": "^\\s*(import|run)\\s+(\\S+\\.(?:http|rest)|#\\(?[^\\s)]+\\)?)(.*)$",
       "captures": {
@@ -48,7 +50,7 @@
       }
     },
     "requestLine": {
-      "match": "^\\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT)\\s+(\\S.*?)(\\s+HTTP/[\\d.]+)?\\s*$",
+      "match": "^\\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|WEBSOCKET|WS)\\s+(\\S.*?)(\\s+HTTP/[\\d.]+)?\\s*$",
       "captures": {
         "1": { "name": "keyword.control.method.http" },
         "2": { "patterns": [{ "include": "#variable" }, { "match": "[^{]+|\\{", "name": "string.unquoted.url.http" }] },

@@ -8,8 +8,8 @@ export interface CliRow extends RunRow {
   line: number;
   /** Response body (truncated) for failed requests in --verbose mode and JSON output. */
   responseBody?: string;
-  /** For a server-sent events response: how many events arrived and how the stream ended. */
-  stream?: { events: number; end: string };
+  /** For a server-sent events response: how many events arrived and how the stream ended. For a WebSocket, also how many of them were sent. */
+  stream?: { events: number; end: string; sent?: number };
 }
 
 const xml = (s: string) =>

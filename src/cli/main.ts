@@ -236,7 +236,7 @@ async function run(args: string[]): Promise<number> {
       row.status = response.status;
       row.timeMs = response.timeMs;
       row.assertions = assertions;
-      if (response.events) row.stream = { events: response.events.length, end: response.streamEnd ?? 'closed' };
+      if (response.events) row.stream = { events: response.events.length, end: response.streamEnd ?? 'closed', ...(response.status === 101 ? { sent: response.events.filter((e) => e.event === 'sent').length } : {}) };
       row.state = rowState(response.status, assertions);
       if (row.state === 'fail') row.responseBody = response.bodyEncoding === 'utf8' ? response.body.slice(0, 4000) : `(${response.size} bytes of binary data)`;
     } catch (e) {
@@ -249,7 +249,7 @@ async function run(args: string[]): Promise<number> {
         out(`\n${col.bold(row.file)}`);
         lastFile = row.file;
       }
-      const meta = [row.status !== undefined ? String(row.status) : '', row.timeMs !== undefined ? `${row.timeMs} ms` : '', row.stream ? `${row.stream.events} event${row.stream.events === 1 ? '' : 's'} (${row.stream.end})` : '', row.assertions.length ? `${row.assertions.filter((a) => a.passed).length}/${row.assertions.length} checks` : '']
+      const meta = [row.status !== undefined ? String(row.status) : '', row.timeMs !== undefined ? `${row.timeMs} ms` : '', row.stream ? streamMeta(row.stream) : '', row.assertions.length ? `${row.assertions.filter((a) => a.passed).length}/${row.assertions.length} checks` : '']
         .filter(Boolean)
         .join(' · ');
       out(`  ${ok ? col.green('✓') : col.red('✗')} ${row.method} ${row.label} ${col.dim(meta)}`);
@@ -362,4 +362,10 @@ function openInBrowser(url: string): void {
   } catch {
     // printed above
   }
+}
+
+/** `3 events (closed)` for server-sent events; `1 sent, 2 received (done)` for a WebSocket. */
+function streamMeta(st: NonNullable<CliRow['stream']>): string {
+  if (st.sent !== undefined) return `${st.sent} sent, ${st.events - st.sent} received (${st.end})`;
+  return `${st.events} event${st.events === 1 ? '' : 's'} (${st.end})`;
 }

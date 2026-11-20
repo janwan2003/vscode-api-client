@@ -101,7 +101,7 @@ query MyOrders($first: Int) {
     <h2>Not supported yet</h2>
     <ul>
       <li>Schema introspection, autocomplete and validation of the query.</li>
-      <li>Subscriptions over WebSocket or server-sent events.</li>
+      <li>A subscription editor. You can still run a subscription as a <a href="websocket-client-vscode.html">WebSocket request</a> by writing the protocol messages yourself (<code>Sec-WebSocket-Protocol: graphql-transport-ws</code>, then <code>connection_init</code> and <code>subscribe</code>).</li>
       <li>GraphQL over <code>GET</code> (query in the URL), and choosing <code>operationName</code> when a document has several operations.</li>
     </ul>
   </div>

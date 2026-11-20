@@ -48,11 +48,11 @@
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>plainwire-0.11.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>plainwire-0.12.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, Cursor, Windsurf or VSCodium open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and pick the file. Or from a terminal:
-<pre>code --install-extension plainwire-0.11.0.vsix
-cursor --install-extension plainwire-0.11.0.vsix
-codium --install-extension plainwire-0.11.0.vsix</pre></li>
+<pre>code --install-extension plainwire-0.12.0.vsix
+cursor --install-extension plainwire-0.12.0.vsix
+codium --install-extension plainwire-0.12.0.vsix</pre></li>
         <li><strong>Open any folder with a <code>.http</code> file</strong> (or create one). A <strong>Send Request</strong> and an <strong>Open in editor</strong> link appear above each request. Requires VS Code 1.85 or newer, or an editor built on it.</li>
       </ol>
       <p class="small">Listings on the VS Code Marketplace and on Open VSX (the registry Cursor, Windsurf and VSCodium use) are coming soon.</p>
@@ -61,13 +61,14 @@ codium --install-extension plainwire-0.11.0.vsix</pre></li>
 
   <div class="section-soft">
     <div class="wrap">
-      <h2 style="margin-top:0">What you get in v0.11</h2>
+      <h2 style="margin-top:0">What you get in v0.12</h2>
       <div class="grid">
         <div class="card"><h3>Request editor</h3><p>Method, URL, a query-params table, a headers table, JSON / text / form bodies, and Bearer or Basic auth helpers. Press Send.</p></div>
         <div class="card"><h3>Response viewer</h3><p>Status, time and size at a glance; pretty-printed JSON, response headers, and the raw body.</p></div>
         <div class="card"><h3>Plain .http files</h3><p>Saved in your repo in the REST Client / JetBrains HTTP Client format: <code>###</code>, <code>@var = value</code>, <code>{{var}}</code>, <code># @name</code>.</p></div>
         <div class="card"><h3>CodeLens in any .http file</h3><p><strong>Send Request</strong> and <strong>Open in editor</strong> above every request, including files you already have.</p></div>
         <div class="card"><h3>Environments</h3><p><code>http-client.env.json</code>, <code>http-client.private.env.json</code> for secrets, and the <code>rest-client.environmentVariables</code> setting.</p></div>
+        <div class="card"><h3>WebSocket <span class="small">(new in 0.12)</span></h3><p>Open a WebSocket from the same file: send messages, wait for replies with <code>=== wait-for-server</code>, see every message both ways, and check the replies with <code>messages[-1].data</code>. JetBrains syntax. <a href="websocket-client-vscode.html">How it works</a>.</p></div>
         <div class="card"><h3>Folders and drag and drop <span class="small">(new in 0.11)</span></h3><p>The sidebar shows your folders, files and requests. Drag requests between files, reorder, rename, duplicate and delete; move files into folders. Every edit keeps the rest of the file as it was. <a href="organize-api-requests-folders-vscode.html">How it works</a>.</p></div>
         <div class="card"><h3>OAuth 2.0 tokens <span class="small">(new in 0.10)</span></h3><p>Write <code>{{$auth.token("my-api")}}</code> and the token is fetched, cached and refreshed: Client Credentials, Authorization Code with PKCE, Password, Device flow. JetBrains-compatible config. <a href="oauth2-http-file-vscode.html">Set it up</a>.</p></div>
         <div class="card"><h3>Environment editor <span class="small">(new in 0.10)</span></h3><p>Edit <code>http-client.env.json</code> in a form: environments as tabs, a Secret box that writes the value to the git-ignored private file, and nothing you did not touch is changed.</p></div>
@@ -83,7 +84,7 @@ codium --install-extension plainwire-0.11.0.vsix</pre></li>
         <div class="card"><h3>Tests and Run all</h3><p>Response checks as <code># @assert status == 200</code> comment lines, and a runner for a whole file or workspace with a pass/fail report. httpYac&rsquo;s <code>?? status == 200</code> lines run too. <a href="api-tests-in-http-files.html">How it works</a>.</p></div>
         <div class="card"><h3>No login, no telemetry</h3><p>No account and no limits. The extension makes no network calls except the requests you send. Requests go out from the extension host (Node), so there are no CORS problems.</p></div>
       </div>
-      <p class="small" style="margin-top:1rem">Since 0.2: any port, self-signed certificates (<code># @insecure</code>) and HTTP proxies; see <a href="self-signed-certificate-localhost-api-client.html">certificates, ports and proxies</a>. Not yet: JavaScript scripting, GraphQL schema autocomplete, WebSocket and gRPC. OAuth 2 token flows arrived in 0.10 (<a href="oauth2-http-file-vscode.html">guide</a>).</p>
+      <p class="small" style="margin-top:1rem">Since 0.2: any port, self-signed certificates (<code># @insecure</code>) and HTTP proxies; see <a href="self-signed-certificate-localhost-api-client.html">certificates, ports and proxies</a>. Not yet: JavaScript scripting, GraphQL schema autocomplete and gRPC. WebSocket arrived in 0.12 (<a href="websocket-client-vscode.html">guide</a>). OAuth 2 token flows arrived in 0.10 (<a href="oauth2-http-file-vscode.html">guide</a>).</p>
     </div>
   </div>
 
@@ -136,6 +137,7 @@ X-Request-Id: <span class="v">{{$guid}}</span></pre>
         <div class="card"><h3><a href="organize-api-requests-folders-vscode.html">Organize API requests in folders</a></h3><p>Collections as files, folders as folders: drag, reorder, rename, duplicate, and what each does on disk.</p></div>
         <div class="card"><h3><a href="oauth2-http-file-vscode.html">OAuth 2.0 tokens in .http files</a></h3><p>Client Credentials, Authorization Code + PKCE, Password and Device flow, cached and refreshed, in VS Code and CI.</p></div>
         <div class="card"><h3><a href="cookies-session-login-http-file.html">Cookies and session logins in .http files</a></h3><p>A cookie jar: log in once, later requests send the session cookie, in VS Code and CI.</p></div>
+        <div class="card"><h3><a href="websocket-client-vscode.html">A WebSocket client in VS Code</a></h3><p>Send messages, wait for replies and check them, from a <code>.http</code> file and in CI.</p></div>
         <div class="card"><h3><a href="server-sent-events-vscode.html">Server-sent events (SSE) in VS Code</a></h3><p>Watch a <code>text/event-stream</code> arrive, stop it, and test it in CI.</p></div>
         <div class="card"><h3><a href="import-http-file-shared-variables.html">Share variables and a login between .http files</a></h3><p><code># @import</code> a shared file: variables, chained login, precedence, CI.</p></div>
         <div class="card"><h3><a href="api-tests-in-http-files.html">API tests in .http files</a></h3><p><code># @assert</code> checks, Run all, and converting Thunder Client and Postman tests.</p></div>
@@ -159,7 +161,7 @@ X-Request-Id: <span class="v">{{$guid}}</span></pre>
       </details>
       <details>
         <summary>Does it work in Cursor, Windsurf and VSCodium?</summary>
-        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.11.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
+        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.12.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
       </details>
       <details>
         <summary>Can I keep using my REST Client files?</summary>

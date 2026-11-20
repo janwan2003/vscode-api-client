@@ -103,7 +103,7 @@ Authorization: Bearer {{token}}
       <li>The <em>Raw stream</em> box shows the text exactly as received; <em>Open in editor</em> opens it in a tab.</li>
       <li>Plainwire does not reconnect when a stream drops, and does not send <code>Last-Event-ID</code> by itself. Add the header to the request if you want to resume.</li>
       <li>Chained variables such as <code>{{name.response.body.$.x}}</code> read the raw stream text, so JSONPath into a stream does not work; use checks on <code>events</code> instead.</li>
-      <li>WebSocket is a different protocol and is not supported yet.</li>
+      <li>WebSocket is a different protocol, with its own syntax: see <a href="websocket-client-vscode.html">WebSocket requests</a>.</li>
     </ul>
 
     <h2>FAQ</h2>

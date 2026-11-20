@@ -46,7 +46,7 @@ const TEXT_TYPES = /^(text\/|application\/(json|xml|javascript|ecmascript|x-www-
 const TLS_ERRORS = /^(DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT(_LOCALLY)?|CERT_HAS_EXPIRED|CERT_NOT_YET_VALID|CERT_UNTRUSTED|CERT_REVOKED|CERT_SIGNATURE_FAILURE|ERR_TLS_CERT_ALTNAME_INVALID|HOSTNAME_MISMATCH|INVALID_CA)\b/;
 const TLS_HINT = 'Set "plainwire.rejectUnauthorized": false to accept it (or add # @insecure above the request).';
 
-interface Hdr {
+export interface Hdr {
   name: string;
   value: string;
 }
@@ -173,8 +173,19 @@ function hasHeader(headers: Hdr[], lower: string): boolean {
   return headers.some((h) => h.name.toLowerCase() === lower);
 }
 
-/** One request/response round trip (no redirect handling); resolves once the response head arrives. */
-async function exchange(url: URL, method: string, headers: Hdr[], body: Uint8Array | undefined, opts: SendOptions, signal: AbortSignal): Promise<http.IncomingMessage> {
+/** A `101 Switching Protocols` answer to an `Upgrade` request: the raw socket and any bytes read past the head. */
+export interface Upgraded {
+  res: http.IncomingMessage;
+  socket: Socket;
+  head: Buffer;
+}
+
+/**
+ * One request/response round trip (no redirect handling); resolves once the response head arrives.
+ * With `onUpgrade`, a 101 answer is handed to it (with the socket) and also resolves the promise.
+ * Used by core/websocket.ts, so WebSocket handshakes get the same TLS, proxy and header handling.
+ */
+export async function exchange(url: URL, method: string, headers: Hdr[], body: Uint8Array | undefined, opts: SendOptions, signal: AbortSignal, onUpgrade?: (u: Upgraded) => void): Promise<http.IncomingMessage> {
   const secure = url.protocol === 'https:';
   if (!secure && url.protocol !== 'http:') throw new Error(`Unsupported protocol ${url.protocol}`);
   const host = stripBrackets(url.hostname);
@@ -214,6 +225,12 @@ async function exchange(url: URL, method: string, headers: Hdr[], body: Uint8Arr
     const r = mod.request({ ...options, method, setHost: false, agent: options.createConnection ? undefined : false, signal });
     r.on('error', reject);
     r.on('response', resolve);
+    if (onUpgrade) {
+      r.on('upgrade', (res: http.IncomingMessage, socket: Socket, head: Buffer) => {
+        onUpgrade({ res, socket, head });
+        resolve(res);
+      });
+    }
     try {
       for (const { name, values } of out.values()) r.setHeader(name, values.length === 1 ? values[0] : values);
     } catch (e) {
@@ -327,7 +344,7 @@ function parseProxy(p: string): Proxy {
   return { url, host: stripBrackets(url.hostname), port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80), auth };
 }
 
-function stripBrackets(host: string): string {
+export function stripBrackets(host: string): string {
   return host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
 }
 

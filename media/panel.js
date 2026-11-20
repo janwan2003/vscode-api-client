@@ -3,7 +3,7 @@
 (function () {
   // @ts-ignore
   const vscode = acquireVsCodeApi();
-  const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+  const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'WEBSOCKET'];
   const BODY_TYPES = [
     ['none', 'None', ''],
     ['json', 'JSON', 'application/json'],
@@ -14,7 +14,9 @@
   ];
   const MAX_TREE = 2 * 1024 * 1024;
   const MAX_LIVE_EVENTS = 500;
-  const STREAM_END = { closed: 'closed by the server', stopped: 'stopped', timeout: 'timed out', 'max-events': 'max events reached' };
+  const STREAM_END = { closed: 'closed by the server', stopped: 'stopped', timeout: 'timed out', 'max-events': 'max events reached', done: 'done, all replies arrived' };
+  /** Same rule as core/websocket.ts isWebSocketRequest. */
+  const isWs = (q) => !!q && (['WEBSOCKET', 'WS'].includes(String(q.method).toUpperCase()) || (String(q.method).toUpperCase() === 'GET' && /^\s*wss?:\/\//i.test(q.url || '')));
 
   /** @type {any} */
   let S = vscode.getState() || {
@@ -159,7 +161,7 @@
           oninput: (e) => { S.request.url = e.target.value; changed(); if (S.reqTab === 'params') renderReqBody(); },
           onpaste: onUrlPaste }),
         S.sending
-          ? h('button', { class: 'primary', title: S.stream && S.stream.length ? 'Stop the event stream and keep the events received' : 'Cancel the request', onclick: () => vscode.postMessage({ type: 'cancel' }) }, S.stream && S.stream.length ? 'Stop' : 'Cancel')
+          ? h('button', { class: 'primary', title: S.stream && S.stream.length ? (isWs(S.request) ? 'Close the WebSocket and keep the messages' : 'Stop the event stream and keep the events received') : 'Cancel the request', onclick: () => vscode.postMessage({ type: 'cancel' }) }, S.stream && S.stream.length ? 'Stop' : 'Cancel')
           : h('button', { class: 'primary', id: 'send', title: 'Send (Ctrl/Cmd+Enter)', onclick: send }, 'Send'),
         h('button', { title: S.meta.canSave ? 'Save to ' + S.meta.sourceLabel + ' (Ctrl/Cmd+S)' : 'Save to a .http file (Ctrl/Cmd+S)', onclick: save }, 'Save'),
         h('div', { class: 'menu' },
@@ -266,6 +268,7 @@
           changed(); render();
         } }), label)));
       pane.append(typeSel);
+      if (isWs(S.request)) pane.append(h('p', { class: 'hint' }, 'WebSocket messages: the first is sent on connect; put === on a line between messages, and === wait-for-server before a message to wait for a reply first. Ending with === wait-for-server closes after that reply. A message can be < ./file.bin (sent as binary).'));
       if (type === 'graphql') {
         const parts = splitGql(S.request.body || '');
         let query = parts.query;
@@ -423,8 +426,9 @@
     if (!res) return;
     res.replaceChildren();
     if (S.sending && S.stream && S.stream.length) {
-      res.append(h('div', { class: 'status' }, h('div', { class: 'spinner' }), h('span', {}, 'Receiving events: ' + S.stream.length),
-        h('span', { class: 'hint' }, 'Stop keeps what arrived. Add # @max-events N to stop by itself.')));
+      const ws = isWs(S.request);
+      res.append(h('div', { class: 'status' }, h('div', { class: 'spinner' }), h('span', {}, ws ? 'Connected · ' + streamCount(S.stream, true) : 'Receiving events: ' + S.stream.length),
+        h('span', { class: 'hint' }, ws ? 'Stop closes the connection and keeps the messages. End the script with === wait-for-server, or add # @max-events N, to close by itself.' : 'Stop keeps what arrived. Add # @max-events N to stop by itself.')));
       const pane = h('div', { class: 'pane resp' });
       pane.append(eventsTable(S.stream.slice(-MAX_LIVE_EVENTS)));
       res.append(pane);
@@ -454,7 +458,7 @@
       h('div', { class: 'status' },
         h('span', { class: 'code ' + cls }, r.status + ' ' + (r.statusText || '')),
         h('span', {}, r.timeMs + ' ms'), h('span', {}, fmtSize(r.size)),
-        r.events ? h('span', { title: 'Server-sent events' }, r.events.length + ' event' + (r.events.length === 1 ? '' : 's') + ' · ' + STREAM_END[r.streamEnd || 'closed']) : null,
+        r.events ? h('span', { title: r.status === 101 ? 'WebSocket messages' + (r.closeReason ? ' · close: ' + r.closeReason : '') : 'Server-sent events' }, streamCount(r.events, r.status === 101) + ' · ' + STREAM_END[r.streamEnd || 'closed']) : null,
         tests.length ? h('button', { class: 'link tests ' + (failed ? 'fail' : 'pass'), title: 'Show test results', onclick: () => { S.resTab = 'tests'; persist(); renderResponse(); } },
           failed ? '✗ ' + failed + ' of ' + tests.length + ' checks failed' : '✓ ' + tests.length + ' checks passed') : null,
         h('span', { class: 'spacer' }),
@@ -486,9 +490,9 @@
       const q = S.resolved;
       if (q) pane.append(h('pre', { class: 'code' }, q.method + ' ' + q.url + '\n' + q.headers.map((x) => x.name + ': ' + x.value).join('\n') + (q.body ? '\n\n' + q.body : '')));
     } else if (r.events) {
-      pane.append(h('div', { class: 'tools' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.raw, onchange: (e) => { S.raw = e.target.checked; persist(); renderResponse(); } }), 'Raw stream')));
+      pane.append(h('div', { class: 'tools' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.raw, onchange: (e) => { S.raw = e.target.checked; persist(); renderResponse(); } }), r.status === 101 ? 'Transcript' : 'Raw stream')));
       if (S.raw) pane.append(h('pre', { class: 'code' }, r.body || h('span', { class: 'hint' }, '(empty stream)')));
-      else if (!r.events.length) pane.append(h('p', { class: 'hint' }, 'No events received.'));
+      else if (!r.events.length) pane.append(h('p', { class: 'hint' }, r.status === 101 ? 'No messages.' + (r.closeReason ? ' Closed: ' + r.closeReason : '') : 'No events received.'));
       else pane.append(eventsTable(r.events));
     } else {
       if (r.bodyEncoding === 'base64') {
@@ -528,7 +532,26 @@
     return { name: (i < 0 ? first : first.slice(0, i)).trim(), value: i < 0 ? '' : first.slice(i + 1).trim(), attrs, deleted };
   }
 
+  /** `3 events`, or for a WebSocket `1 sent, 2 received`. */
+  function streamCount(events, ws) {
+    if (!ws) return events.length + ' event' + (events.length === 1 ? '' : 's');
+    const sent = events.filter((e) => e.event === 'sent').length;
+    return sent + ' sent, ' + (events.length - sent) + ' received';
+  }
+
   function eventsTable(events) {
+    if (events.some((e) => e.event === 'sent' || e.event === 'binary') || isWs(S.request)) {
+      // WebSocket: direction instead of SSE id; binary data stays base64.
+      return h('table', { class: 'events' },
+        h('tr', {}, h('th', {}, '#'), h('th', {}, 'ms'), h('th', {}, ''), h('th', {}, 'message')),
+        ...events.map((e, i) => {
+          let data = e.data;
+          if (e.event !== 'binary' && /^\s*[[{]/.test(data)) { try { data = JSON.stringify(JSON.parse(data)); } catch {} }
+          const sent = e.event === 'sent';
+          return h('tr', { class: sent ? 'ws-sent' : 'ws-recv' }, h('td', { class: 'num' }, String(i + 1)), h('td', { class: 'num' }, String(e.timeMs)),
+            h('td', { class: 'dir', title: sent ? 'sent' : e.event === 'binary' ? 'received (binary, base64)' : 'received' }, sent ? '↑' : '↓'), h('td', { class: 'code' }, data));
+        }));
+    }
     return h('table', { class: 'events' },
       h('tr', {}, h('th', {}, '#'), h('th', {}, 'ms'), h('th', {}, 'event'), h('th', {}, 'id'), h('th', {}, 'data')),
       ...events.map((e, i) => {

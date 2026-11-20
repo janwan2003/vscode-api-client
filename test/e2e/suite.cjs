@@ -57,6 +57,28 @@ exports.run = async function run() {
       res.end(JSON.stringify({ ok: true, auth: req.headers.authorization || null }));
     });
   });
+  // Minimal RFC 6455 echo for the WebSocket check: replies "echo:<text>" to each (masked) client text frame.
+  server.on('upgrade', (req, socket) => {
+    const key = req.headers['sec-websocket-key'];
+    const accept = require('crypto').createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+    socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    const frame = (op, payload) => Buffer.concat([Buffer.from([0x80 | op, payload.length]), payload]);
+    let buf = Buffer.alloc(0);
+    socket.on('data', (c) => {
+      buf = Buffer.concat([buf, c]);
+      while (buf.length >= 6) {
+        const len = buf[1] & 0x7f; // short test messages only
+        if (buf.length < 6 + len) break;
+        const mask = buf.subarray(2, 6);
+        const data = Buffer.from(buf.subarray(6, 6 + len)).map((b, i) => b ^ mask[i & 3]);
+        const op = buf[0] & 0x0f;
+        buf = buf.subarray(6 + len);
+        if (op === 8) { socket.end(frame(8, data.subarray(0, 2))); return; }
+        if (op === 1 && socket.writable) socket.write(frame(1, Buffer.from('echo:' + Buffer.from(data).toString())));
+      }
+    });
+    socket.on('error', () => {});
+  });
   let oauthIssued = 0;
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
@@ -241,6 +263,18 @@ exports.run = async function run() {
     assert.equal(response.streamEnd, 'max-events');
     assert.deepEqual(live, ['{"i": 1}', '{"i": 2}', '{"i": 3}']);
     assert.deepEqual(assertions.map((a) => a.passed), [true, true]);
+  });
+
+  await check('WebSocket: WEBSOCKET request with === and wait-for-server, live messages, done, checks on messages', async () => {
+    const f = vscode.Uri.joinPath(ws, 'socket.http');
+    fs.writeFileSync(f.fsPath, '### Echo\n# @assert status == 101\n# @assert messages.length == 2\n# @assert messages[-1].data == echo:two {{envName}}\nWEBSOCKET {{host}}/ws\n\none\n===\ntwo {{envName}}\n=== wait-for-server\n=== wait-for-server\n');
+    const reqs = api.parseHttpFileForTest(fs.readFileSync(f.fsPath, 'utf8')).requests;
+    const live = [];
+    const { response, assertions } = await api.deps.runner.run(reqs[0], { uri: f }, undefined, (e) => live.push(e.event + ' ' + e.data));
+    assert.equal(response.status, 101);
+    assert.equal(response.streamEnd, 'done');
+    assert.deepEqual(live, ['sent one', 'sent two local', 'message echo:one', 'message echo:two local']);
+    assert.deepEqual(assertions.map((a) => a.passed), [true, true, true]);
   });
 
   await check('OpenAPI import from a URL writes .http files', async () => {

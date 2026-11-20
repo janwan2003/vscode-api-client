@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0 (2026-11-20)
+
+- **WebSocket requests**, in the JetBrains HTTP Client format: `WEBSOCKET wss://host/path` (also a bare `ws://`/`wss://` URL, or httpYac's `WS` keyword), headers for the handshake, then the messages. The first message is sent on connect; `===` separates messages; `=== wait-for-server` waits for one message from the server before the next is sent (repeat it to wait for more). A script that ends with `=== wait-for-server` closes the connection (code 1000) once those replies arrived; otherwise it listens until the server closes, you press **Stop**, `# @max-events N` messages arrived, or the timeout (`# @timeout`, `plainwire.timeoutMs`). All of these keep what arrived.
+- `{{variables}}`, environments, chained requests, OAuth 2 tokens and the cookie jar work for the handshake and every message. A message can be `< ./file` (sent as binary) or `<@ ./file` (text with variables). TLS settings (`# @insecure`) and proxies (`CONNECT` for `wss://`) as for HTTPS. Pings are answered, fragmented messages joined; no compression extension.
+- The response view lists every message with a direction arrow and its time (live while connected), the close code and reason, and a *Transcript* view. A refused upgrade (e.g. `401`) is shown as a normal HTTP response with its body.
+- Checks: `messages` = messages received (`messages.length`, `messages[-1].data.type`), `events` = all messages both ways (`event` is `sent`, `message` or `binary`), and `$.x` reads the last JSON message received.
+- CLI: `plainwire run` sends WebSocket requests too; the result line reads `1 sent, 2 received (done)`.
+- Editor: `WEBSOCKET` in the method list, a hint in the Body tab, syntax highlighting for `WEBSOCKET`/`WS` and `===` lines. Copy as Code explains that it covers HTTP requests only.
+
 ## 0.11.0 (2026-11-20)
 
 - **Folders in the Requests view**: the sidebar now shows your workspace's folders, then the `.http` / `.rest` files in each, then the requests in each file (before: one flat list of file paths). A folder whose only child is a folder shows as one row (`api/v2`); setting `plainwire.collections.compactFolders`. Multi-root workspaces get one top-level node per folder.

@@ -1,0 +1,20 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+:root{--vscode-font-family:system-ui,-apple-system,"Segoe UI",sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;--vscode-editor-font-size:12.5px;
+--vscode-foreground:#cccccc;--vscode-editor-background:#1f1f1f;--vscode-descriptionForeground:#9d9d9d;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-button-hoverBackground:#026ec1;
+--vscode-button-secondaryBackground:#313131;--vscode-button-secondaryForeground:#ccc;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-input-border:#3c3c3c;--vscode-panel-border:#2b2b2b;
+--vscode-focusBorder:#0078d4;--vscode-textLink-foreground:#4daafc;--vscode-badge-background:#616161;--vscode-badge-foreground:#f8f8f8;--vscode-charts-green:#89d185;--vscode-charts-yellow:#cca700;--vscode-charts-blue:#3794ff;--vscode-charts-red:#f14c4c;--vscode-charts-purple:#b180d7;
+--vscode-testing-iconPassed:#73c991;--vscode-panelTitle-activeBorder:#0078d4;--vscode-input-placeholderForeground:#989898}
+</style>
+<link rel="stylesheet" href="../../media/panel.css"></head><body><div id="app"></div>
+<script>
+// A WebSocket conversation in the response view. The response is a real run against wss://echo.websocket.org
+// (2026-11-20, core/websocket.ts sendWebSocket), pasted in; rendered by the real panel.js.
+const req = {"method": "WEBSOCKET", "url": "wss://echo.websocket.org", "title": "Echo", "headers": [{"name": "Content-Type", "value": "application/json"}], "asserts": ["status == 101", "messages.length == 3", "$.type == ping"], "body": "{\"type\": \"subscribe\", \"channel\": \"orders\"}\n=== wait-for-server\n{\"type\": \"ping\", \"id\": 1}\n=== wait-for-server\n=== wait-for-server"};
+const resp = {"status": 101, "statusText": "Switching Protocols", "headers": [["upgrade", "websocket"], ["connection", "Upgrade"], ["sec-websocket-accept", "ONagkkUI5pn0mGg8PEzUUyGeztw="], ["date", "Fri, 20 Nov 2026 16:36:56 GMT"], ["server", "Fly/3231795bd6 (2026-11-19)"], ["via", "1.1 fly.io, 1.1 fly.io"], ["fly-request-id", "01M7WX2XAQZ03AYFSVKDSPJAF6-fra"]], "body": "> {\"type\": \"subscribe\", \"channel\": \"orders\"}\n< Request served by 4d896d95b55478\n> {\"type\": \"ping\", \"id\": 1}\n< {\"type\": \"subscribe\", \"channel\": \"orders\"}\n< {\"type\": \"ping\", \"id\": 1}", "bodyEncoding": "utf8", "size": 105, "timeMs": 190, "url": "wss://echo.websocket.org/", "events": [{"event": "sent", "data": "{\"type\": \"subscribe\", \"channel\": \"orders\"}", "timeMs": 148}, {"event": "message", "data": "Request served by 4d896d95b55478", "timeMs": 149}, {"event": "sent", "data": "{\"type\": \"ping\", \"id\": 1}", "timeMs": 149}, {"event": "message", "data": "{\"type\": \"subscribe\", \"channel\": \"orders\"}", "timeMs": 188}, {"event": "message", "data": "{\"type\": \"ping\", \"id\": 1}", "timeMs": 189}], "streamEnd": "done"};
+window.acquireVsCodeApi = () => ({ getState: () => null, setState(){}, postMessage(m){
+  if (m.type==='ready') { window.postMessage({type:'load',request:req,sourceLabel:'http/echo.http',canSave:true,env:'dev',envNames:['dev','prod']}, '*');
+    setTimeout(()=>{ window.postMessage({type:'response',response:resp,resolved:req,assertions:[{source:'status == 101',passed:true,actual:'101',message:'passed'},{source:'messages.length == 3',passed:true,actual:'3',message:'passed'},{source:'$.type == ping',passed:true,actual:'"ping"',message:'passed'}]}, '*');
+      setTimeout(()=>{ const b=[...document.querySelectorAll('button.tab')].find((b)=>b.textContent.startsWith('Body')); if (b) b.click(); }, 50); }, 30); }
+}});
+</script><script src="../../media/panel.js"></script></body></html>

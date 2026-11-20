@@ -57,6 +57,11 @@ interface Req {
 }
 
 export function generateCode(target: CodeTarget, request: HttpRequest): string {
+  // Same rule as core/websocket.ts isWebSocketRequest (not imported: that module needs node:crypto and node:net, and this one runs in the browser too).
+  const m = request.method.toUpperCase();
+  if (m === 'WEBSOCKET' || m === 'WS' || (m === 'GET' && /^\s*wss?:\/\//i.test(request.url))) {
+    throw new Error('WebSocket requests cannot be copied as code: the snippets are for HTTP requests. Run it with Send, Run All or the plainwire CLI.');
+  }
   const req = normalize(request);
   switch (target) {
     case 'curl':

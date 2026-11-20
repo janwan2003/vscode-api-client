@@ -67,8 +67,11 @@ export type Subject =
   /** A cookie set by this response's `Set-Cookie` headers (a deleting `Set-Cookie` counts as not set). */
   | { kind: 'cookie'; name: string }
   | { kind: 'json'; path: string }
-  /** Server-sent events: `events` (the list), `events.length`, `events[0].data.text`, `events[-1].event`. */
-  | { kind: 'events'; path: string };
+  /**
+   * Server-sent events: `events` (the list), `events.length`, `events[0].data.text`, `events[-1].event`.
+   * WebSocket: `events` is every message both ways; `messages` only those received from the server.
+   */
+  | { kind: 'events'; path: string; received?: boolean };
 
 export interface Assertion {
   source: string;
@@ -277,12 +280,12 @@ function parseCore(text: string, source: string): Assertion {
     subject = { kind: 'header', name: m[1] };
   } else if ((m = take(/^(?:res(?:ponse)?\.)?cookies?(?:\.|\s+)([A-Za-z0-9!#$%&'*+.^_`|~-]+)(?=\s|$)/i))) {
     subject = { kind: 'cookie', name: m[1] };
-  } else if ((m = take(/^events((?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)/))) {
-    subject = { kind: 'events', path: '$' + m[1] };
+  } else if ((m = take(/^(events|messages)((?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)/))) {
+    subject = { kind: 'events', path: '$' + m[2], ...(m[1] === 'messages' ? { received: true } : {}) };
   } else if ((m = take(/^(?:(?:res(?:ponse)?\.)?body\.)?(\$(?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)/))) {
     subject = { kind: 'json', path: m[1] };
   } else {
-    throw new Error(`Unknown assertion subject in "${source}". Use status, time, size, body, header <name>, cookie <name>, a JSONPath like $.id, or events[0].data for server-sent events`);
+    throw new Error(`Unknown assertion subject in "${source}". Use status, time, size, body, header <name>, cookie <name>, a JSONPath like $.id, events[0].data for server-sent events, or messages[0].data for WebSocket replies`);
   }
   return { source, subject, ...parsePredicate(rest, source) };
 }
@@ -339,9 +342,14 @@ function bodyText(res: HttpResponse): string {
   return res.bodyEncoding === 'base64' ? Buffer.from(res.body, 'base64').toString('latin1') : res.body;
 }
 
+/** The JSON body; for a WebSocket (101 with messages), the last message received from the server. */
 function parseJsonBody(res: HttpResponse): { ok: true; value: unknown } | { ok: false } {
   if (res.bodyEncoding !== 'utf8') return { ok: false };
   try {
+    if (res.status === 101 && res.events) {
+      const last = res.events.filter((e) => e.event === 'message').pop();
+      return last ? { ok: true, value: JSON.parse(last.data) } : { ok: false };
+    }
     return { ok: true, value: JSON.parse(res.body) };
   } catch {
     return { ok: false };
@@ -416,8 +424,8 @@ export function evaluateAssertion(a: Assertion, res: HttpResponse): AssertionRes
       found = actual !== undefined;
       break;
     case 'events': {
-      if (!res.events) return { source: a.source, passed: false, message: 'not a server-sent events response (Content-Type is not text/event-stream)' };
-      actual = jsonPath(eventsView(res.events), a.subject.path);
+      if (!res.events) return { source: a.source, passed: false, message: a.subject.received ? 'not a WebSocket response' : 'not a server-sent events or WebSocket response' };
+      actual = jsonPath(eventsView(a.subject.received ? res.events.filter((e) => e.event !== 'sent') : res.events), a.subject.path);
       found = actual !== undefined;
       break;
     }
