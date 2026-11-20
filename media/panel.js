@@ -173,17 +173,85 @@
             S.meta.canSave ? h('button', { onclick: () => vscode.postMessage({ type: 'openText' }) }, 'Show in .http file') : null))),
       h('div', { class: 'sub' },
         h('span', { class: 'source', title: 'Where this request is stored' }, S.meta.sourceLabel, h('span', { id: 'dirty', class: 'dirty', hidden: !(S.dirty && S.meta.canSave) }, ' ● unsaved')),
-        h('button', { class: 'link env', title: 'Environment used for {{variables}}', onclick: () => vscode.postMessage({ type: 'selectEnv' }) },
-          'Env: ', h('b', {}, S.meta.env || 'none'))),
+        h('span', { class: 'sub-right' },
+          h('button', { class: 'link layout', id: 'layoutBtn', onclick: toggleLayout }),
+          h('button', { class: 'link env', title: 'Environment used for {{variables}}', onclick: () => vscode.postMessage({ type: 'selectEnv' }) },
+            'Env: ', h('b', {}, S.meta.env || 'none')))),
       h('div', { class: 'split' },
         h('section', { class: 'req' },
           tabs(['params', 'Params', countParams()], ['headers', 'Headers', S.request.headers.filter((x) => !x.disabled).length], ['body', 'Body', bodyType() === 'none' ? '' : '●'], ['auth', 'Auth', authInfo().type === 'none' ? '' : '●'], ['tests', 'Tests', (S.request.asserts || []).length || ''], ['scripts', 'Scripts', scriptCount() || ''], ['info', 'Info', '']),
           h('div', { id: 'reqBody', class: 'pane' })),
+        h('div', { class: 'gutter', title: 'Drag to resize · double-click to reset', onpointerdown: startDrag, ondblclick: () => { const l = layout(); delete l[layoutMode()]; saveLayout(l); } }),
         h('section', { class: 'res', id: 'res' })),
     );
+    applyLayout();
     renderReqBody();
     renderResponse();
   }
+
+  // ---------- layout: side by side or stacked, with a draggable divider ----------
+  /** Below this width (CSS px) "auto" stacks the response under the request. */
+  const SIDE_BY_SIDE_MIN = 820;
+  function layout() {
+    return { mode: 'auto', ...(S.meta.layout || {}) };
+  }
+  /** The layout in effect: 'cols' (request left, response right) or 'rows' (response below). */
+  function layoutMode() {
+    const l = layout();
+    return l.mode === 'cols' || l.mode === 'rows' ? l.mode : window.innerWidth >= SIDE_BY_SIDE_MIN ? 'cols' : 'rows';
+  }
+  function applyLayout() {
+    const sp = $('.split');
+    if (!sp) return;
+    const mode = layoutMode();
+    const l = layout();
+    const r = Math.min(0.85, Math.max(0.15, Number(l[mode]) || (mode === 'cols' ? 0.5 : 0.45)));
+    sp.classList.toggle('cols', mode === 'cols');
+    sp.classList.toggle('rows', mode === 'rows');
+    const tracks = `minmax(0, ${r}fr) 7px minmax(0, ${1 - r}fr)`;
+    sp.style.gridTemplateColumns = mode === 'cols' ? tracks : '';
+    sp.style.gridTemplateRows = mode === 'rows' ? tracks : '';
+    const b = $('#layoutBtn');
+    if (b) {
+      b.textContent = mode === 'cols' ? '⇅ Stack' : '⇆ Side by side';
+      b.title = (mode === 'cols' ? 'Show the response below the request' : 'Show the response next to the request') + (l.mode === 'auto' ? ' (now automatic: side by side when this tab is at least ' + SIDE_BY_SIDE_MIN + ' px wide)' : '');
+    }
+  }
+  function saveLayout(l) {
+    S.meta.layout = l;
+    persist();
+    applyLayout();
+    vscode.postMessage({ type: 'layout', layout: l });
+  }
+  function toggleLayout() {
+    saveLayout({ ...layout(), mode: layoutMode() === 'cols' ? 'rows' : 'cols' });
+  }
+  function startDrag(/** @type {PointerEvent} */ e) {
+    const sp = $('.split');
+    const g = /** @type {HTMLElement} */ (e.currentTarget);
+    if (!sp) return;
+    e.preventDefault();
+    try { g.setPointerCapture(e.pointerId); } catch { /* synthetic events have no active pointer */ }
+    g.classList.add('dragging');
+    const mode = layoutMode();
+    const rect = sp.getBoundingClientRect();
+    const l = layout();
+    const move = (/** @type {PointerEvent} */ ev) => {
+      const r = mode === 'cols' ? (ev.clientX - rect.left) / rect.width : (ev.clientY - rect.top) / rect.height;
+      l[mode] = Math.round(Math.min(0.85, Math.max(0.15, r)) * 1000) / 1000;
+      S.meta.layout = l;
+      applyLayout();
+    };
+    const up = () => {
+      g.removeEventListener('pointermove', move);
+      g.removeEventListener('pointerup', up);
+      g.classList.remove('dragging');
+      saveLayout(l);
+    };
+    g.addEventListener('pointermove', move);
+    g.addEventListener('pointerup', up);
+  }
+  window.addEventListener('resize', applyLayout);
 
   function countParams() {
     const n = splitQuery(S.request.url).params.length;
@@ -521,7 +589,7 @@
         h('span', {}, r.timeMs + ' ms'), h('span', {}, fmtSize(r.size)),
         r.events ? h('span', { title: r.status === 101 ? 'WebSocket messages' + (r.closeReason ? ' · close: ' + r.closeReason : '') : 'Server-sent events' }, streamCount(r.events, r.status === 101) + ' · ' + STREAM_END[r.streamEnd || 'closed']) : null,
         tests.length ? h('button', { class: 'link tests ' + (failed ? 'fail' : 'pass'), title: 'Show test results', onclick: () => { S.resTab = 'tests'; persist(); renderResponse(); } },
-          failed ? '✗ ' + failed + ' of ' + tests.length + ' checks failed' : '✓ ' + tests.length + ' checks passed') : null,
+          failed ? '✗ ' + failed + ' of ' + tests.length + (tests.length === 1 ? ' check failed' : ' checks failed') : '✓ ' + tests.length + (tests.length === 1 ? ' check passed' : ' checks passed')) : null,
         h('span', { class: 'spacer' }),
         h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'openBody', body: r.bodyEncoding === 'utf8' ? prettyText(r.body, ct) : r.body, contentType: ct }) }, 'Open in editor'),
         h('button', { class: 'link', onclick: () => navigator.clipboard.writeText(r.body) }, 'Copy')),
@@ -564,14 +632,129 @@
       }
       let json;
       if (/json/i.test(ct) || /^\s*[[{]/.test(r.body)) { try { json = JSON.parse(r.body); } catch {} }
-      if (json !== undefined) {
-        pane.append(h('div', { class: 'tools' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.raw, onchange: (e) => { S.raw = e.target.checked; persist(); renderResponse(); } }), 'Raw')));
-        if (S.raw || r.body.length > MAX_TREE) pane.append(h('pre', { class: 'code' }, S.raw ? r.body : JSON.stringify(json, null, 2)));
-        else pane.append(h('div', { class: 'json code' }, jsonNode(json, 0)));
-      } else {
-        pane.append(h('pre', { class: 'code' }, r.body || h('span', { class: 'hint' }, '(empty body)')));
-      }
+      const out = h('div', { class: 'filtered' });
+      const draw = () => drawBody(out, r, json);
+      pane.append(h('div', { class: 'tools' },
+        json !== undefined ? h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.raw, onchange: (e) => { S.raw = e.target.checked; persist(); draw(); } }), 'Raw') : null,
+        r.body ? h('input', { class: 'filter', type: 'search', spellcheck: 'false', value: S.filter || '',
+          placeholder: json !== undefined ? 'Filter: $.items[*].id, $..name, $.users[?(@.active)] or text' : 'Filter lines containing…',
+          title: 'JSONPath ($ …) shows the matching values; any other text shows the lines that contain it',
+          oninput: (e) => { S.filter = e.target.value; persist(); draw(); } }) : null,
+        h('span', { class: 'filter-info', id: 'filterInfo' })),
+        out);
+      draw();
     }
+  }
+
+  /** The response body view: JSON tree / raw text, narrowed by the filter box (JSONPath or text). */
+  function drawBody(out, r, json) {
+    const info = $('#filterInfo');
+    const q = (S.filter || '').trim();
+    out.replaceChildren();
+    if (info) info.replaceChildren();
+    if (q && json !== undefined && q.startsWith('$')) {
+      let hits;
+      try { hits = jsonQuery(json, q); } catch (e) { if (info) info.append(h('span', { class: 'err' }, String(e.message || e))); return; }
+      if (info) {
+        info.append(hits.length === 1 ? '1 match' : hits.length + ' matches');
+        // A single plain path can become a check: # @assert $.path == value (the same JSONPath the tests use).
+        if (hits.length === 1 && !(S.request.asserts || []).some((a) => a.startsWith(q + ' ')) && /^\$(\.[A-Za-z_$][\w$-]*|\[-?\d+\]|\[['"][^'"]*['"]\])+$/.test(q)) {
+          const v = hits[0];
+          const expected = v === null || typeof v !== 'object' ? JSON.stringify(v) : null;
+          const line = expected !== null ? q + ' == ' + expected : q + ' exists';
+          info.append(' ', h('button', { class: 'link', title: 'Add "# @assert ' + line + '" to this request\'s tests', onclick: () => {
+            S.request.asserts = [...(S.request.asserts || []), line]; changed(); render(); } }, '+ Add as test'));
+        }
+      }
+      if (!hits.length) { out.append(h('p', { class: 'hint' }, 'No values match ' + q + '.')); return; }
+      const shown = hits.length === 1 ? hits[0] : hits;
+      if (S.raw || JSON.stringify(shown).length > MAX_TREE) out.append(h('pre', { class: 'code' }, JSON.stringify(shown, null, 2)));
+      else out.append(h('div', { class: 'json code' }, jsonNode(shown, 0)));
+      return;
+    }
+    const text = json !== undefined && !S.raw ? JSON.stringify(json, null, 2) : r.body;
+    if (q) {
+      const needle = q.toLowerCase();
+      const lines = text.split(/\r?\n/);
+      const rows = [];
+      let count = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const low = lines[i].toLowerCase();
+        if (!low.includes(needle)) continue;
+        const parts = [];
+        let at = 0, j;
+        while ((j = low.indexOf(needle, at)) >= 0) { parts.push(lines[i].slice(at, j), h('mark', {}, lines[i].slice(j, j + q.length))); at = j + q.length; count++; }
+        parts.push(lines[i].slice(at));
+        if (rows.length < 2000) rows.push(h('div', { class: 'grep-row' }, h('span', { class: 'ln' }, String(i + 1)), h('span', {}, ...parts)));
+      }
+      if (info) info.append(count + (count === 1 ? ' match' : ' matches') + ' in ' + rows.length + (rows.length === 1 ? ' line' : ' lines'));
+      out.append(rows.length ? h('div', { class: 'grep code' }, ...rows) : h('p', { class: 'hint' }, 'No lines contain "' + q + '".'));
+      return;
+    }
+    if (json !== undefined && !S.raw && r.body.length <= MAX_TREE) out.append(h('div', { class: 'json code' }, jsonNode(json, 0)));
+    else out.append(h('pre', { class: 'code' }, text || h('span', { class: 'hint' }, '(empty body)')));
+  }
+
+  /**
+   * JSONPath for the filter box: $, .key, ['key'], [n], [-n], [a:b], [*], .*, ..key (any depth), ..*,
+   * [?(@.k)], [?(@.k == v)] with == != < <= > >= (v: number, 'string', "string", true, false, null), [a,b].
+   * Returns every matching value.
+   */
+  function jsonQuery(root, path) {
+    let p = path.trim().replace(/^\$/, '');
+    let cur = [root];
+    const kids = (v) => (v && typeof v === 'object' ? (Array.isArray(v) ? v : Object.values(v)) : []);
+    const descend = (v, out) => { out.push(v); for (const k of kids(v)) descend(k, out); return out; };
+    const pick = (v, key) => {
+      if (v === null || typeof v !== 'object') return [];
+      if (Array.isArray(v) && /^-?\d+$/.test(key)) { const n = Number(key); const x = v[n < 0 ? v.length + n : n]; return x === undefined ? [] : [x]; }
+      return Object.prototype.hasOwnProperty.call(v, key) ? [v[key]] : key === 'length' && Array.isArray(v) ? [v.length] : [];
+    };
+    const lit = (t) => {
+      t = t.trim();
+      if (/^(['"]).*\1$/.test(t)) return t.slice(1, -1);
+      if (t === 'true' || t === 'false' || t === 'null' || /^-?\d+(\.\d+)?$/.test(t)) return JSON.parse(t);
+      throw new Error('Cannot read the value ' + t);
+    };
+    const field = (v, f) => f.split('.').filter(Boolean).reduce((acc, k) => (acc === null || typeof acc !== 'object' ? undefined : acc[k]), v);
+    const filter = (list, expr) => {
+      const m = /^@((?:\.[\w$-]+)*)\s*(?:(==|!=|<=|>=|<|>|=~)\s*(.+))?$/.exec(expr.trim());
+      if (!m) throw new Error('Filters look like [?(@.price < 10)] or [?(@.active)]');
+      const want = m[2] ? (m[2] === '=~' ? new RegExp(m[3].trim().replace(/^\/(.*)\/(\w*)$/, '$1'), 'i') : lit(m[3])) : undefined;
+      return list.filter((x) => {
+        const a = field(x, m[1]);
+        switch (m[2]) {
+          case undefined: return a !== undefined && a !== null && a !== false;
+          case '==': return a === want; case '!=': return a !== want;
+          case '<': return a < want; case '<=': return a <= want; case '>': return a > want; case '>=': return a >= want;
+          default: return typeof a === 'string' && want.test(a);
+        }
+      });
+    };
+    while (p) {
+      let m;
+      if ((m = /^\.\.(\*|[\w$-]+)?/.exec(p)) && (m[1] || p[2] === '[')) {
+        const all = cur.flatMap((v) => descend(v, []));
+        cur = m[1] === '*' ? all.flatMap(kids) : m[1] ? all.flatMap((v) => pick(v, m[1])) : all;
+      } else if ((m = /^\.(\*|[\w$-]+)/.exec(p))) {
+        cur = m[1] === '*' ? cur.flatMap(kids) : cur.flatMap((v) => pick(v, m[1]));
+      } else if ((m = /^\[\s*\?\((.*?)\)\s*\]/.exec(p))) {
+        const expr = m[1];
+        cur = cur.flatMap((v) => filter(kids(v), expr));
+      } else if ((m = /^\[([^\]]*)\]/.exec(p))) {
+        const inner = m[1].trim();
+        if (inner === '*') cur = cur.flatMap(kids);
+        else if (/^-?\d*\s*:\s*-?\d*$/.test(inner)) {
+          const [a, b] = inner.split(':').map((x) => x.trim());
+          cur = cur.flatMap((v) => (Array.isArray(v) ? v.slice(a === '' ? 0 : Number(a), b === '' ? undefined : Number(b)) : []));
+        } else {
+          const keys = inner.split(',').map((k) => k.trim().replace(/^(['"])(.*)\1$/, '$2'));
+          cur = cur.flatMap((v) => keys.flatMap((k) => pick(v, k)));
+        }
+      } else throw new Error('Cannot read "' + p.slice(0, 20) + '" in the path');
+      p = p.slice(m[0].length);
+    }
+    return cur;
   }
 
   /** Server-sent events as a table: time, event type, id and data (JSON shown compact, text as is). */
@@ -671,14 +854,15 @@
     if (m.type === 'load') {
       S.request = m.request;
       S.request.headers = S.request.headers || [];
-      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [] };
+      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [], layout: m.layout || S.meta.layout };
       if (m.response) { S.response = m.response; S.error = null; S.assertions = []; S.lastAssertions = []; S.logs = []; }
       S.dirty = false;
       S.sending = false;
       persist();
       render();
+      if (!S.request.url) /** @type {HTMLInputElement} */ ($('#url'))?.focus();
     } else if (m.type === 'env' || m.type === 'saved') {
-      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [] };
+      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [], layout: m.layout || S.meta.layout };
       if (m.type === 'saved') S.dirty = false;
       persist();
       render();
@@ -695,6 +879,8 @@
       persist(); render();
     } else if (m.type === 'error') {
       S.sending = false; S.stream = []; S.error = m.message; persist(); render();
+    } else if (m.type === 'layout') {
+      S.meta.layout = m.layout; persist(); applyLayout();
     } else if (m.type === 'setRequest') {
       S.request = m.request; changed(); render();
     }

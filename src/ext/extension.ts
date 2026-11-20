@@ -30,7 +30,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const output = vscode.window.createOutputChannel('Plainwire');
   const runner = new Runner(envs, history, cookies, (m) => output.appendLine(`[${new Date().toLocaleTimeString()}] ${m}`), context.workspaceState);
   const copier = new CodeCopier(runner, context.globalState);
-  const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier };
+  const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier, ui: context.globalState };
   const collections = new CollectionsProvider();
   const organizer = new Organizer(deps, collections);
   void envs.reload();
@@ -200,6 +200,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     cookiesForTest: cookies,
     oauth2ForTest: runner.oauth2,
     envEditorForTest: () => EnvEditorPanel.current,
+    envsForTest: envs,
     collectionsForTest: collections,
     organizerForTest: organizer,
     parseHttpFileForTest: parseHttpFile,

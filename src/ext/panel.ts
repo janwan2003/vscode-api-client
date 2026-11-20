@@ -14,7 +14,17 @@ export interface PanelDeps {
   runner: Runner;
   envs: EnvironmentManager;
   copier: CodeCopier;
+  /** Where the request/response layout preference is kept (shared by all request tabs). */
+  ui?: vscode.Memento;
 }
+
+/** Request/response layout: auto (side by side when the tab is wide), columns or rows, and the divider positions. */
+export interface PanelLayout {
+  mode: 'auto' | 'cols' | 'rows';
+  cols?: number;
+  rows?: number;
+}
+const LAYOUT_KEY = 'plainwire.panelLayout';
 
 type FromWebview =
   | { type: 'ready' }
@@ -29,7 +39,8 @@ type FromWebview =
   | { type: 'acquireToken'; id: string }
   | { type: 'changed'; request: HttpRequest }
   | { type: 'openBody'; body: string; contentType: string }
-  | { type: 'importCurl'; text: string };
+  | { type: 'importCurl'; text: string }
+  | { type: 'layout'; layout: PanelLayout };
 
 /** A request editor tab. One per saved request; scratch requests get their own tabs. */
 export class RequestPanel {
@@ -144,6 +155,7 @@ export class RequestPanel {
       env: this.deps.envs.selected ?? null,
       envNames: this.deps.envs.names(),
       authIds: this.deps.runner.authIds(),
+      layout: this.deps.ui?.get<PanelLayout>(LAYOUT_KEY) ?? { mode: 'auto' },
     };
   }
 
@@ -193,6 +205,11 @@ export class RequestPanel {
           await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true });
           break;
         }
+        case 'layout':
+          await this.deps.ui?.update(LAYOUT_KEY, m.layout);
+          // Other open request tabs follow the new layout.
+          for (const p of RequestPanel.open.values()) if (p !== this) p.post({ type: 'layout', layout: m.layout });
+          break;
         case 'importCurl': {
           const parsed = parseCurl(m.text);
           this.request = { ...parsed, title: this.request.title, name: this.request.name };

@@ -43,16 +43,16 @@
       <p class="small">VS Code Marketplace and Open VSX listings are coming soon. Until then, install from the release file below.</p>
     </section>
 
-    <figure class="shot"><img src="screenshot.png" width="1280" height="720" alt="The Plainwire request editor in VS Code: a POST request with a JSON body on the left and a 201 Created JSON response, collapsible, on the right."><figcaption>The request editor. Every request is saved as plain text in a <code>.http</code> file.</figcaption></figure>
+    <figure class="shot"><img src="screenshot.png" width="1280" height="800" alt="Plainwire in VS Code: the Requests sidebar with an api/users.http file, and a POST request with four passing checks on the left and its 201 Created JSON response, with a filter box, on the right."><figcaption>The request editor. Every request is saved as plain text in a <code>.http</code> file.</figcaption></figure>
 
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>plainwire-0.13.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>plainwire-0.14.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, Cursor, Windsurf or VSCodium open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and pick the file. Or from a terminal:
-<pre>code --install-extension plainwire-0.13.0.vsix
-cursor --install-extension plainwire-0.13.0.vsix
-codium --install-extension plainwire-0.13.0.vsix</pre></li>
+<pre>code --install-extension plainwire-0.14.0.vsix
+cursor --install-extension plainwire-0.14.0.vsix
+codium --install-extension plainwire-0.14.0.vsix</pre></li>
         <li><strong>Open any folder with a <code>.http</code> file</strong> (or create one). A <strong>Send Request</strong> and an <strong>Open in editor</strong> link appear above each request. Requires VS Code 1.85 or newer, or an editor built on it.</li>
       </ol>
       <p class="small">Listings on the VS Code Marketplace and on Open VSX (the registry Cursor, Windsurf and VSCodium use) are coming soon.</p>
@@ -61,10 +61,10 @@ codium --install-extension plainwire-0.13.0.vsix</pre></li>
 
   <div class="section-soft">
     <div class="wrap">
-      <h2 style="margin-top:0">What you get in v0.13</h2>
+      <h2 style="margin-top:0">What you get in v0.14</h2>
       <div class="grid">
         <div class="card"><h3>Request editor</h3><p>Method, URL, a query-params table, a headers table, JSON / text / form bodies, and Bearer or Basic auth helpers. Press Send.</p></div>
-        <div class="card"><h3>Response viewer</h3><p>Status, time and size at a glance; pretty-printed JSON, response headers, and the raw body.</p></div>
+        <div class="card"><h3>Response viewer <span class="small">(filter new in 0.14)</span></h3><p>Next to the request, with a draggable divider. Status, time and size at a glance; a collapsible JSON tree you can filter with JSONPath (<code>$.items[?(@.active)].id</code>) or text, and <strong>+ Add as test</strong> to turn a value into a check.</p></div>
         <div class="card"><h3>Plain .http files</h3><p>Saved in your repo in the REST Client / JetBrains HTTP Client format: <code>###</code>, <code>@var = value</code>, <code>{{var}}</code>, <code># @name</code>.</p></div>
         <div class="card"><h3>CodeLens in any .http file</h3><p><strong>Send Request</strong> and <strong>Open in editor</strong> above every request, including files you already have.</p></div>
         <div class="card"><h3>Environments</h3><p><code>http-client.env.json</code>, <code>http-client.private.env.json</code> for secrets, and the <code>rest-client.environmentVariables</code> setting.</p></div>
@@ -163,7 +163,7 @@ X-Request-Id: <span class="v">{{$guid}}</span></pre>
       </details>
       <details>
         <summary>Does it work in Cursor, Windsurf and VSCodium?</summary>
-        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.13.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
+        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.14.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
       </details>
       <details>
         <summary>Can I keep using my REST Client files?</summary>

@@ -18,6 +18,7 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
 - **Server-sent events** (new in 0.7): `text/event-stream` responses show event by event as they arrive, with Stop, `# @max-events 3`, `# @timeout 30s`, and checks such as `# @assert events[-1].data == "[DONE]"` or `events[0].data.text == Hi` (JSON data is parsed). The CLI prints the event count.
 - **Shared files** (new in 0.6): `# @import ../shared/auth.http` (httpYac) or `import ../shared/auth.http` (JetBrains) makes another file's variables and named requests available, so one login request serves every file. The importing file's own variables win; nested imports and cycles are handled. Works in the editor, Run all and the CLI.
 - **Import**: Thunder Client collection exports and the `thunder-tests` workspace folder, Postman v2.0/v2.1 collections and environments, **OpenAPI 3.0/3.1 and Swagger 2.0** definitions in YAML or JSON (one file per tag, example bodies, auth, a status check per request), cURL commands (or paste a cURL command into the URL box). Export any request as cURL.
+- **Side by side, filterable responses** (new in 0.14): the response sits next to the request (drag the divider, or switch to stacked), and a filter box narrows it with JSONPath (`$.items[?(@.active)].id`, `$..name`) or plain text. **+ Add as test** turns a filtered value into a `# @assert` check.
 - **Tests and Run all (free, no run limits)**: add checks as `# @assert` lines (`status == 200`, `$.id exists`, `time < 500`, `header content-type contains json`, `$.items.length > 0`, `$.email matches /@example\.com$/`) or in the editor's Tests tab. *Run all* sends every request in a file, folder or workspace in order and shows a pass/fail report you can re-run or copy as Markdown. Thunder Client tests and common Postman test snippets are converted on import; other Postman test and pre-request scripts are kept as script blocks and run (see **Scripts**). [Syntax guide](https://janwan2003.github.io/vscode-api-client/api-tests-in-http-files.html).
   ![Run all report](docs/run-all.png)
 - **Real-world networking**: any port, self-signed certificates (`# @insecure` per request or `plainwire.rejectUnauthorized: false`), HTTP proxies (`plainwire.proxy`, VS Code's `http.proxy`, `HTTPS_PROXY`), header names sent with your casing, gzip/deflate/brotli.
@@ -65,7 +66,7 @@ unchanged, as are `$schema` and the order of your keys. With several env files i
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.13.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.14.0.vsix`; same for `cursor` / `codium`).
 
 ## Run the same files in CI
 
@@ -77,7 +78,7 @@ node plainwire.mjs run api/ --env staging --junit results.xml
 ```yaml
 # .github/workflows/api-tests.yml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.13.0
+- uses: janwan2003/vscode-api-client@v0.14.0
   with:
     files: api/
     env: ci

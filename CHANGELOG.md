@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0 (2026-11-20)
+
+- **Request and response side by side.** The request editor now puts the response next to the request whenever the tab is at least 820 px wide (before: only from 1100 px, so on most laptops the response sat under the request and shrank when the request had scripts or many headers). A **Side by side / Stack** button switches the layout, and the divider between the two halves can be dragged (double-click resets it). The choice is remembered for every request tab.
+- **Filter the response.** A filter box above the response body: a JSONPath (`$.items[*].id`, `$..name`, `$.users[?(@.active)]`, `$.orders[?(@.total > 100)].id`, `$.list[0:5]`, `$.a['b','c']`) shows only the matching values with a count; any other text lists the lines that contain it, highlighted, with line numbers. Works on JSON, HTML, XML and text responses.
+- **+ Add as test** next to a single filtered value adds `# @assert $.path == value` to the request, so exploring a response becomes a check that runs on every send, in Run all and in the CLI.
+- New Request puts the cursor in the URL box. "1 check passed" instead of "1 checks passed". The request tabs wrap instead of being cut off when the request half is narrow.
+
 ## 0.13.0 (2026-11-20)
 
 - **JavaScript in `.http` files**, in the JetBrains HTTP Client format. `< {% … %}` above the request line runs before the request (`request.variables.set('sig', …)` for this request only; `request.environment.get`, `request.url.tryGetSubstituted()`, headers and body). `> {% … %}` after the request runs on the response: `client.test('name', () => client.assert(response.status === 200, '…'))`, `client.global.set('token', response.body.token)`, `client.log`, `client.exit()`; `response.status`, `response.body` (parsed JSON or text), `response.headers.valueOf(name)`, `response.contentType`. `< ./sign.js` / `> ./check.js` load the code from a file. Helpers: `crypto` (MD5/SHA-1/SHA-2 and HMAC, hex or Base64), `$random`, `jsonPath`, `btoa`/`atob`, `console.log`. For server-sent events and WebSocket, `response.body.onEachMessage(…)` replays the received messages. Before, these blocks were kept in the file but never run. REST Client has no scripting ([#521](https://github.com/Huachao/vscode-restclient/issues/521)); in Thunder Client it is a paid feature.
