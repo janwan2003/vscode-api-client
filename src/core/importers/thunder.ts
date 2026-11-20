@@ -1,6 +1,7 @@
 import type { HttpRequest, ImportedCollection } from '../model.ts';
 import { basicAuthValue, buildMultipartBody, filePath, formEncode, multipartContentType } from '../curl.ts';
 import type { MultipartPart } from '../curl.ts';
+import { convertThunderTests } from './tests.ts';
 import { arr, cleanImportedRequest, graphqlBody, hasHeader, isObj, str } from './postman.ts';
 
 /**
@@ -210,7 +211,11 @@ function convertRequest(
   }
 
   const skipped: string[] = [];
-  if (hasContent(r.tests)) skipped.push('tests');
+  if (hasContent(r.tests)) {
+    const t = convertThunderTests(r.tests);
+    if (t.asserts.length) req.asserts = t.asserts;
+    if (t.skipped.length) warnings.push(`${label}: ${t.skipped.length} test(s) not converted to # @assert: ${t.skipped.join('; ')}.`);
+  }
   if (hasContent(r.preReq)) skipped.push('pre-request actions');
   if (hasContent(r.postReq)) skipped.push('post-request actions');
   if (hasContent(r.scripts) || hasContent(r.script)) skipped.push('scripts');

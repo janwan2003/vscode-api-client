@@ -2,6 +2,8 @@
 
 ### Login
 # @name login
+# @assert status == 200
+# @assert $.token exists
 POST {{base}}/login
 Content-Type: application/json
 

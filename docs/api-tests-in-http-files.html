@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API testing in VS Code with .http files: assertions and Run all | Plainwire</title>
+<meta name="description" content="Write API tests as # @assert lines in plain .http files and run a whole file or workspace from VS Code. Status, headers, JSONPath checks, a pass/fail report, and Thunder Client and Postman tests imported. Free, no run limits.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/api-tests-in-http-files.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="API testing in VS Code with .http files">
+<meta property="og:description" content="Response checks as # @assert comment lines, a Run all collection runner, and imported Thunder Client and Postman tests. Free, no run limits.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/api-tests-in-http-files.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>API testing in VS Code with .http files</h1>
+    <p>Plainwire 0.2.0 adds response checks to plain <code>.http</code> files and a <strong>Run all</strong> collection runner. A check is a comment line, <code># @assert status == 200</code>, placed above the request it tests. It runs after every send, and Run all sends a whole file or workspace in order and gives you a pass/fail report. Because the checks are comments, the same file still works unchanged in REST Client, which simply ignores them.</p>
+    <p class="small">Everything on this page needs Plainwire 0.2.0 or newer. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a> (see <a href="./#install">install steps</a>).</p>
+
+    <nav class="toc" aria-label="On this page">
+      <ul>
+        <li><a href="#example">A complete example</a></li>
+        <li><a href="#subjects">What you can check</a></li>
+        <li><a href="#operators">Operators</a></li>
+        <li><a href="#values">Expected values</a></li>
+        <li><a href="#run-all">Run all</a></li>
+        <li><a href="#editor">Checks in the request editor</a></li>
+        <li><a href="#thunder">Coming from Thunder Client tests</a></li>
+        <li><a href="#postman">Postman test snippets</a></li>
+        <li><a href="#faq">Questions</a></li>
+      </ul>
+    </nav>
+
+    <h2 id="example">A complete example</h2>
+    <p>The grammar is <code># @assert &lt;subject&gt; &lt;operator&gt; [expected]</code>. Put as many as you like between the <code>###</code> line and the request line. This file logs in, creates an item with the token, then reads the item back and checks it:</p>
+<pre><span class="c"># api/items.http</span>
+@baseUrl = http://localhost:3000
+
+<span class="k">###</span> Log in
+<span class="c"># @name login</span>
+<span class="c"># @assert status == 200</span>
+<span class="c"># @assert $.token isString</span>
+<span class="c"># @assert time &lt; 1000</span>
+POST <span class="v">{{baseUrl}}</span>/auth/login
+Content-Type: application/json
+
+{ "email": "ada@example.com", "password": "<span class="v">{{password}}</span>" }
+
+<span class="k">###</span> Create an item
+<span class="c"># @name createItem</span>
+<span class="c"># @assert status == 201</span>
+<span class="c"># @assert header content-type contains json</span>
+<span class="c"># @assert $.id exists</span>
+<span class="c"># @assert $.name == "Desk lamp"</span>
+<span class="c"># @assert $.tags contains "office"</span>
+POST <span class="v">{{baseUrl}}</span>/items
+Authorization: Bearer <span class="v">{{login.response.body.$.token}}</span>
+Content-Type: application/json
+
+{ "name": "Desk lamp", "price": 39.5, "tags": ["office", "lighting"] }
+
+<span class="k">###</span> Read it back
+<span class="c"># @assert status == 200</span>
+<span class="c"># @assert $.id == {{createItem.response.body.$.id}}</span>
+<span class="c"># @assert $.price &gt; 0</span>
+<span class="c"># @assert $.tags.length == 2</span>
+<span class="c"># @assert $.createdAt matches /^\d{4}-\d{2}-\d{2}T/</span>
+GET <span class="v">{{baseUrl}}</span>/items/<span class="v">{{createItem.response.body.$.id}}</span>
+Authorization: Bearer <span class="v">{{login.response.body.$.token}}</span></pre>
+    <p><code>{{password}}</code> comes from <code>http-client.private.env.json</code>; see <a href="http-file-syntax.html#environments">environments</a>. Click <strong>Run all 3 requests (13 checks)</strong> above the first line and you get one report for the whole flow.</p>
+
+    <h2 id="subjects">What you can check</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Subject</th><th>Value checked</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td><code>status</code></td><td>HTTP status code</td><td><code>status == 200</code></td></tr>
+          <tr><td><code>time</code></td><td>Response time in milliseconds</td><td><code>time &lt; 500</code></td></tr>
+          <tr><td><code>size</code></td><td>Body size in bytes</td><td><code>size &lt;= 20000</code></td></tr>
+          <tr><td><code>body</code></td><td>The response body as text</td><td><code>body contains "ok"</code></td></tr>
+          <tr><td><code>header &lt;name&gt;</code></td><td>A response header; the name is case-insensitive and repeated headers are joined with <code>", "</code></td><td><code>header cache-control contains no-store</code></td></tr>
+          <tr><td><code>$.path</code></td><td>A JSONPath into the JSON body: <code>$.id</code>, <code>$.data[0].name</code>, <code>$.items[-1]</code> (last element), <code>$['key with space']</code>, <code>$.items.length</code>. <code>body.$.id</code> also works.</td><td><code>$.data[0].name == "Ada"</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="operators">Operators</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Operator</th><th>Passes when</th></tr></thead>
+        <tbody>
+          <tr><td><code>==</code> <code>!=</code></td><td>The value equals (or does not equal) the expected value</td></tr>
+          <tr><td><code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code></td><td>Both sides read as numbers and the comparison holds</td></tr>
+          <tr><td><code>contains</code> <code>!contains</code></td><td>Arrays: the expected value is (or is not) an element. Text: it is (or is not) a substring. <code>not contains</code> is the same as <code>!contains</code>.</td></tr>
+          <tr><td><code>startsWith</code> <code>endsWith</code></td><td>The text starts or ends with the expected value</td></tr>
+          <tr><td><code>matches</code> <code>!matches</code></td><td>A regular expression, written <code>/pattern/flags</code> or bare, does (or does not) match</td></tr>
+          <tr><td><code>exists</code> <code>!exists</code></td><td>The header or JSON path is present (or absent); no expected value</td></tr>
+          <tr><td><code>isEmpty</code> <code>!isEmpty</code></td><td>Empty string, empty array, empty object, null or missing (or not)</td></tr>
+          <tr><td><code>isNumber</code> <code>isString</code> <code>isBoolean</code> <code>isArray</code> <code>isObject</code> <code>isNull</code></td><td>The JSON value has that type</td></tr>
+          <tr><td><code>isJson</code></td><td>The text (for example <code>body</code>) parses as JSON</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="values">Expected values</h2>
+    <ul>
+      <li><strong>JSON first, then text.</strong> The expected value is read as JSON if it parses, so <code>200</code>, <code>true</code>, <code>null</code>, <code>"quoted text"</code> and <code>["x","y"]</code> are typed values. Anything else, such as <code>json</code> or <code>Desk lamp</code>, is plain text.</li>
+      <li><strong>Loose comparison.</strong> <code>"200" == 200</code> passes, so an id that one API returns as a string and another as a number does not break a check.</li>
+      <li><strong>Variables work.</strong> <code>{{variables}}</code> are filled in before the check runs, including environment values and chained responses: <code># @assert $.id == {{userId}}</code>.</li>
+    </ul>
+<pre><span class="c"># @assert $.roles contains "admin"</span>          <span class="c">(array membership)</span>
+<span class="c"># @assert body !contains "stack trace"</span>      <span class="c">(substring)</span>
+<span class="c"># @assert $.email matches /@example\.com$/i</span>
+<span class="c"># @assert $['display name'] !isEmpty</span>
+<span class="c"># @assert $.deletedAt isNull</span>
+<span class="c"># @assert $.items[-1].id == {{lastId}}</span></pre>
+
+    <h2 id="run-all">Run all</h2>
+    <p>There are four ways to start a run:</p>
+    <ul>
+      <li>The <strong>Run all N requests (M checks)</strong> CodeLens at the top of any <code>.http</code> file.</li>
+      <li>The run button in the editor title bar while a <code>.http</code> file is open.</li>
+      <li>Right-click a file or a folder in the Explorer and choose <strong>Run All Requests in File</strong>.</li>
+      <li><strong>Run All Requests in Workspace</strong> in the Plainwire sidebar.</li>
+    </ul>
+    <p>Requests run in file order, so chaining with <code># @name login</code> and <code>{{login.response.body.$.token}}</code> works across the run. A request passes when all of its checks pass. A request with no checks passes on any status below 400; to expect an error, say so with <code># @assert status == 404</code>. Add <code># @skip</code> above a request to leave it out of runs (you can still send it by hand).</p>
+<pre><span class="k">###</span> Wipe the test database (never in a run)
+<span class="c"># @skip</span>
+POST <span class="v">{{baseUrl}}</span>/admin/reset</pre>
+    <p>The report lists every request with its status, time and checks. A failed request shows which check failed and the actual value it got, for example <code>expected 201, got 400</code>. <strong>Re-run failed</strong> sends only the failures again (plus any named request they read values from, so chained tokens are fresh), and <strong>Copy report (Markdown)</strong> copies a table you can paste into a pull request or issue.</p>
+
+    <h2 id="editor">Checks in the request editor</h2>
+    <p>You do not have to type the comment lines. The request editor has a <strong>Tests</strong> tab where you add and edit checks, with quick-add chips for common ones such as a status check. Plainwire writes them back to the file as <code># @assert</code> lines. After a send, the response bar shows <strong>&#10003; 3 checks passed</strong> or <strong>&#10007; 1 of 3 checks failed</strong>, and the response&rsquo;s Tests tab lists each check with its result.</p>
+
+    <h2 id="thunder">Coming from Thunder Client tests</h2>
+    <p>When you <a href="import-thunder-client-to-http-files.html">import a Thunder Client collection</a>, its tests are converted to <code># @assert</code> lines: status code, response time, body contains, JSON query equal, count and type, Content-Type and other header checks. Any test that cannot be converted is listed as a warning after the import, so nothing disappears silently.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Thunder Client test</th><th>Plainwire check</th></tr></thead>
+        <tbody>
+          <tr><td>ResCode equal 200</td><td><code>status == 200</code></td></tr>
+          <tr><td>json.id equal 1</td><td><code>$.id == 1</code></td></tr>
+          <tr><td>json.items count 3</td><td><code>$.items.length == 3</code></td></tr>
+          <tr><td>Response time &lt; 500</td><td><code>time &lt; 500</code></td></tr>
+          <tr><td>Content-Type contains json</td><td><code>header content-type contains json</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Runs are not counted or capped, so a collection you used to ration can run on every change. For the wider switch, see <a href="thunder-client-alternative.html">the Thunder Client alternative guide</a>.</p>
+
+    <h2 id="postman">Postman test snippets</h2>
+    <p>The <a href="postman-collection-to-http-file.html">Postman importer</a> recognises the common one-line test snippets and converts them the same way:</p>
+<pre>var jsonData = pm.response.json();               <span class="c">(recognised, so jsonData.x maps to $.x)</span>
+pm.response.to.have.status(200)                  <span class="c">&rarr; status == 200</span>
+pm.expect(pm.response.responseTime).to.be.below(500)  <span class="c">&rarr; time &lt; 500</span>
+pm.response.to.have.header("X-Request-Id")       <span class="c">&rarr; header X-Request-Id exists</span>
+pm.expect(jsonData.name).to.eql("Ada")           <span class="c">&rarr; $.name == "Ada"</span>
+pm.expect(pm.response.text()).to.include("ok")   <span class="c">&rarr; body contains "ok"</span>
+pm.expect(jsonData.items).to.have.lengthOf(3)    <span class="c">&rarr; $.items.length == 3</span></pre>
+    <p>Tests written as free-form JavaScript are reported as warnings so you can rewrite them by hand.</p>
+
+    <div class="note">
+      <p><strong>Not there yet:</strong> there is no JavaScript scripting, so pre-request scripts, test scripts with loops or custom logic, and setting variables from code are not supported. Checks cover the response of a single request; chaining covers passing values between requests.</p>
+    </div>
+
+    <h2 id="faq">Questions</h2>
+    <details>
+      <summary>Is it free?</summary>
+      <p>Yes. Plainwire is MIT-licensed open source with no account and no limit on requests, checks or runs.</p>
+    </details>
+    <details>
+      <summary>Does it work in Cursor and VSCodium?</summary>
+      <p>Plainwire is a standard VS Code extension built for VS Code 1.85 or newer. Cursor, Windsurf and VSCodium install the same <code>.vsix</code> with <strong>Extensions: Install from VSIX&hellip;</strong>.</p>
+    </details>
+    <details>
+      <summary>Will the checks break my files in REST Client or JetBrains?</summary>
+      <p>No. Every <code># @assert</code> line is a comment, so other clients send the request as before and skip the line. Only Plainwire evaluates it.</p>
+    </details>
+    <details>
+      <summary>Can I check a response without running the whole file?</summary>
+      <p>Yes. Checks run on every send, including a single <strong>Send Request</strong> from the CodeLens or the editor.</p>
+    </details>
+    <p>The rest of the format is on the <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

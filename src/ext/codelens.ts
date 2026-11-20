@@ -6,7 +6,13 @@ export class RequestCodeLens implements vscode.CodeLensProvider {
   provideCodeLenses(doc: vscode.TextDocument): vscode.CodeLens[] {
     if (!vscode.workspace.getConfiguration('plainwire').get<boolean>('codeLens', true)) return [];
     const lenses: vscode.CodeLens[] = [];
-    parseHttpFile(doc.getText()).requests.forEach((r, i) => {
+    const reqs = parseHttpFile(doc.getText()).requests;
+    if (reqs.length > 1) {
+      const top = new vscode.Range(reqs[0].startLine, 0, reqs[0].startLine, 0);
+      const checks = reqs.reduce((n, r) => n + (r.asserts?.length ?? 0), 0);
+      lenses.push(new vscode.CodeLens(top, { title: `$(run-all) Run all ${reqs.length} requests${checks ? ` (${checks} checks)` : ''}`, command: 'plainwire.runFile', arguments: [doc.uri], tooltip: 'Send every request in this file in order and show a pass/fail report' }));
+    }
+    reqs.forEach((r, i) => {
       const range = new vscode.Range(r.requestLine, 0, r.requestLine, 0);
       const args = [{ uri: doc.uri, index: i }];
       lenses.push(

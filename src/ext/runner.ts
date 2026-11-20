@@ -5,6 +5,7 @@ import { sendRequest } from '../core/send.ts';
 import { parseDotenv, referencedRequestNames, resolveRequest, resolveText, type NamedExchange, type VariableContext } from '../core/variables.ts';
 import type { EnvironmentManager } from './environments.ts';
 import type { History } from './history.ts';
+import { runAssertions, type AssertionResult } from '../core/assert.ts';
 
 export interface RunSource {
   /** The .http file the request belongs to (for file variables, chaining, relative body files). */
@@ -14,6 +15,8 @@ export interface RunSource {
 export interface RunResult {
   resolved: HttpRequest;
   response: HttpResponse;
+  /** Results of the request's `# @assert` lines (empty when it has none). */
+  assertions: AssertionResult[];
 }
 
 /** Sends requests: resolves variables, runs chained requests first, records history. */
@@ -25,6 +28,11 @@ export class Runner {
     private readonly envs: EnvironmentManager,
     private readonly history: History,
   ) {}
+
+  /** Forget named responses for a file, so the next run sends chained requests again. */
+  resetSession(uri: vscode.Uri): void {
+    this.named.delete(uri.toString());
+  }
 
   async run(req: HttpRequest, source: RunSource, token?: vscode.CancellationToken, depth = 0): Promise<RunResult> {
     if (depth > 5) throw new Error('Chained requests are nested too deeply (or reference each other in a loop)');
@@ -71,6 +79,17 @@ export class Runner {
         followRedirects: req.meta?.['no-redirect'] === undefined && cfg.get<boolean>('followRedirects', true),
         signal: abort.signal,
         bodyOverride,
+        rejectUnauthorized: req.meta?.['insecure'] === undefined && cfg.get<boolean>('rejectUnauthorized', true),
+        // plainwire.proxy, else VS Code's http.proxy, else HTTPS_PROXY / HTTP_PROXY (either case).
+        proxy:
+          cfg.get<string>('proxy') ||
+          vscode.workspace.getConfiguration('http').get<string>('proxy') ||
+          process.env.HTTPS_PROXY ||
+          process.env.https_proxy ||
+          process.env.HTTP_PROXY ||
+          process.env.http_proxy ||
+          undefined,
+        noProxy: (process.env.NO_PROXY ?? process.env.no_proxy ?? '').split(',').map((s) => s.trim()).filter(Boolean),
       });
       if (req.name) {
         named.set(req.name, {
@@ -79,7 +98,8 @@ export class Runner {
         });
       }
       await this.history.add({ request: stripPosition(req), response, file: source.uri?.toString() });
-      return { resolved, response };
+      const assertions = req.asserts?.length ? runAssertions(req.asserts, response, (t) => resolveText(t, ctx)) : [];
+      return { resolved, response, assertions };
     } catch (e) {
       await this.history.add({ request: stripPosition(req), error: (e as Error).message, file: source.uri?.toString() });
       throw e;

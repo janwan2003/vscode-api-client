@@ -195,7 +195,7 @@ Authorization: Bearer {{login.response.body.$.token}}
 ### Use a nested value
 GET {{baseUrl}}/users/{{login.response.body.$.user.id}}
 Authorization: Bearer {{login.response.body.$.token}}</pre>
-    <p>The named request must have been sent at least once in the session before the dependent one, so send <em>Log in</em> first.</p>
+    <p>If the named request has not been sent yet in this session, Plainwire sends it first automatically, then the dependent one.</p>
 
     <h2 id="summary">Quick reference</h2>
     <div class="table-wrap">

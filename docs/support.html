@@ -36,16 +36,10 @@
     <h2 id="troubleshooting">Troubleshooting</h2>
 
     <h3>&ldquo;self-signed certificate&rdquo; or &ldquo;unable to verify the first certificate&rdquo;</h3>
-    <p>Plainwire v0.1 does not yet support self-signed certificates or an option to skip certificate verification. Requests to servers with an untrusted certificate fail with a TLS error. Options until support lands:</p>
-    <ul>
-      <li>Use plain <code>http://</code> for local development servers where that is possible.</li>
-      <li>Use a certificate signed by a locally trusted CA (for example one created with a tool such as mkcert).</li>
-      <li>For a corporate CA, Node reads extra root certificates from the <code>NODE_EXTRA_CA_CERTS</code> environment variable when a process starts. Starting your editor from a shell where it points to your CA file <em>may</em> help; we have not tested this in every editor.</li>
-    </ul>
-    <p>If you need this, add a thumbs-up or your use case to the relevant issue so it gets prioritised.</p>
+    <p>Since 0.2, add <code># @insecure</code> above the request line to accept the certificate for that request, or set <code>"plainwire.rejectUnauthorized": false</code> in settings to accept it everywhere. Only do this for servers you control. A certificate signed by a locally trusted CA (for example one made with mkcert) avoids the problem altogether. Details: <a href="self-signed-certificate-localhost-api-client.html">self-signed certificates, ports and proxies</a>.</p>
 
     <h3>Requests behind a proxy</h3>
-    <p>Plainwire has no proxy settings of its own yet. Requests are sent by Node in the editor&rsquo;s extension host, so they follow Node&rsquo;s defaults and whatever proxy support your editor provides to extensions. If requests fail behind a corporate proxy, open an issue with your editor name and version and how the proxy is configured (without credentials).</p>
+    <p>Since 0.2, set <code>"plainwire.proxy": "http://user:pass@proxy:8080"</code>; without it Plainwire uses VS Code&rsquo;s <code>http.proxy</code> setting, then the <code>HTTPS_PROXY</code> / <code>HTTP_PROXY</code> environment variables. Hosts in <code>NO_PROXY</code> and localhost are sent directly. SOCKS proxies are not supported yet. If requests still fail, open an issue with your editor name and version and how the proxy is configured (without credentials).</p>
 
     <h3>Where is my history stored?</h3>
     <p>History of sent requests (the last 100 by default, setting <code>plainwire.historySize</code>) is kept locally in VS Code&rsquo;s per-workspace extension storage, inside your editor&rsquo;s user data folder (for VS Code on Linux that is under <code>~/.config/Code/User/workspaceStorage/</code>; on macOS <code>~/Library/Application Support/Code/User/</code>; on Windows <code>%APPDATA%\Code\User\</code>; Cursor, Windsurf and VSCodium use their own folder names). It never leaves your machine through Plainwire. To clear it, use the <em>Clear History</em> button in the History view. Your saved requests are not in history: they are the <code>.http</code> files in your workspace.</p>

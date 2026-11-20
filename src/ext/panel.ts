@@ -162,8 +162,8 @@ export class RequestPanel {
     this.cts = cts;
     this.post({ type: 'sending' });
     try {
-      const { resolved, response } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token);
-      if (this.cts === cts) this.post({ type: 'response', response, resolved });
+      const { resolved, response, assertions } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token);
+      if (this.cts === cts) this.post({ type: 'response', response, resolved, assertions });
     } catch (e) {
       if (this.cts === cts) this.post({ type: 'error', message: (e as Error).message });
     }

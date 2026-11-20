@@ -13,6 +13,9 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
 - **Plain files**: requests live in `.http` / `.rest` files. *Send · Open in Plainwire · Copy as cURL* above every request; `Ctrl/Cmd+Alt+Enter` sends the request under the cursor.
 - **Variables and environments**: `@var = value`, `{{var}}`, environments from `http-client.env.json` + `http-client.private.env.json` or the `rest-client.environmentVariables` setting, system variables (`{{$guid}}`, `{{$timestamp}}`, `{{$randomInt 1 10}}`, `{{$datetime iso8601}}`, `{{$processEnv NAME}}`, `{{$dotenv NAME}}`), and request chaining (`{{login.response.body.$.token}}` sends `login` first if needed).
 - **Import**: Thunder Client collection exports and the `thunder-tests` workspace folder, Postman v2.0/v2.1 collections and environments, cURL commands (or paste a cURL command into the URL box). Export any request as cURL.
+- **Tests and Run all (free, no run limits)**: add checks as `# @assert` lines (`status == 200`, `$.id exists`, `time < 500`, `header content-type contains json`, `$.items.length > 0`, `$.email matches /@example\.com$/`) or in the editor's Tests tab. *Run all* sends every request in a file, folder or workspace in order and shows a pass/fail report you can re-run or copy as Markdown. Thunder Client tests and common Postman test snippets are converted on import. [Syntax guide](https://janwan2003.github.io/vscode-api-client/api-tests-in-http-files.html).
+  ![Run all report](docs/run-all.png)
+- **Real-world networking**: any port, self-signed certificates (`# @insecure` per request or `plainwire.rejectUnauthorized: false`), HTTP proxies (`plainwire.proxy`, VS Code's `http.proxy`, `HTTPS_PROXY`), header names sent with your casing, gzip/deflate/brotli.
 - **Sidebar**: every `.http` file in the workspace with its requests, plus a local history of sent requests.
 - Requests are sent from the extension host (Node), so there are no CORS problems.
 
@@ -23,12 +26,15 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
 
 ### Log in
 # @name login
+# @assert status == 200
+# @assert $.token exists
 POST {{host}}/login
 Content-Type: application/json
 
 { "user": "ada", "password": "{{$dotenv API_PASSWORD}}" }
 
 ### Who am I
+# @assert $.name == "ada"
 GET {{host}}/me
 Authorization: Bearer {{login.response.body.$.token}}
 ```
@@ -37,7 +43,7 @@ Authorization: Bearer {{login.response.body.$.token}}
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.1.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.2.0.vsix`; same for `cursor` / `codium`).
 
 ## Privacy
 
@@ -46,8 +52,8 @@ See the [privacy policy](https://janwan2003.github.io/vscode-api-client/privacy.
 
 ## Not yet
 
-Scripting, test assertions and a collection runner, GraphQL editor, WebSocket/SSE, OAuth2 flows, self-signed
-certificates, ports on the browser fetch "bad port" list (e.g. 6000, 6665–6669).
+JavaScript pre-request/test scripts, a command-line runner for CI, GraphQL editor, WebSocket/SSE, OAuth2 flows,
+SOCKS proxies, client certificates.
 
 ## Develop
 

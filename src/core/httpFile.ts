@@ -69,6 +69,7 @@ function parseBlock(
 
   const meta: Record<string, string> = {};
   const comments: string[] = [];
+  const asserts: string[] = [];
   let name: string | undefined;
 
   // Preamble: blank lines, comments, metadata, file variables.
@@ -83,7 +84,9 @@ function parseBlock(
     const mm = META.exec(line);
     if (mm) {
       if (mm[1] === 'name') name = mm[2] || undefined;
-      else meta[mm[1]] = mm[2];
+      else if (mm[1] === 'assert') {
+        if (mm[2]) asserts.push(mm[2]);
+      } else meta[mm[1]] = mm[2];
       continue;
     }
     const cm = COMMENT.exec(line);
@@ -143,6 +146,7 @@ function parseBlock(
   if (httpVersion) req.httpVersion = httpVersion;
   if (body !== undefined) req.body = body;
   if (Object.keys(meta).length) req.meta = meta;
+  if (asserts.length) req.asserts = asserts;
   if (comments.length) req.comments = comments;
   return req;
 }
@@ -154,6 +158,7 @@ export function serializeRequest(req: HttpRequest): string {
   for (const c of req.comments ?? []) out.push(`# ${c}`.trimEnd());
   if (req.name) out.push(`# @name ${req.name}`);
   for (const [k, v] of Object.entries(req.meta ?? {})) out.push(`# @${k}${v ? ' ' + v : ''}`);
+  for (const a of req.asserts ?? []) if (a.trim()) out.push(`# @assert ${a.trim()}`);
   out.push(`${req.method.toUpperCase()} ${req.url}${req.httpVersion ? ' ' + req.httpVersion : ''}`);
   for (const h of req.headers) {
     if (!h.name.trim()) continue;

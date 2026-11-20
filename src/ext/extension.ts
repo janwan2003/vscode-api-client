@@ -9,6 +9,7 @@ import { importFromFiles, writeCollections } from './importer.ts';
 import { detectAndImport } from '../core/importers/index.ts';
 import { RequestPanel, type PanelDeps } from './panel.ts';
 import { readText, Runner } from './runner.ts';
+import { filesFor, RunAllPanel } from './runAll.ts';
 import { CollectionsProvider, HistoryProvider, type RequestNode } from './tree.ts';
 
 interface At {
@@ -34,7 +35,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     <A extends unknown[]>(fn: (...a: A) => unknown) =>
     async (...a: A) => {
       try {
-        await fn(...a);
+        return await fn(...a);
       } catch (e) {
         void vscode.window.showErrorMessage(`Plainwire: ${(e as Error).message}`);
       }
@@ -93,6 +94,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       collections.refresh();
       void envs.reload();
     }),
+    vscode.commands.registerCommand('plainwire.runFile', guard(async (target?: unknown) => {
+      const files = await filesFor(target);
+      if (!files.length) throw new Error('No .http or .rest files to run.');
+      const title = files.length === 1 ? vscode.workspace.asRelativePath(files[0]) : target ? `${vscode.workspace.asRelativePath(target instanceof vscode.Uri ? target : (target as { uri: vscode.Uri }).uri)} (${files.length} files)` : `workspace (${files.length} files)`;
+      return RunAllPanel.run(runner, files, title, (uri, index) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index }));
+    })),
+    vscode.commands.registerCommand('plainwire.runAll', guard(async () => {
+      const files = await filesFor(null);
+      if (!files.length) throw new Error('No .http or .rest files in this workspace.');
+      return RunAllPanel.run(runner, files, `workspace (${files.length} files)`, (uri, index) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index }));
+    })),
     vscode.commands.registerCommand('plainwire.selectEnvironment', guard(() => envs.pick())),
     vscode.commands.registerCommand('plainwire.createEnvFile', guard(async () => {
       const root = vscode.workspace.workspaceFolders?.[0]?.uri;

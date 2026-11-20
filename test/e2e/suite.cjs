@@ -95,6 +95,47 @@ exports.run = async function run() {
     assert.match(content, /^(GET|POST|PUT|PATCH|DELETE) /m);
   });
 
+  await check('assertions from the .http file are evaluated on send', async () => {
+    const reqs = api.parseHttpFileForTest(fs.readFileSync(file.fsPath, 'utf8')).requests;
+    const { assertions } = await api.deps.runner.run(reqs[0], { uri: file });
+    assert.deepEqual(assertions.map((a) => [a.source, a.passed]), [['status == 200', true], ['$.token exists', true]]);
+  });
+
+  // HTTPS with a self-signed certificate (needs openssl) on a port Node's fetch refuses (10080).
+  let tlsServer;
+  let tlsPort = 0;
+  try {
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'pw-tls-'));
+    require('child_process').execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(dir, 'k.pem'), '-out', path.join(dir, 'c.pem'), '-days', '1', '-subj', '/CN=localhost'], { stdio: 'ignore' });
+    tlsServer = require('https').createServer({ key: fs.readFileSync(path.join(dir, 'k.pem')), cert: fs.readFileSync(path.join(dir, 'c.pem')) }, (req, res) => {
+      res.setHeader('Content-Type', 'application/json');
+      res.end('{"secure":true}');
+    });
+    await new Promise((r, j) => { tlsServer.once('error', j); tlsServer.listen(10080, '127.0.0.1', r); });
+    tlsPort = 10080;
+  } catch (e) {
+    results.push('skip self-signed/bad-port checks: ' + (e && e.message));
+  }
+
+  await check('Run all: report with pass, fail, skip, self-signed TLS via # @insecure', async () => {
+    const checks = vscode.Uri.joinPath(ws, 'checks.http');
+    const tls = tlsPort ? `\n### Self-signed on port 10080\n# @insecure\n# @assert $.secure == true\nGET https://127.0.0.1:${tlsPort}/\n\n### Self-signed rejected by default\n# @assert status == 200\nGET https://127.0.0.1:${tlsPort}/\n` : '';
+    fs.writeFileSync(checks.fsPath, `### Passing\n# @assert status == 200\n# @assert $.ok == true\nGET {{host}}/a\n\n### Failing\n# @assert $.ok == false\nGET {{host}}/b\n\n### Skipped\n# @skip\nGET {{host}}/c\n${tls}`);
+    const summary = await vscode.commands.executeCommand('plainwire.runFile', checks);
+    assert.ok(summary, 'runFile returned no summary');
+    const expected = tlsPort ? { total: 5, passed: 2, failed: 1, errors: 1, skipped: 1 } : { total: 3, passed: 1, failed: 1, errors: 0, skipped: 1 };
+    const { timeMs, ...rest } = summary;
+    assert.deepEqual(rest, expected);
+    const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs).map((t) => t.label);
+    assert.ok(tabs.some((t) => t.startsWith('Run: checks.http')), JSON.stringify(tabs));
+  });
+
+  await check('CodeLens offers "Run all" on files with several requests', async () => {
+    const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', file);
+    assert.ok(lenses.some((l) => l.command && /Run all 2 requests \(2 checks\)/.test(l.command.title)), JSON.stringify(lenses.map((l) => l.command && l.command.title)));
+  });
+
+  if (tlsServer) tlsServer.close();
   server.close();
   const report = results.join('\n');
   fs.writeFileSync(process.env.PLAINWIRE_E2E_REPORT, report + '\n');

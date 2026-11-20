@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-signed certificates, localhost HTTPS and proxies in a VS Code API client | Plainwire</title>
+<meta name="description" content="Fix &quot;self-signed certificate&quot; and &quot;unable to verify the first certificate&quot; errors when calling a localhost API from VS Code, send through a corporate proxy, and control redirects, all from plain .http files.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/self-signed-certificate-localhost-api-client.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Self-signed certificates, localhost HTTPS and proxies in a VS Code API client">
+<meta property="og:description" content="Per-request # @insecure, proxy settings with NO_PROXY, any port, redirects and compression, explained with copy-paste examples.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/self-signed-certificate-localhost-api-client.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Self-signed certificates, proxies and localhost in a VS Code API client</h1>
+    <p>Local development servers often use HTTPS with a certificate nobody signed, sit on an unusual port, or can only be reached through a company proxy. From version 0.2.0, Plainwire sends requests with Node&rsquo;s own <code>http</code> and <code>https</code> modules from the VS Code extension host, which lets it handle all three cases and gives you direct control over TLS checks, proxies, redirects and headers. Each option is either one comment line in a <code>.http</code> file or one VS Code setting.</p>
+    <p class="small">Everything on this page needs Plainwire 0.2.0 or newer. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a> (see <a href="./#install">install steps</a>).</p>
+
+    <nav class="toc" aria-label="On this page">
+      <ul>
+        <li><a href="#certificates">Self-signed and invalid certificates</a></li>
+        <li><a href="#ports">Any port works</a></li>
+        <li><a href="#proxy">Proxies</a></li>
+        <li><a href="#redirects">Redirects</a></li>
+        <li><a href="#wire">Headers and compression</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#settings">Settings reference</a></li>
+      </ul>
+    </nav>
+
+    <h2 id="certificates">Self-signed and invalid certificates</h2>
+    <p>By default Plainwire verifies TLS certificates, just as a browser does. A dev server with a self-signed certificate, a certificate from a local CA your system does not trust, an expired certificate or one issued for a different hostname fails with an error such as:</p>
+<pre>Request failed: DEPTH_ZERO_SELF_SIGNED_CERT: self-signed certificate.
+Set "plainwire.rejectUnauthorized": false to accept it (or add # @insecure above the request).</pre>
+    <p>Other common variants are <code>unable to verify the first certificate</code>, <code>self-signed certificate in certificate chain</code>, <code>certificate has expired</code> and a hostname mismatch. Each one carries the same hint.</p>
+    <h3>Per request: <code># @insecure</code></h3>
+    <p>Add <code># @insecure</code> above the request line. Only that request skips certificate verification; every other request in the file is still checked.</p>
+<pre><span class="k">###</span> Local API with a self-signed certificate
+<span class="c"># @insecure</span>
+GET https://localhost:5001/api/health
+Accept: application/json</pre>
+    <h3>Everywhere: <code>plainwire.rejectUnauthorized</code></h3>
+    <p>To turn verification off for every request, put this in your user or workspace <code>settings.json</code>:</p>
+<pre>{
+  "plainwire.rejectUnauthorized": false
+}</pre>
+    <div class="note">
+      <p><strong>Security note.</strong> Turning off verification means Plainwire will accept any certificate, including one presented by someone intercepting the connection. Only do it for hosts you control, such as <code>localhost</code> or a dev box on your own network. Prefer <code># @insecure</code> on the specific request over the global setting, so a request to a real API is never sent unverified by accident, and never commit <code>"plainwire.rejectUnauthorized": false</code> to a shared workspace configuration.</p>
+    </div>
+
+    <h2 id="ports">Any port works</h2>
+    <p>Tools built on the <code>fetch()</code> API, including Node&rsquo;s built-in <code>fetch</code>, refuse to connect to a list of &ldquo;bad ports&rdquo; defined by the WHATWG Fetch standard, for example <code>6000</code>, <code>6665</code>&ndash;<code>6669</code> and <code>10080</code>. The rule protects browsers from being used against non-HTTP services, but it also blocks a local service that happens to listen there. Plainwire does not use <code>fetch</code>, so a request to any port is sent as written:</p>
+<pre>GET http://localhost:6000/status
+
+###
+GET http://127.0.0.1:10080/metrics</pre>
+
+    <h2 id="proxy">Proxies</h2>
+    <p>Set an HTTP proxy, with credentials if it needs them:</p>
+<pre>{
+  "plainwire.proxy": "http://user:pass@proxy.corp.example:8080"
+}</pre>
+    <p>If <code>plainwire.proxy</code> is empty, Plainwire uses VS Code&rsquo;s own <code>http.proxy</code> setting, and if that is empty too, the <code>HTTPS_PROXY</code> or <code>HTTP_PROXY</code> environment variable (lower-case spellings also work). In practice:</p>
+    <ul>
+      <li><strong>Direct hosts.</strong> <code>localhost</code>, <code>127.0.0.1</code> (and the rest of <code>127.*</code>), <code>::1</code> and <code>*.localhost</code> are always sent directly. So is every host in the <code>NO_PROXY</code> environment variable, which accepts exact hosts, domain suffixes such as <code>.corp.example</code>, <code>host:port</code> entries and <code>*</code>.</li>
+      <li><strong>HTTPS targets</strong> are tunnelled through the proxy with HTTP <code>CONNECT</code>, so the proxy never sees the request contents. Certificate verification (and <code># @insecure</code>) applies to the target server as usual.</li>
+      <li><strong>HTTP targets</strong> are sent to the proxy as ordinary absolute-URL requests.</li>
+      <li><strong>Proxy URL schemes.</strong> <code>http://</code> and <code>https://</code> proxy URLs are supported. SOCKS proxies (<code>socks5://</code>) are not.</li>
+    </ul>
+<pre>NO_PROXY=localhost,.corp.example,build-server:8443</pre>
+    <p class="small">Environment variables are read from the VS Code process, so set them before you start VS Code (for example in the shell you launch <code>code</code> from).</p>
+
+    <h2 id="redirects">Redirects</h2>
+    <p>Redirects are followed automatically, up to 10 in a row. The rules follow common HTTP client behaviour:</p>
+    <ul>
+      <li><strong>301, 302 and 303</strong> continue with a <code>GET</code> and no body (a <code>HEAD</code> stays a <code>HEAD</code>).</li>
+      <li><strong>307 and 308</strong> keep the original method and body.</li>
+      <li><strong>The <code>Authorization</code> header is dropped</strong> when a redirect goes to a different host or port, so a token for one service does not leak to another.</li>
+    </ul>
+    <p>To see the redirect itself (its status and <code>Location</code> header), turn following off for one request with <code># @no-redirect</code>, or for all requests with <code>"plainwire.followRedirects": false</code>:</p>
+<pre><span class="k">###</span> Check where the login page sends us
+<span class="c"># @no-redirect</span>
+<span class="c"># @assert status == 302</span>
+<span class="c"># @assert header location startsWith /dashboard</span>
+GET https://localhost:5001/login
+Cookie: session=<span class="v">{{session}}</span></pre>
+    <p>The <code># @assert</code> lines are response checks; see <a href="api-tests-in-http-files.html">API tests in .http files</a>.</p>
+
+    <h2 id="wire">Headers and compression</h2>
+    <ul>
+      <li><strong>Header names keep your casing.</strong> <code>X-API-Key</code> goes out as <code>X-API-Key</code>, not lower-cased. That matters for the occasional legacy server or signature scheme that compares header names exactly.</li>
+      <li><strong>Compressed responses are decoded.</strong> Plainwire asks for <code>gzip, deflate, br</code> unless you set your own <code>Accept-Encoding</code>, and decompresses the body for display. The size shown is the number of body bytes on the wire, that is the compressed size, which is what a <code># @assert size</code> check compares against too.</li>
+    </ul>
+<pre>GET https://localhost:5001/api/report
+X-API-Key: <span class="v">{{$dotenv API_KEY}}</span>
+Accept-Encoding: identity</pre>
+    <p class="small">Sending <code>Accept-Encoding: identity</code>, as above, asks the server for an uncompressed body, so the size shown is the full body size.</p>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+    <ul>
+      <li><strong><code>ECONNREFUSED</code></strong>: nothing is listening at that host and port. Check that the server is running and the port is right. If the server listens only on IPv4, try <code>127.0.0.1</code> instead of <code>localhost</code>.</li>
+      <li><strong><code>ENOTFOUND</code></strong>: the hostname did not resolve. Look for a typo, an unset <code>{{baseUrl}}</code> (pick an environment), or a VPN that is not connected.</li>
+      <li><strong><code>Timed out after 60000 ms</code></strong>: the whole exchange, including redirects and the body, took longer than <code>plainwire.timeoutMs</code> (60000 by default; <code>0</code> means no timeout). Raise it for slow endpoints, or check whether a proxy is needed.</li>
+      <li><strong>Certificate errors</strong>: see <a href="#certificates">self-signed and invalid certificates</a> above.</li>
+      <li><strong><code>Proxy CONNECT to host:443 failed: 407</code></strong>: the proxy needs credentials. Put them in the proxy URL: <code>http://user:pass@proxy:8080</code>.</li>
+    </ul>
+
+    <h2 id="settings">Settings reference</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Setting or comment</th><th>Default</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code># @insecure</code></td><td></td><td>Skip certificate verification for one request</td></tr>
+          <tr><td><code>plainwire.rejectUnauthorized</code></td><td><code>true</code></td><td><code>false</code> skips certificate verification for all requests</td></tr>
+          <tr><td><code>plainwire.proxy</code></td><td>empty</td><td>HTTP proxy URL; falls back to <code>http.proxy</code>, then <code>HTTPS_PROXY</code> / <code>HTTP_PROXY</code></td></tr>
+          <tr><td><code># @no-redirect</code></td><td></td><td>Do not follow redirects for one request</td></tr>
+          <tr><td><code>plainwire.followRedirects</code></td><td><code>true</code></td><td><code>false</code> stops following redirects everywhere</td></tr>
+          <tr><td><code>plainwire.timeoutMs</code></td><td><code>60000</code></td><td>Timeout for the whole request in milliseconds; <code>0</code> disables it</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>For the rest of the file format, see the <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

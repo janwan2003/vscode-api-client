@@ -128,7 +128,8 @@ Content-Type: application/json
           <tr><td><code>auth</code> bearer / basic (also inherited)</td><td><code>Authorization: Bearer &hellip;</code> / <code>Authorization: Basic &hellip;</code></td></tr>
           <tr><td>Collection <code>variable</code></td><td><code>@name = value</code> at the top of the file</td></tr>
           <tr><td>Environment</td><td>Entry in <code>http-client.env.json</code></td></tr>
-          <tr><td>Pre-request and test scripts (<code>event</code>)</td><td>No equivalent in Plainwire 0.1; not imported</td></tr>
+          <tr><td>Test scripts (<code>event</code>, <code>listen: test</code>)</td><td>Common snippets (<code>pm.response.to.have.status</code>, response time, headers, <code>jsonData.x</code> equals, body includes, length) become <a href="api-tests-in-http-files.html"><code># @assert</code> lines</a> (0.2+); other lines are listed as warnings</td></tr>
+          <tr><td>Pre-request scripts</td><td>No equivalent; not imported</td></tr>
         </tbody>
       </table>
     </div>
@@ -173,7 +174,7 @@ Content-Type: application/json
     </div>
 
     <h2>Scripts and tests</h2>
-    <p>Postman <code>pm.*</code> scripts do not run in Plainwire 0.1. The most common script, saving a token from a login response, is replaced by <a href="http-file-syntax.html#chaining">request chaining</a>:</p>
+    <p>Postman <code>pm.*</code> scripts do not run in Plainwire. The most common script, saving a token from a login response, is replaced by <a href="http-file-syntax.html#chaining">request chaining</a>:</p>
 <pre>### Login
 # @name login
 POST {{baseUrl}}/auth/login

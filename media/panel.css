@@ -73,3 +73,16 @@ table.hdrs td:first-child { color: var(--vscode-symbolIcon-propertyForeground, v
 .j-bool, .j-null { color: var(--vscode-debugTokenExpression-boolean, #569cd6); }
 .json > .j-node { display: inline-block; }
 img.preview { max-width: 100%; background: repeating-conic-gradient(#8883 0% 25%, transparent 0% 50%) 50% / 16px 16px; }
+.asserts { display: flex; flex-direction: column; gap: 3px; }
+.assert-row { display: grid; grid-template-columns: 22px 1fr 28px; gap: 4px; align-items: center; }
+.assert-row.assert-new { grid-template-columns: 22px 1fr; margin-top: 3px; }
+.assert-row input { font-family: var(--mono); width: 100%; }
+.mark { text-align: center; color: var(--vscode-descriptionForeground); }
+.mark.pass, tr.pass .mark, .tests.pass { color: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); }
+.mark.fail, tr.fail .mark, .tests.fail { color: var(--vscode-testing-iconFailed, var(--vscode-charts-red)); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 8px; }
+.chip { font-family: var(--mono); font-size: .88em; padding: 1px 8px; border-radius: 10px; }
+table.tests { border-collapse: collapse; width: 100%; }
+table.tests td { padding: 4px 6px; border-bottom: 1px solid var(--vscode-panel-border); vertical-align: top; }
+table.tests td.code { font-family: var(--mono); white-space: pre-wrap; }
+table.tests tr.fail td:last-child { color: var(--vscode-errorForeground); }

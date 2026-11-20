@@ -1,8 +1,8 @@
 {
   "name": "plainwire",
   "displayName": "Plainwire — API Client (no login, plain .http files)",
-  "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible). One-click import from Thunder Client, Postman and cURL.",
-  "version": "0.1.0",
+  "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible), with tests and a collection runner. One-click import from Thunder Client, Postman and cURL.",
+  "version": "0.2.0",
   "publisher": "plainwire",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -32,7 +32,9 @@
     "rest",
     "api",
     "http client",
-    "api testing"
+    "api testing",
+    "api tests",
+    "collection runner"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -130,6 +132,18 @@
         "command": "plainwire.sendAt",
         "title": "Send",
         "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.runFile",
+        "title": "Run All Requests in File",
+        "category": "Plainwire",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "plainwire.runAll",
+        "title": "Run All Requests in Workspace",
+        "category": "Plainwire",
+        "icon": "$(run-all)"
       }
     ],
     "viewsContainers": {
@@ -165,6 +179,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "plainwire.runAll",
+          "when": "view == plainwire.collections",
+          "group": "navigation@0"
+        },
         {
           "command": "plainwire.newRequest",
           "when": "view == plainwire.collections",
@@ -208,6 +227,11 @@
       ],
       "view/item/context": [
         {
+          "command": "plainwire.runFile",
+          "when": "viewItem == plainwire.file",
+          "group": "inline@1"
+        },
+        {
           "command": "plainwire.sendRequest",
           "when": "viewItem == plainwire.request",
           "group": "inline@1"
@@ -226,6 +250,10 @@
       "editor/title/run": [
         {
           "command": "plainwire.sendAtCursor",
+          "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        },
+        {
+          "command": "plainwire.runFile",
           "when": "resourceExtname =~ /^\\.(http|rest)$/"
         }
       ],
@@ -257,6 +285,17 @@
         {
           "command": "plainwire.sendAtCursor",
           "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        },
+        {
+          "command": "plainwire.runFile",
+          "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "plainwire.runFile",
+          "when": "explorerResourceIsFolder || resourceExtname =~ /^\\.(http|rest)$/",
+          "group": "plainwire@1"
         }
       ]
     },
@@ -325,6 +364,16 @@
           "type": "number",
           "default": 100,
           "description": "How many sent requests to keep in History (stored locally in this workspace)."
+        },
+        "plainwire.rejectUnauthorized": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Verify TLS certificates. Set to `false` to accept self-signed, expired or mismatched certificates (e.g. `https://localhost`). Per request: add `# @insecure` above the request."
+        },
+        "plainwire.proxy": {
+          "type": "string",
+          "default": "",
+          "description": "HTTP proxy for requests, e.g. http://user:pass@proxy:8080. Falls back to VS Code's http.proxy, then HTTPS_PROXY / HTTP_PROXY. Hosts in NO_PROXY and localhost are always sent directly."
         }
       }
     }

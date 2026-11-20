@@ -42,7 +42,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th scope="col"></th><th scope="col">Plainwire 0.1</th><th scope="col">Thunder Client (free plan)</th><th scope="col">REST Client</th></tr>
+          <tr><th scope="col"></th><th scope="col">Plainwire 0.2</th><th scope="col">Thunder Client (free plan)</th><th scope="col">REST Client</th></tr>
         </thead>
         <tbody>
           <tr><th scope="row">Price</th><td class="yes">Free, MIT open source</td><td>Free plan; paid plans from $3/user/month (billed annually)</td><td class="yes">Free, open source</td></tr>
@@ -54,11 +54,11 @@
           <tr><th scope="row">Environments</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
           <tr><th scope="row">Request chaining</th><td class="yes">Yes (named requests)</td><td class="yes">Yes</td><td class="yes">Yes (named requests)</td></tr>
           <tr><th scope="row">Scripting</th><td class="no">Not yet</td><td>Paid plans</td><td class="no">No</td></tr>
-          <tr><th scope="row">Test assertions / collection runner</th><td class="no">Not yet</td><td>Yes; runner limited to 50 runs/month</td><td class="no">No</td></tr>
+          <tr><th scope="row">Test assertions / collection runner</th><td class="yes">Yes, <a href="api-tests-in-http-files.html"><code># @assert</code> + Run all</a>, no run limits</td><td>Yes; runner limited to 50 runs/month</td><td class="no">No</td></tr>
           <tr><th scope="row">GraphQL editor</th><td class="no">Not yet</td><td class="yes">Yes</td><td>GraphQL requests written as text</td></tr>
           <tr><th scope="row">Import Thunder Client / Postman / cURL</th><td class="yes">Yes / Yes / Yes</td><td>n/a / Yes / Yes</td><td>No / No / Yes (cURL)</td></tr>
           <tr><th scope="row">Telemetry</th><td class="yes">None</td><td><span class="unk">Not verified</span></td><td><span class="unk">Not verified</span></td></tr>
-          <tr><th scope="row">Last release</th><td>v0.1, November 2026</td><td>November 2026</td><td>2022</td></tr>
+          <tr><th scope="row">Last release</th><td>v0.2, November 2026</td><td>November 2026</td><td>2022</td></tr>
           <tr><th scope="row">Install in Cursor / VSCodium</th><td><code>.vsix</code> now; Open VSX coming soon</td><td>Open VSX</td><td>Open VSX</td></tr>
         </tbody>
       </table>
@@ -68,7 +68,7 @@
     <ol class="steps">
       <li><strong>Export your collections from Thunder Client.</strong> In the Thunder Client sidebar, open the <em>Collections</em> tab, open the menu (<strong>&hellip;</strong>) next to a collection and choose <strong>Export</strong>. You get a JSON file such as <code>thunder-collection_Shop API.json</code>. Do the same for each environment in the <em>Env</em> tab. If your project already has a <code>thunder-tests</code> folder (written by Thunder Client&rsquo;s save-to-workspace or Git Sync feature), you can skip this step and import the folder directly.</li>
       <li><strong>Install Plainwire.</strong> Download the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (see <a href="./#install">install steps</a>).</li>
-      <li><strong>Import.</strong> Run <strong>Plainwire: Import from Thunder Client…</strong> (Command Palette, or the button in the Plainwire sidebar), choose the <code>thunder-tests</code> folder or the exported files, and pick the exported file or the <code>thunder-tests</code> folder. Plainwire writes the requests as <code>.http</code> files into your workspace.</li>
+      <li><strong>Import.</strong> Run <strong>Plainwire: Import from Thunder Client…</strong> (Command Palette, or the button in the Plainwire sidebar), and pick the exported JSON file(s) or the <code>thunder-tests</code> folder. Plainwire writes the requests as <code>.http</code> files into your workspace.</li>
       <li><strong>Set up environments.</strong> Imported environment values go into <code>http-client.env.json</code>. Move secrets (tokens, passwords, API keys) into <code>http-client.private.env.json</code> and add that file to <code>.gitignore</code>.</li>
       <li><strong>Commit.</strong> Review the new <code>.http</code> files, send a couple of requests from the <strong>Send Request</strong> links, and commit them. Your teammates get the collection with their next <code>git pull</code>, no account needed.</li>
     </ol>
@@ -89,7 +89,7 @@ Content-Type: application/json
 
     <h2>What does not carry over</h2>
     <ul>
-      <li><strong>Tests and scripts.</strong> Plainwire 0.1 has no scripting, test assertions or collection runner, so Thunder Client tests and pre/post-request scripts are not imported.</li>
+      <li><strong>Tests and scripts.</strong> Plainwire has no JavaScript scripting, so pre/post-request scripts are not imported. Since 0.2.0, the common Thunder Client tests (status, response time, body and header checks, JSON values, counts and types) are converted to <code># @assert</code> lines you can run with <strong>Run all</strong>; see <a href="api-tests-in-http-files.html">API tests in .http files</a>. Scripts are still not imported.</li>
       <li><strong>Request history.</strong> Your Thunder Client activity history stays in Thunder Client; Plainwire starts its own local history.</li>
       <li><strong>GraphQL, WebSocket, gRPC and OAuth2 flows</strong> are not available in Plainwire yet. Plain GraphQL-over-HTTP requests can still be sent as a JSON body.</li>
     </ul>

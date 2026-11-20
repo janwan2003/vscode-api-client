@@ -135,7 +135,7 @@
           'Env: ', h('b', {}, S.meta.env || 'none'))),
       h('div', { class: 'split' },
         h('section', { class: 'req' },
-          tabs(['params', 'Params', countParams()], ['headers', 'Headers', S.request.headers.filter((x) => !x.disabled).length], ['body', 'Body', bodyType() === 'none' ? '' : '●'], ['auth', 'Auth', authInfo().type === 'none' ? '' : '●'], ['info', 'Info', '']),
+          tabs(['params', 'Params', countParams()], ['headers', 'Headers', S.request.headers.filter((x) => !x.disabled).length], ['body', 'Body', bodyType() === 'none' ? '' : '●'], ['auth', 'Auth', authInfo().type === 'none' ? '' : '●'], ['tests', 'Tests', (S.request.asserts || []).length || ''], ['info', 'Info', '']),
           h('div', { id: 'reqBody', class: 'pane' })),
         h('section', { class: 'res', id: 'res' })),
     );
@@ -251,6 +251,8 @@
       } else if (a.type === 'other') {
         pane.append(h('p', { class: 'hint' }, 'Custom Authorization header: edit it in the Headers tab.'));
       }
+    } else if (S.reqTab === 'tests') {
+      renderTests(pane);
     } else if (S.reqTab === 'info') {
       pane.append(
         h('label', { class: 'field' }, 'Title', h('input', { value: S.request.title || '', placeholder: 'Shown in the sidebar (### Title)', oninput: (e) => { S.request.title = e.target.value || undefined; changed(); } })),
@@ -261,6 +263,37 @@
           changed(); } }), 'Do not follow redirects (# @no-redirect)'),
       );
     }
+  }
+
+  const ASSERT_EXAMPLES = ['status == 200', 'time < 1000', 'header content-type contains json', '$.id exists', '$.items.length > 0', 'body contains "ok"'];
+  function renderTests(pane) {
+    const list = (S.request.asserts || []).slice();
+    const commit = (structural) => {
+      const clean = list.map((x) => x.trim()).filter(Boolean);
+      S.request.asserts = clean.length ? clean : undefined;
+      changed();
+      if (structural) renderReqBody();
+    };
+    const rows = h('div', { class: 'asserts' }, ...list.map((a, i) => {
+      const last = S.lastAssertions && S.lastAssertions.find((r) => r.source === a);
+      return h('div', { class: 'assert-row' },
+        h('span', { class: 'mark ' + (last ? (last.passed ? 'pass' : 'fail') : ''), title: last ? (last.passed ? 'Passed on the last send' : last.message) : 'Not run yet' }, last ? (last.passed ? '✓' : '✗') : '•'),
+        h('input', { class: 'code', value: a, spellcheck: 'false', placeholder: 'status == 200', oninput: (e) => { list[i] = e.target.value; commit(false); } }),
+        h('button', { class: 'icon', title: 'Remove', onclick: () => { list.splice(i, 1); commit(true); } }, '✕'));
+    }));
+    const add = h('input', { class: 'code', spellcheck: 'false', placeholder: 'Add a check, e.g. status == 200  (Enter)', onkeydown: (e) => {
+      if (e.key === 'Enter' && e.target.value.trim()) { list.push(e.target.value.trim()); commit(true); setTimeout(() => /** @type {HTMLInputElement} */ ($('#reqBody .assert-new input'))?.focus()); }
+    } });
+    pane.append(
+      rows,
+      h('div', { class: 'assert-row assert-new' }, h('span', { class: 'mark' }, '+'), add),
+      h('div', { class: 'chips' }, h('span', { class: 'hint' }, 'Quick add: '), ...ASSERT_EXAMPLES.filter((x) => !list.includes(x)).map((x) =>
+        h('button', { class: 'chip', onclick: () => { list.push(x); commit(true); } }, x))),
+      h('p', { class: 'hint' }, 'Checks run after every send and in "Run all". Saved in the .http file as "# @assert …" lines. ',
+        'Subjects: status, time, size, body, header <name>, or a JSONPath like $.data[0].id. ',
+        'Operators: == != < <= > >= contains !contains startsWith endsWith matches exists !exists isEmpty isNumber isString isArray isObject isNull. ',
+        'Values can use {{variables}}.'),
+    );
   }
 
   function tabKey(e) {
@@ -303,21 +336,29 @@
       res.append(h('div', { class: 'empty' }, 'Press ', h('kbd', {}, 'Ctrl/Cmd+Enter'), ' or Send to see the response here.'));
       return;
     }
-    const ct = (r.headers.find(([k]) => k === 'content-type') || [, ''])[1];
+    const ct = (r.headers.find(([k]) => k.toLowerCase() === 'content-type') || [, ''])[1];
+    const tests = S.assertions || [];
+    const failed = tests.filter((t) => !t.passed).length;
     const cls = r.status >= 500 ? 's5' : r.status >= 400 ? 's4' : r.status >= 300 ? 's3' : 's2';
     res.append(
       h('div', { class: 'status' },
         h('span', { class: 'code ' + cls }, r.status + ' ' + (r.statusText || '')),
         h('span', {}, r.timeMs + ' ms'), h('span', {}, fmtSize(r.size)),
+        tests.length ? h('button', { class: 'link tests ' + (failed ? 'fail' : 'pass'), title: 'Show test results', onclick: () => { S.resTab = 'tests'; persist(); renderResponse(); } },
+          failed ? '✗ ' + failed + ' of ' + tests.length + ' checks failed' : '✓ ' + tests.length + ' checks passed') : null,
         h('span', { class: 'spacer' }),
         h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'openBody', body: r.bodyEncoding === 'utf8' ? prettyText(r.body, ct) : r.body, contentType: ct }) }, 'Open in editor'),
         h('button', { class: 'link', onclick: () => navigator.clipboard.writeText(r.body) }, 'Copy')),
-      h('div', { class: 'tabs' }, ...[['body', 'Body'], ['headers', 'Headers (' + r.headers.length + ')'], ['request', 'Sent request']].map(([id, label]) =>
+      h('div', { class: 'tabs' }, ...[['body', 'Body'], ['headers', 'Headers (' + r.headers.length + ')'], ...(tests.length ? [['tests', 'Tests (' + (tests.length - failed) + '/' + tests.length + ')']] : []), ['request', 'Sent request']].map(([id, label]) =>
         h('button', { class: 'tab' + (S.resTab === id ? ' active' : ''), onclick: () => { S.resTab = id; persist(); renderResponse(); } }, label))),
     );
     const pane = h('div', { class: 'pane resp' });
     res.append(pane);
-    if (S.resTab === 'headers') {
+    if (S.resTab === 'tests' && tests.length) {
+      pane.append(h('table', { class: 'tests' }, ...tests.map((t) => h('tr', { class: t.passed ? 'pass' : 'fail' },
+        h('td', { class: 'mark' }, t.passed ? '✓' : '✗'), h('td', { class: 'code' }, t.source),
+        h('td', {}, t.passed ? (t.actual !== undefined ? 'actual: ' + t.actual : 'passed') : t.message)))));
+    } else if (S.resTab === 'headers') {
       pane.append(h('table', { class: 'hdrs' }, ...r.headers.map(([k, v]) => h('tr', {}, h('td', {}, k), h('td', {}, v)))));
     } else if (S.resTab === 'request') {
       const q = S.resolved;
@@ -389,7 +430,7 @@
       S.request = m.request;
       S.request.headers = S.request.headers || [];
       S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames };
-      if (m.response) { S.response = m.response; S.error = null; }
+      if (m.response) { S.response = m.response; S.error = null; S.assertions = []; S.lastAssertions = []; }
       S.dirty = false;
       S.sending = false;
       persist();
@@ -402,7 +443,10 @@
     } else if (m.type === 'sending') {
       S.sending = true; S.error = null; render();
     } else if (m.type === 'response') {
-      S.sending = false; S.response = m.response; S.resolved = m.resolved; S.error = null; persist(); render();
+      S.sending = false; S.response = m.response; S.resolved = m.resolved; S.error = null;
+      S.assertions = m.assertions || []; S.lastAssertions = S.assertions;
+      if (S.resTab === 'tests' && !S.assertions.length) S.resTab = 'body';
+      persist(); render();
     } else if (m.type === 'error') {
       S.sending = false; S.error = m.message; persist(); render();
     } else if (m.type === 'setRequest') {

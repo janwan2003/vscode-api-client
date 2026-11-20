@@ -83,10 +83,17 @@ Complaints and paywall:
 
 ## Status
 
-**Plainwire 0.1.0 built, packaged and on GitHub (Releases + Pages). Not yet on the VS Code Marketplace or Open VSX**
+**Plainwire 0.2.0 built, packaged and on GitHub (Releases + Pages). Not yet on the VS Code Marketplace or Open VSX**
 (no publisher accounts; requested in OPERATOR-INBOX.md). Users can only install from the `.vsix` today.
 
-What exists (TypeScript, no runtime dependencies, 44 KB `.vsix`):
+What exists (TypeScript, no runtime dependencies, 55 KB `.vsix`):
+- 0.2.0 (2026-11-20, session 3): **tests + Run all** (`src/core/assert.ts`: `# @assert <subject> <op> [value]`, subjects
+  status/time/size/body/header/JSONPath, 23 operators; `src/ext/runAll.ts`: run a file/folder/workspace in order with a
+  pass/fail report, re-run failed, copy as Markdown, `# @skip`); Tests tab in the request editor and results in the
+  response view; Thunder Client tests and common Postman `pm.*` snippets converted to `@assert` on import
+  (`src/core/importers/tests.ts`); **sender rewritten on `node:http`/`https`** (any port, `# @insecure` /
+  `plainwire.rejectUnauthorized`, `plainwire.proxy`/`http.proxy`/`HTTPS_PROXY` with CONNECT, `NO_PROXY`, exact header
+  casing, gzip/deflate/br, Authorization dropped on cross-host redirects; `size` is now bytes on the wire).
 - `src/core/`: `.http` parser/serializer with byte-preserving single-request replace (`httpFile.ts`), variables
   (file vars, environments with `$shared`, `$guid`/`$timestamp`/`$randomInt`/`$datetime`/`$processEnv`/`$dotenv`,
   request chaining with a JSONPath subset) (`variables.ts`), sender on Node fetch (`send.ts`), cURL parse/emit (`curl.ts`),
@@ -98,7 +105,19 @@ What exists (TypeScript, no runtime dependencies, 44 KB `.vsix`):
 - `docs/`: GitHub Pages site, 8 pages (landing, privacy, support, 5 SEO guides) + sitemap.
 - `store/LISTING.md`: listing facts and the exact publish commands.
 
-Verified 2026-11-20 how:
+Verified 2026-11-20 (0.2.0, session 3) how:
+- `corepack pnpm@9.15.0 typecheck` clean; `node scripts/test.mjs`: 101 tests, 101 pass, 0 skipped (assertion engine,
+  Thunder/Postman test conversion, sender: port 10080, self-signed cert via openssl, CONNECT proxy, gzip, redirects).
+- `node scripts/e2e.mjs /snap/code/current/usr/share/code/code` against the minified `.vsix` build: VS Code 1.147 headless,
+  10/10 checks, incl. `@assert` evaluated on send and `plainwire.runFile` on a file with pass/fail/skip/self-signed
+  HTTPS on port 10080 with `# @insecure` (summary 2 passed, 1 failed, 1 error, 1 skipped, as expected).
+- `plainwire-0.2.0.vsix` installs with `code --install-extension` into a clean extensions dir.
+- Screenshots re-rendered in headless Chromium: `scripts/shot/harness.html` → `docs/screenshot.png` (Tests tab + "4 checks
+  passed"); `node scripts/shot/run-all.mjs` renders the real `RunAllPanel` HTML with sample rows → `docs/run-all.png`.
+- NOT verified for 0.2.0: typing in
+  the Tests tab in a real VS Code window; proxies against a real corporate proxy (only a local test proxy).
+
+Verified 2026-11-20 (0.1.0) how:
 - `pnpm typecheck` clean; `node scripts/test.mjs`: 80 unit tests, 80 pass (parser round-trips, variables, sender
   against a local HTTP server, cURL, Postman, Thunder fixtures).
 - `node scripts/e2e.mjs /snap/code/current/usr/share/code/code`: real VS Code 1.147 headless (`--ozone-platform=headless
@@ -110,7 +129,7 @@ Verified 2026-11-20 how:
   Cursor/VSCodium/Windsurf; Windows/macOS; the webview's interactive editing in a real VS Code window (only rendered
   in the harness, and the e2e confirms the panel opens and sends).
 
-Known limitations: Node fetch refuses "bad ports" (e.g. 6000, 6665-6669) and self-signed TLS; no scripting/assertions/runner;
+Known limitations: no JavaScript scripting; no CLI runner for CI; no SOCKS proxy or client certificates;
 a body line starting with `###` splits the request (inherent to the format).
 
 ## Next steps
@@ -122,11 +141,12 @@ a body line starting with `###` splits the request (inherent to the format).
    folder) and from Postman, add them as fixtures, fix gaps. Unchecked Thunder assumptions: missing `auth` = inherit
    (folder then collection `settings.auth`); bearer in `auth.bearer` + `auth.bearerPrefix`; legacy collection name in
    `colName`; binary body path in `body.binary`; enabled `params` already in `url`.
-3. Switch the sender from fetch to `node:http`/`https` (undici Agent) to allow any port, self-signed certs
-   (`plainwire.rejectUnauthorized` setting), proxies and exact header casing.
-4. Test assertions + collection runner (`# @assert status == 200`), the most-requested paid Thunder Client feature;
-   then GraphQL body mode, SSE/WebSocket.
-5. After listing: record installs/ratings weekly in `## Metrics`; add Google Search Console for the Pages site (operator).
+3. **CLI runner for CI** (`plainwire run api/*.http --env dev --reporter junit`): the core (`httpFile`, `variables`,
+   `send`, `assert`) is already Node-only, so this is a thin wrapper plus env-file loading. Thunder Client sells its CLI;
+   ours would be free. Distribution needs an npm token (operator) or ships inside the GitHub release.
+4. A `plainwire.noProxy` setting; httpYac-style `?? status == 200` assertion lines for compatibility.
+5. GraphQL body mode, SSE/WebSocket.
+6. After listing: record installs/ratings weekly in `## Metrics`; add Google Search Console for the Pages site (operator).
 
 ## Monetization plan
 
@@ -144,5 +164,9 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   v0.1.0 with the `.vsix`. Stage → launched (GitHub only; stores blocked on operator accounts).
 
 ## Metrics
+
+- 2026-11-20 (session 3): GitHub release v0.1.0 `.vsix` download_count 2 (one was session 2's own verification fetch); repo
+  0 stars, 0 forks, traffic views 0 (source: `gh api repos/janwan2003/vscode-api-client/releases` and `/traffic/views`).
+  No store listing yet (`VSCE_PAT`/`OVSX_PAT` absent from `.env`, checked this session).
 
 - 2026-11-20: no store listing yet, so no installs to read. GitHub release `.vsix` downloads: 1, which was this session's own verification fetch (source: curl of releases/latest/download). Pages live, HTTP 200 on 6 checked URLs.

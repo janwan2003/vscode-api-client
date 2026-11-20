@@ -29,7 +29,7 @@ test('collection export: name, nested folders, sortNum order', () => {
   assert.deepEqual(col.variables, []);
 });
 
-test('json body, disabled header, collection bearer inherited, tests warned', () => {
+test('json body, disabled header, collection bearer inherited, tests converted', () => {
   const r = find(col, 'Create order');
   assert.equal(r.method, 'POST');
   assert.equal(r.url, '{{baseUrl}}/orders');
@@ -40,7 +40,9 @@ test('json body, disabled header, collection bearer inherited, tests warned', ()
     { name: 'Content-Type', value: 'application/json' },
     { name: 'Authorization', value: 'Bearer {{token}}' },
   ]);
-  assert.ok(col.warnings.includes('"Orders / Create order": tests skipped.'));
+  // res-code converts to an @assert; set-env-var cannot and is reported.
+  assert.deepEqual(r.asserts, ['status == 201']);
+  assert.ok(col.warnings.some((w) => w.startsWith('"Orders / Create order": 1 test(s) not converted') && w.includes('set-env-var')));
   // Empty tests arrays do not warn.
   assert.ok(!col.warnings.some((w) => w.includes('List orders')));
 });
@@ -109,7 +111,7 @@ test('legacy workspace layout: collections, requests by colId, environments', ()
     { name: 'Authorization', value: 'Bearer {{billingToken}}' },
   ]);
   assert.equal(find(billing, 'Download PDF').url, '{{host}}/invoices/:id/pdf');
-  assert.ok(billing.warnings.some((w) => w.includes('Download PDF') && w.includes('tests')));
+  assert.deepEqual(find(billing, 'Download PDF').asserts, ['status == 200']);
   assert.equal(find(cols[1], 'Echo').body, 'hello\nworld');
   assert.ok(cols[1].warnings.some((w) => w.includes('no URL')));
   assert.equal(find(cols[2], 'Orphan').method, 'DELETE');

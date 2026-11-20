@@ -1,0 +1,20 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: corepack enable && corepack pnpm@9.15.0 install --frozen-lockfile
+      - run: corepack pnpm@9.15.0 typecheck
+      - run: node scripts/test.mjs
+      - run: corepack pnpm@9.15.0 package

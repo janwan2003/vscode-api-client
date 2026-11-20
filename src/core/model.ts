@@ -21,6 +21,8 @@ export interface HttpRequest {
   body?: string;
   /** Other `# @key value` metadata lines (e.g. `@no-redirect`, `@note`). Value is '' for flags. */
   meta?: Record<string, string>;
+  /** `# @assert status == 200` lines, in order, without the `@assert` prefix. See core/assert.ts. */
+  asserts?: string[];
   /** Plain comment lines above the request line, without the comment marker. */
   comments?: string[];
 }

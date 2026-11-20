@@ -10,3 +10,5 @@ VENTURE.md
 **/*.map
 media/icon.svg
 pnpm-lock.yaml
+.gitignore
+.github/**

@@ -1,5 +1,6 @@
 import type { FileVariable, Header, HttpRequest, ImportedCollection } from '../model.ts';
 import { METHODS } from '../httpFile.ts';
+import { convertPostmanTests } from './tests.ts';
 import { basicAuthValue, buildMultipartBody, filePath, formEncode, multipartContentType } from '../curl.ts';
 import type { MultipartPart } from '../curl.ts';
 
@@ -52,6 +53,8 @@ export function cleanImportedRequest(req: HttpRequest, label: string, warnings: 
   const out: HttpRequest = { method, url, headers };
   const title = req.title?.replace(/\s*[\r\n]+\s*/g, ' ').trim();
   if (title) out.title = title;
+  const asserts = req.asserts?.map((a) => a.replace(/[\r\n]+/g, ' ').trim()).filter(Boolean);
+  if (asserts?.length) out.asserts = asserts;
   if (req.body !== undefined && req.body.trim() !== '') {
     out.body = req.body.replace(/\r\n/g, '\n');
     if (/^###/m.test(out.body)) {
@@ -154,6 +157,18 @@ function applyAuth(auth: Obj | undefined, req: HttpRequest, label: string, warni
     default:
       warnings.push(`${label}: ${type} auth is not supported; not imported.`);
   }
+}
+
+/** Code of the enabled `test` scripts in a Postman `event` list. */
+function testScript(events: unknown): string {
+  const parts: string[] = [];
+  for (const e of arr(events)) {
+    if (!isObj(e) || e.disabled === true || str(e.listen) !== 'test') continue;
+    const script = isObj(e.script) ? e.script : undefined;
+    const exec = script ? script.exec : undefined;
+    parts.push(Array.isArray(exec) ? exec.map(str).join('\n') : str(exec));
+  }
+  return parts.join('\n');
 }
 
 function scriptKinds(events: unknown): string[] {
@@ -350,7 +365,16 @@ function walk(items: unknown, path: string[], inheritedAuth: Obj | undefined, ct
     } else continue;
     req.title = name;
     applyAuth(auth, req, label, ctx.warnings);
-    const kinds = scriptKinds(item.event);
+    let kinds = scriptKinds(item.event);
+    const code = testScript(item.event);
+    if (code.trim()) {
+      const t = convertPostmanTests(code);
+      if (t.asserts.length) req.asserts = t.asserts;
+      if (t.asserts.length || !t.skipped.length) kinds = kinds.filter((k) => k !== 'test script');
+      if (t.asserts.length && t.skipped.length) {
+        ctx.warnings.push(`${label}: test script converted to ${t.asserts.length} # @assert check(s); not converted: ${t.skipped.join('; ')}.`);
+      }
+    }
     if (kinds.length) ctx.warnings.push(`${label}: ${kinds.join(' and ')} skipped.`);
     const clean = cleanImportedRequest(req, label, ctx.warnings);
     if (!clean) continue;
