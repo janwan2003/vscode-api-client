@@ -39,7 +39,24 @@ for (const [alias, op] of [
   ['lt', '<'], ['lte', '<='], ['gt', '>'], ['gte', '>='],
   ['notcontains', '!contains'], ['includes', 'contains'], ['startswith', 'startsWith'], ['endswith', 'endsWith'],
   ['notmatches', '!matches'], ['notexists', '!exists'], ['notempty', '!isEmpty'], ['empty', 'isEmpty'],
+  ['notequals', '!='],
 ] as const) OP_LOOKUP.set(alias, op);
+
+/** httpYac's predicates (httpYac 6.16), longest first. */
+const HTTPYAC_PREDICATES = [
+  '===', '!==', '==', '!=', '>=', '<=', '>', '<', 'not equals', 'equals', 'endsWith', 'startsWith', 'exists', 'isTrue', 'isFalse',
+  'contains', 'includes', 'isArray', 'isBoolean', 'isNumber', 'isString', 'matches', 'md5', 'sha256', 'sha512',
+];
+/**
+ * httpYac's own test-line pattern, `?? <type> [value] <predicate> [expected]`: case-insensitive, and the
+ * value is greedy, so the LAST predicate that follows whitespace wins (`?? js a == 1 || b == 2` has the
+ * value `a == 1 || b`). One deliberate difference: longer predicates are tried first (httpYac tries `==`
+ * before `===` and so reads `=== 5` as `== "= 5"`). A `??` line that does not match is not a test in
+ * httpYac at all: httpYac sends it as part of the request body.
+ */
+const HTTPYAC_LINE = new RegExp(`^\\s*\\?\\?\\s*(\\S*)(?:\\s+(.*))?\\s+(${HTTPYAC_PREDICATES.join('|')})\\s*(.*?)\\s*$`, 'iu');
+/** httpYac's `?? duration <phase>` timings; only the total is measured here. */
+const DURATION_PHASES = new Set(['firstbyte', 'download', 'wait', 'request', 'tcp', 'tls']);
 
 export type Subject =
   | { kind: 'status' | 'time' | 'size' | 'body' }
@@ -75,64 +92,134 @@ export function parseAssertion(source: string): Assertion {
 }
 
 /**
- * httpYac `?? <subject> <predicate> [expected]` lines, translated to the subjects above:
+ * httpYac `?? <type> [value] <predicate> [expected]` lines, translated to the subjects above:
  *
- *   ?? status == 200                       ?? duration < 500             (duration = time)
+ *   ?? status == 200                       ?? duration < 500             (duration [total] = time)
  *   ?? header content-type includes json   ?? body includes "ok"         ?? body $.id exists
+ *   ?? body user.name == Ada               ?? body items[0].id isNumber  (property path → JSONPath)
  *   ?? js response.parsedBody.items.length > 0      ?? js response.statusCode == 200
  *   ?? js response.body.user.name == "Ada"          ?? js response.headers['x-id'] exists
  *
- * `?? js` is never evaluated: only a plain property path on `response.parsedBody` / `response.body`
- * (→ JSONPath; `response.body` alone → the body text), `response.statusCode` and
- * `response.headers.name` / `['name']` are translated. Anything else (other JavaScript, `xpath`,
- * unknown subjects or predicates) throws "unsupported httpYac assertion", which runAssertions
- * reports as a failed check: a check that cannot run must never pass silently.
+ * The line is split exactly as httpYac splits it (HTTPYAC_LINE). httpYac evaluates `?? body <value>`
+ * as the JavaScript `(response.parsedBody || response.body).<value>` and `?? js <value>` as JavaScript;
+ * neither is ever evaluated here. A plain property path (`a.b[0]['c d']`, `?.` allowed) becomes a
+ * JSONPath; for `?? js`, only paths on `response.parsedBody` / `response.body` (`response.body` alone →
+ * the body text), `response.statusCode` and `response.headers.name` / `['name']` are translated.
+ * Anything else (other JavaScript, `xpath`, duration phases, unknown subjects or predicates) throws
+ * "unsupported httpYac assertion", which runAssertions reports as a failed check: a check that cannot
+ * run must never pass silently. Lines httpYac does not read as tests are still accepted with the
+ * Plainwire operators (`?? body tags !contains x`, `?? body $.list isEmpty`).
  */
 export function parseHttpYacAssertion(source: string): Assertion {
-  const line = source.trim().replace(/^\?\?\s*/, '');
   const unsupported = (why: string): never => {
     throw new Error(`unsupported httpYac assertion "${source.trim()}": ${why}`);
   };
-  const m = /^(\S+)\s*([\s\S]*)$/.exec(line);
+  const y = HTTPYAC_LINE.exec(source);
+  if (y) {
+    let value = (y[2] ?? '').trim();
+    let pred = y[3];
+    // The greedy split reads `name not equals x` as value `name not` + `equals` (in httpYac too, which
+    // turns `?? status not equals 200` into `status == 200`); `not equals` is meant.
+    if (pred.toLowerCase() === 'equals' && /(?:^|\s)not$/i.test(value)) {
+      value = value.replace(/\s*not$/i, '');
+      pred = 'not equals';
+    }
+    const subject = httpYacSubject(y[1], value, unsupported);
+    const op = lookupOperator(pred)!;
+    if (UNARY.has(op)) return { source, subject, op };
+    if (!y[4]) return unsupported(`missing expected value after "${pred}"`);
+    return { source, subject, op, expected: y[4] };
+  }
+  // Not a test for httpYac (no httpYac predicate): accept Plainwire's own operators, else explain.
+  const m = /^(\S+)\s*([\s\S]*)$/.exec(source.trim().replace(/^\?\?\s*/, ''));
   if (!m) return unsupported('nothing to check');
   const kind = m[1].toLowerCase();
   let rest = m[2];
-  let subject: string;
-  if (kind === 'status' || kind === 'duration' || kind === 'body') {
-    subject = kind;
-    // `?? body $.path ...` → JSONPath into the body.
-    const jp = kind === 'body' ? /^(\$(?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)\s*/.exec(rest) : null;
-    if (jp) {
-      subject = jp[1];
-      rest = rest.slice(jp[0].length);
+  let value = '';
+  if (kind === 'js') value = leadingExpression(rest);
+  else if (kind === 'header') value = /^\S*/.exec(rest)![0];
+  else if (kind !== 'status' && rest && !(startsWithOperator(rest) && !startsWithOperator(rest.replace(/^\S+\s*/, '')))) {
+    value = leadingExpression(rest);
+  }
+  rest = rest.slice(value.length).trim();
+  const subject = httpYacSubject(m[1], value, unsupported);
+  try {
+    return { source, subject, ...parsePredicate(rest, source) };
+  } catch (e) {
+    const why = (e as Error).message.replace(` in "${source}"`, '');
+    return unsupported(`${why}. httpYac itself does not read this line as a test (it sends it as request body text)`);
+  }
+}
+
+/** The subject of an httpYac line from its type and value (see parseHttpYacAssertion). */
+function httpYacSubject(type: string, value: string, unsupported: (why: string) => never): Subject {
+  const kind = type.toLowerCase();
+  if (kind === 'status') {
+    if (value) return unsupported(`unexpected "${value}" after "status"`);
+    return { kind: 'status' };
+  }
+  if (kind === 'duration') {
+    if (value && value.toLowerCase() !== 'total') {
+      return unsupported(
+        DURATION_PHASES.has(value.toLowerCase())
+          ? `the ${value} timing phase is not measured (only the total duration is); use "?? duration < ms"`
+          : `unknown duration phase "${value}"`,
+      );
     }
-  } else if (kind === 'header') {
-    const h = /^([A-Za-z0-9!#$%&'*+.^_`|~-]+)(?=\s|$)\s*/.exec(rest);
-    if (!h) return unsupported('expected a header name after "header"');
-    subject = `header ${h[1]}`;
-    rest = rest.slice(h[0].length);
-  } else if (kind === 'js') {
-    const expr = leadingExpression(rest);
-    const translated = jsSubject(expr);
+    return { kind: 'time' };
+  }
+  if (kind === 'header') {
+    if (!/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(value)) return unsupported('expected a header name after "header"');
+    return { kind: 'header', name: value };
+  }
+  if (kind === 'body') {
+    if (!value) return { kind: 'body' };
+    // `?? body $.path ...` → JSONPath into the body (a Plainwire extension; httpYac reads a property path).
+    if (/^\$(?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*$/.test(value)) return { kind: 'json', path: value };
+    const path = propertyPath(value);
+    if (!path) {
+      return unsupported(
+        `"${value}" is not a plain property path (httpYac evaluates it as JavaScript, which is never run here); ` +
+          'use a path like user.items[0].id, or rewrite it as # @assert',
+      );
+    }
+    return { kind: 'json', path };
+  }
+  if (kind === 'js') {
+    const translated = jsSubject(value);
     if (!translated) {
       return unsupported(
-        `"${expr || '(empty)'}" is not translated (JavaScript is never evaluated); use response.parsedBody.<path>, ` +
+        `"${value || '(empty)'}" is not translated (JavaScript is never evaluated); use response.parsedBody.<path>, ` +
           `response.body.<path>, response.statusCode or response.headers['name'], or rewrite it as # @assert`,
       );
     }
-    subject = translated;
-    rest = rest.slice(expr.length);
-  } else if (kind === 'xpath') {
-    return unsupported('xpath is not supported; use body contains / matches, or # @assert');
-  } else {
-    return unsupported(`unknown subject "${m[1]}"; use status, duration, header <name>, body or js <expression>`);
+    return translated;
   }
-  const text = `${subject} ${rest.trim()}`.trim();
-  try {
-    return parseCore(text, source);
-  } catch (e) {
-    return unsupported((e as Error).message.replace(` in "${source}"`, ''));
-  }
+  if (kind === 'xpath') return unsupported('xpath is not supported; use body contains / matches, or # @assert');
+  return unsupported(`unknown subject "${type}"; use status, duration, header <name>, body or js <expression>`);
+}
+
+/** `==`, `isTrue`, `not equals`, `!contains`, `includes`... → the operator, or undefined. */
+function lookupOperator(text: string): Operator | undefined {
+  const op = text.replace(/\s+/g, '').toLowerCase();
+  return OP_LOOKUP.get(op) ?? OP_LOOKUP.get(op.replace(/^!/, 'not'));
+}
+
+/** Does the text start with an operator (`==`, `contains`, `not equals`, `!contains`...)? */
+function startsWithOperator(text: string): boolean {
+  const m = OPERATOR_RE.exec(text);
+  if (!m) return false;
+  const op = m[1].replace(/\s+/g, '').toLowerCase();
+  if (op === 'not' || op === '!') return /^(?:not|!)\s*[A-Za-z]/i.test(text);
+  return lookupOperator(op) !== undefined;
+}
+
+/** A JavaScript property path (`user.items[0]['a b']`, `?.` allowed) → JSONPath (`$.user.items[0]['a b']`); else undefined. */
+function propertyPath(expr: string): string | undefined {
+  const path = expr.replace(/\?\.(?=\[)/g, '').replace(/\?\./g, '.');
+  const m = /^([A-Za-z_$][\w$]*)((?:\.[A-Za-z_$][\w$]*|\[\d+\]|\[\s*(['"])[^'"]*\3\s*\])*)$/.exec(path);
+  if (!m) return undefined;
+  return '$.' + m[1] + m[2].replace(/\[\s*(['"])([^'"]*)\1\s*\]/g, "['$2']");
 }
 
 /** The expression after `?? js`: up to the first whitespace outside brackets and quotes. */
@@ -153,15 +240,19 @@ function leadingExpression(text: string): string {
 }
 
 /** `response.parsedBody.a[0]['b c']` → `$.a[0]['b c']`; status code and header lookups; else undefined. */
-function jsSubject(expr: string): string | undefined {
-  if (expr === 'response.statusCode') return 'status';
+function jsSubject(js: string): Subject | undefined {
+  const expr = js.replace(/\?\.(?=\[)/g, '').replace(/\?\./g, '.');
+  if (expr === 'response.statusCode') return { kind: 'status' };
   let m = /^response\.headers(?:\.([A-Za-z_$][\w$]*)|\[\s*(['"])([A-Za-z0-9!#$%&*+.^_`|~-]+)\2\s*\])$/.exec(expr);
-  if (m) return `header ${m[1] ?? m[3]}`;
+  if (m) return { kind: 'header', name: m[1] ?? m[3] };
   m = /^response\.(parsedBody|body)((?:\.[A-Za-z_$][\w$]*|\[\d+\]|\[\s*(['"])[^'"]*\3\s*\])*)$/.exec(expr);
   if (!m) return undefined;
-  if (!m[2]) return m[1] === 'parsedBody' ? '$' : 'body';
-  return '$' + m[2].replace(/\[\s*(['"])([^'"]*)\1\s*\]/g, "['$2']");
+  if (!m[2]) return m[1] === 'parsedBody' ? { kind: 'json', path: '$' } : { kind: 'body' };
+  return { kind: 'json', path: '$' + m[2].replace(/\[\s*(['"])([^'"]*)\1\s*\]/g, "['$2']") };
 }
+
+/** A word operator (`contains`, `!matches`, `not`) ends at whitespace; a symbol (`==`, `>=`) may touch its value (`==200`). */
+const OPERATOR_RE = /^(!?\s*[A-Za-z][A-Za-z0-9]*(?=\s|$)|<>|[=!<>]=?=?)/;
 
 function parseCore(text: string, source: string): Assertion {
   let rest = text;
@@ -182,21 +273,32 @@ function parseCore(text: string, source: string): Assertion {
   } else {
     throw new Error(`Unknown assertion subject in "${source}". Use status, time, size, body, header <name> or a JSONPath like $.id`);
   }
-  const opm = take(/^(!?\s*[A-Za-z][A-Za-z0-9]*|[=!<>]=?=?|<>)(?=\s|$)/);
+  return { source, subject, ...parsePredicate(rest, source) };
+}
+
+/** `<operator> [expected]` after the subject. */
+function parsePredicate(text: string, source: string): { op: Operator; expected?: string } {
+  let rest = text.trim();
+  const take = (re: RegExp): RegExpExecArray | null => {
+    const m = re.exec(rest);
+    if (m) rest = rest.slice(m[0].length).trim();
+    return m;
+  };
+  const opm = take(OPERATOR_RE);
   if (!opm) throw new Error(`Missing operator in "${source}". Use one of: ${OPERATORS.join(' ')}`);
   let opText = opm[1].replace(/\s+/g, '').toLowerCase();
   if (opText === 'not' || opText === '!') {
     const next = take(/^([A-Za-z]+)(?=\s|$)/);
     opText = '!' + (next?.[1].toLowerCase() ?? '');
   }
-  const op = OP_LOOKUP.get(opText) ?? OP_LOOKUP.get(opText.replace(/^!/, 'not'));
+  const op = lookupOperator(opText);
   if (!op) throw new Error(`Unknown operator "${opm[1]}" in "${source}". Use one of: ${OPERATORS.join(' ')}`);
   if (UNARY.has(op)) {
     if (rest) throw new Error(`"${op}" takes no value in "${source}"`);
-    return { source, subject, op };
+    return { op };
   }
   if (!rest) throw new Error(`Missing expected value after "${op}" in "${source}"`);
-  return { source, subject, op, expected: rest };
+  return { op, expected: rest };
 }
 
 function parseExpected(text: string): unknown {

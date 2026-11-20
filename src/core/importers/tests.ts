@@ -11,6 +11,8 @@ export interface ConvertedTests {
   asserts: string[];
   /** Human-readable descriptions of tests that were not converted. */
   skipped: string[];
+  /** Postman: checks skipped because they only run under a condition, in a loop, callback or try. */
+  conditional?: number;
 }
 
 /** Thunder Client stores JSON paths as `json.data[0].id`; Plainwire uses `$.data[0].id`. */
@@ -388,9 +390,13 @@ export function convertPostmanTests(code: string): ConvertedTests {
       push(`${jsJsonPath(m[1], jsonVars)} ${op} ${m[3]}`);
     } else unhandled++;
   }
-  for (const [name, n] of conditional) {
-    out.skipped.push(`skipped ${n === 1 ? 'conditional check' : `${n} conditional checks`} ${name ? `in test '${name}'` : 'outside any pm.test'}`);
+  // One entry for all conditional checks: the total, then where they are (`3 in 'Body ok'`).
+  if (conditional.size) {
+    const total = [...conditional.values()].reduce((a, b) => a + b, 0);
+    const where = [...conditional].map(([name, n]) => (name ? `${n} in '${name}'` : `${n} outside any pm.test`));
+    out.skipped.push(`${total} ${total === 1 ? 'check' : 'checks'} inside if/loop/callback/try (${where.join(', ')})`);
+    out.conditional = total;
   }
-  if (unhandled) out.skipped.push(`${unhandled} script statement(s)`);
+  if (unhandled) out.skipped.push(`${unhandled} other script statement(s)`);
   return out;
 }

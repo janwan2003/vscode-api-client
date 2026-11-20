@@ -28,6 +28,17 @@ export interface HttpRequest {
   asserts?: string[];
   /** Plain comment lines above the request line, without the comment marker. */
   comments?: string[];
+  /**
+   * Lines kept verbatim but never run, above the request line: httpYac `{{ ... }}` scripts, JetBrains
+   * `< {% ... %}` pre-request scripts and `/* ... *\/` block comments. Written back before the request line.
+   */
+  rawBefore?: string[];
+  /**
+   * Lines kept verbatim but never run, after the request: httpYac `{{ ... }}` scripts, JetBrains
+   * `> {% ... %}` / `> handler.js` response handlers, httpYac `>> file` output redirects and `/*` ... `*\/`
+   * comments. Written back last.
+   */
+  rawAfter?: string[];
 }
 
 /** `@name = value` file-level variable. */

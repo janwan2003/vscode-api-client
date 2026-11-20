@@ -384,6 +384,8 @@ function walk(items: unknown, path: string[], inheritedAuth: InheritedAuth | und
     }
     if (!('request' in item)) continue;
     const label = `"${[...path, name].join(' / ')}"`;
+    // This request's warnings, reported as one line at the end ("label: a; b; c.").
+    const w: string[] = [];
     const r = item.request;
     let req: HttpRequest;
     let auth: InheritedAuth | undefined = inheritedAuth;
@@ -391,33 +393,33 @@ function walk(items: unknown, path: string[], inheritedAuth: InheritedAuth | und
       req = { method: 'GET', url: r, headers: [] };
     } else if (isObj(r)) {
       req = { method: str(r.method) || 'GET', url: buildUrl(r.url), headers: headersOf(r.header) };
-      applyBody(r.body, req, label, ctx.warnings);
+      applyBody(r.body, req, label, w);
       if (isObj(r.auth) && str(r.auth.type) !== 'inherit') auth = { auth: r.auth, where: label };
     } else continue;
     req.title = name;
-    if (auth?.where === label) applyAuth(auth.auth, req, label, ctx.warnings);
+    if (auth?.where === label) applyAuth(auth.auth, req, label, w);
     else if (auth) {
       // Inherited auth that cannot be converted is reported once, where it is set, not per request.
-      const w: string[] = [];
-      applyAuth(auth.auth, req, auth.where, w);
-      for (const x of w) if (!ctx.warnings.includes(x)) ctx.warnings.push(x);
+      const inherited: string[] = [];
+      applyAuth(auth.auth, req, auth.where, inherited);
+      for (const x of inherited) if (!ctx.warnings.includes(x)) ctx.warnings.push(x);
     }
     let kinds = scriptKinds(item.event);
     const code = testScript(item.event);
     if (code.trim()) {
       const t = convertPostmanTests(code);
       if (t.asserts.length) req.asserts = t.asserts;
-      const conditional = t.skipped.some((x) => x.includes('conditional check'));
-      if (t.asserts.length || !t.skipped.length || conditional) kinds = kinds.filter((k) => k !== 'test script');
+      if (t.asserts.length || !t.skipped.length || t.conditional) kinds = kinds.filter((k) => k !== 'test script');
       if (t.asserts.length && t.skipped.length) {
-        ctx.warnings.push(`${label}: test script converted to ${t.asserts.length} # @assert check(s); not converted: ${t.skipped.join('; ')}.`);
-      } else if (conditional) {
+        w.push(`${label}: test script converted to ${t.asserts.length} # @assert check(s); not converted: ${t.skipped.join(', ')}.`);
+      } else if (t.conditional) {
         // Nothing converted, but name the tests whose checks were conditional.
-        ctx.warnings.push(`${label}: test script not converted: ${t.skipped.join('; ')}.`);
+        w.push(`${label}: test script not converted: ${t.skipped.join(', ')}.`);
       }
     }
-    if (kinds.length) ctx.warnings.push(`${label}: ${kinds.join(' and ')} skipped.`);
-    const clean = cleanImportedRequest(req, label, ctx.warnings);
+    if (kinds.length) w.push(`${label}: ${kinds.join(' and ')} skipped.`);
+    const clean = cleanImportedRequest(req, label, w);
+    if (w.length) ctx.warnings.push(`${label}: ${w.map((x) => x.replace(`${label}: `, '').replace(/\.$/, '')).join('; ')}.`);
     if (!clean) continue;
     const folder = path.join(' / ');
     const list = ctx.folders.get(folder);
