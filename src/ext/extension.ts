@@ -28,7 +28,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const history = new History(context.workspaceState);
   const cookies = new CookieStore(context.workspaceState);
   const output = vscode.window.createOutputChannel('Plainwire');
-  const runner = new Runner(envs, history, cookies, (m) => output.appendLine(`[${new Date().toLocaleTimeString()}] ${m}`));
+  const runner = new Runner(envs, history, cookies, (m) => output.appendLine(`[${new Date().toLocaleTimeString()}] ${m}`), context.workspaceState);
   const copier = new CodeCopier(runner, context.globalState);
   const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier };
   const collections = new CollectionsProvider();
@@ -127,6 +127,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       runner.oauth2.clear();
       void vscode.window.showInformationMessage(`Plainwire: ${n} OAuth 2 token${n === 1 ? '' : 's'} cleared; the next request signs in again.`);
     }),
+    vscode.commands.registerCommand('plainwire.clearScriptVariables', guard(async () => {
+      const g = runner.globals;
+      if (!g.size) {
+        void vscode.window.showInformationMessage('Plainwire: no script variables are set (scripts set them with client.global.set).');
+        return;
+      }
+      const names = [...g.keys()];
+      const pick = await vscode.window.showQuickPick([{ label: '$(clear-all) Clear all', all: true }, ...names.map((n) => ({ label: n, description: preview(g.get(n) ?? ''), all: false }))], {
+        title: `Script variables (client.global): ${names.length}`,
+        placeHolder: 'Pick one to clear it, or clear all',
+      });
+      if (!pick) return;
+      if (pick.all) g.clear();
+      else g.delete(pick.label);
+      await context.workspaceState.update('plainwire.scriptGlobals', [...g]);
+      void vscode.window.showInformationMessage(pick.all ? `Plainwire: ${names.length} script variable${names.length === 1 ? '' : 's'} cleared.` : `Plainwire: script variable "${pick.label}" cleared.`);
+    })),
     vscode.commands.registerCommand('plainwire.clearHistory', guard(async () => {
       const ok = await vscode.window.showWarningMessage('Clear Plainwire request history for this workspace?', { modal: true }, 'Clear');
       if (ok) await history.clear();
@@ -191,3 +208,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
 }
 
 export function deactivate(): void {}
+
+/** A variable value for a quick pick: one line, at most 60 characters. */
+function preview(v: string): string {
+  const one = v.replace(/\s+/g, ' ');
+  return one.length > 60 ? one.slice(0, 57) + '…' : one;
+}

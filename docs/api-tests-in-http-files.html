@@ -180,7 +180,7 @@ pm.response.to.have.header("X-Request-Id")       <span class="c">&rarr; header X
 pm.expect(jsonData.name).to.eql("Ada")           <span class="c">&rarr; $.name == "Ada"</span>
 pm.expect(pm.response.text()).to.include("ok")   <span class="c">&rarr; body contains "ok"</span>
 pm.expect(jsonData.items).to.have.lengthOf(3)    <span class="c">&rarr; $.items.length == 3</span></pre>
-    <p>Tests written as free-form JavaScript are reported as warnings so you can rewrite them by hand. Checks inside an <code>if</code>, <code>else</code>, loop, <code>try</code> or callback only ran under a condition in Postman, so they are not turned into always-on checks: each one is listed as &ldquo;skipped conditional check in test '&hellip;'&rdquo;.</p>
+    <p>A test script made only of such snippets becomes <code># @assert</code> lines. Since 0.13, any other test script (one that sets variables, or has an <code>if</code>, a loop or other free-form JavaScript) is kept whole as a <code>&gt; {% %}</code> response handler and runs with a Postman-compatible <code>pm</code> API, so its <code>pm.test</code> results appear next to your other checks. Pre-request scripts are kept as <code>&lt; {% %}</code> blocks. See <a href="javascript-scripts-http-file.html#postman">Postman scripts</a> for what the <code>pm</code> API covers.</p>
 
     <h2 id="httpyac">httpYac <code>??</code> lines</h2>
     <p>If your files were written for httpYac, their <code>??</code> test lines run in Plainwire without changes, in the editor, in Run all and in the CLI:</p>
@@ -191,10 +191,10 @@ pm.expect(jsonData.items).to.have.lengthOf(3)    <span class="c">&rarr; $.items.
 ?? body $.id exists
 ?? duration &lt; 500
 ?? js response.parsedBody.name == "Ada"</pre>
-    <p>Supported subjects: <code>status</code>, <code>duration</code>, <code>header &lt;name&gt;</code>, <code>body</code> and <code>body $.path</code>, and <code>js</code> with simple paths only (<code>response.parsedBody.&hellip;</code>, <code>response.body.&hellip;</code>, <code>response.statusCode</code>, <code>response.headers['x']</code>). Plainwire never runs JavaScript, so any other <code>?? js</code> expression, and <code>?? xpath</code>, is reported as a failed check that says &ldquo;unsupported httpYac assertion&rdquo;, never as a silent pass.</p>
+    <p>Supported subjects: <code>status</code>, <code>duration</code>, <code>header &lt;name&gt;</code>, <code>body</code> and <code>body $.path</code>, and <code>js</code> with simple paths only (<code>response.parsedBody.&hellip;</code>, <code>response.body.&hellip;</code>, <code>response.statusCode</code>, <code>response.headers['x']</code>). Plainwire does not evaluate other <code>?? js</code> expressions, so they, and <code>?? xpath</code>, are reported as a failed check that says &ldquo;unsupported httpYac assertion&rdquo;, never as a silent pass.</p>
 
     <div class="note">
-      <p><strong>Not there yet:</strong> there is no JavaScript scripting, so pre-request scripts, test scripts with loops or custom logic, and setting variables from code are not supported. Checks cover the response of a single request; chaining covers passing values between requests.</p>
+      <p><strong>Need more than one line?</strong> Since 0.13, a <code>&gt; {% %}</code> response handler can run checks with loops and conditions through <code>client.test</code>, and save values for later requests with <code>client.global.set</code>; a <code>&lt; {% %}</code> pre-request script can compute a signature before sending. See <a href="javascript-scripts-http-file.html">pre-request scripts and tests in .http files</a>. httpYac&rsquo;s own <code>{{ }}</code> script blocks are not run.</p>
     </div>
 
     <p>The same checks run outside VS Code with the free <code>plainwire</code> command-line runner and GitHub Action, which exit non-zero on failure and write JUnit XML: see <a href="run-http-files-in-ci.html">Run .http files in CI</a>.</p>

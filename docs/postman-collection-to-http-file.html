@@ -130,8 +130,9 @@ Content-Type: application/json
           <tr><td><code>auth</code> bearer / basic (also inherited)</td><td><code>Authorization: Bearer &hellip;</code> / <code>Authorization: Basic &hellip;</code></td></tr>
           <tr><td>Collection <code>variable</code></td><td><code>@name = value</code> at the top of the file</td></tr>
           <tr><td>Environment</td><td>Entry in <code>http-client.env.json</code></td></tr>
-          <tr><td>Test scripts (<code>event</code>, <code>listen: test</code>)</td><td>Common snippets (<code>pm.response.to.have.status</code>, response time, headers, <code>jsonData.x</code> equals, body includes, length) become <a href="api-tests-in-http-files.html"><code># @assert</code> lines</a> (0.2+); other lines are listed as warnings</td></tr>
-          <tr><td>Pre-request scripts</td><td>No equivalent; not imported</td></tr>
+          <tr><td>Test scripts (<code>event</code>, <code>listen: test</code>)</td><td>Common snippets (<code>pm.response.to.have.status</code>, response time, headers, <code>jsonData.x</code> equals, body includes, length) become <a href="api-tests-in-http-files.html"><code># @assert</code> lines</a> (0.2+). Since 0.13, any other test script is kept whole as a <code>&gt; {% %}</code> block that runs with a <code>pm</code> API</td></tr>
+          <tr><td>Pre-request scripts</td><td>Since 0.13, kept as a <code>&lt; {% %}</code> block above the request (<a href="javascript-scripts-http-file.html#postman">what runs</a>)</td></tr>
+          <tr><td>Folder- and collection-level scripts</td><td>Not imported; listed as warnings</td></tr>
         </tbody>
       </table>
     </div>
@@ -176,7 +177,8 @@ Content-Type: application/json
     </div>
 
     <h2>Scripts and tests</h2>
-    <p>Postman <code>pm.*</code> scripts do not run in Plainwire. The most common script, saving a token from a login response, is replaced by <a href="http-file-syntax.html#chaining">request chaining</a>:</p>
+    <p>Since 0.13, request-level Postman scripts are kept in the <code>.http</code> file and run with a Postman-compatible <code>pm</code> API: <code>pm.test</code>, the common <code>pm.expect</code> chain, <code>pm.response</code>, and <code>pm.environment</code> / <code>pm.collectionVariables</code> / <code>pm.globals</code>, whose <code>set</code> makes the value available to later requests as <code>{{name}}</code>. <code>pm.sendRequest</code>, <code>require()</code>, <code>pm.visualizer</code>, <code>pm.cookies</code>, <code>pm.vault</code> and async tests are not supported, and the importer warns when a script uses them. The full list is in <a href="javascript-scripts-http-file.html#postman">scripts in .http files</a>.</p>
+    <p>The most common script, saving a token from a login response, can also be replaced by <a href="http-file-syntax.html#chaining">request chaining</a>, which needs no script and sends the login request for you when needed:</p>
 <pre>### Login
 # @name login
 POST {{baseUrl}}/auth/login
@@ -187,7 +189,7 @@ Content-Type: application/json
 ### Profile (uses the token from the login response)
 GET {{baseUrl}}/me
 Authorization: Bearer {{login.response.body.$.access_token}}</pre>
-    <p>Test assertions (<code>pm.test</code>, <code>pm.expect</code>) have no equivalent yet; keep a note of which requests had them.</p>
+    <p>Test scripts made only of common checks (<code>pm.response.to.have.status</code>, response time, headers, <code>jsonData.x</code> equals) become <a href="api-tests-in-http-files.html#postman"><code># @assert</code> lines</a>, which are shorter to read and also work as comments in other clients.</p>
 
     <h2>Checklist</h2>
     <ul>

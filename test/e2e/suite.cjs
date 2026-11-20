@@ -315,6 +315,37 @@ exports.run = async function run() {
     assert.equal((await api.deps.runner.run(reqs[1], { uri: f })).response.status, 401);
   });
 
+  await check('scripts: > {% %} handler sets client.global for the next request, < {% %} sets request variables; saved per workspace; plainwire.runScripts off', async () => {
+    const all = await vscode.commands.getCommands(true);
+    assert.ok(all.includes('plainwire.clearScriptVariables'));
+    const f = vscode.Uri.joinPath(ws, 'scripts.http');
+    fs.writeFileSync(f.fsPath, [
+      '### Login', 'POST {{host}}/login', '', '> {%',
+      '  client.test("has token", () => client.assert(response.body.token === "tok-123", "token " + response.body.token));',
+      '  client.global.set("tok", response.body.token);', '%}', '',
+      '### Me', '< {% request.variables.set("who", "e2e-" + request.method) %}', 'GET {{host}}/me-script', 'Authorization: Bearer {{tok}}', 'X-Who: {{who}}', '',
+      '> {% client.test("auth echoed", () => client.assert(response.body.auth === "Bearer tok-123", response.body.auth)); client.log("auth=" + response.body.auth) %}', '',
+    ].join('\n'));
+    const summary = await vscode.commands.executeCommand('plainwire.runFile', f);
+    const { timeMs, ...rest } = summary;
+    assert.deepEqual(rest, { total: 2, passed: 2, failed: 0, errors: 0, skipped: 0 });
+    const me = seen.filter((x) => x.url === '/me-script').at(-1);
+    assert.equal(me.headers['x-who'], 'e2e-GET');
+    assert.equal(me.headers.authorization, 'Bearer tok-123');
+    assert.deepEqual(api.cookiesForTest.state.get('plainwire.scriptGlobals'), [['tok', 'tok-123']]);
+    const reqs = api.parseHttpFileForTest(fs.readFileSync(f.fsPath, 'utf8')).requests;
+    const r = await api.deps.runner.run(reqs[1], { uri: f });
+    assert.deepEqual(r.assertions.map((a) => [a.source, a.passed]), [['auth echoed', true]]);
+    assert.deepEqual(r.logs, ['auth=Bearer tok-123']);
+    const cfg = vscode.workspace.getConfiguration('plainwire');
+    await cfg.update('runScripts', false, vscode.ConfigurationTarget.Workspace);
+    api.deps.runner.globals.clear();
+    const off = await api.deps.runner.run(reqs[0], { uri: f });
+    assert.deepEqual(off.assertions, []);
+    assert.equal(api.deps.runner.globals.size, 0);
+    await cfg.update('runScripts', undefined, vscode.ConfigurationTarget.Workspace);
+  });
+
   await check('OAuth 2: {{$auth.token("id")}} from Security.Auth (secret in the private env file), token reused; Acquire / Clear commands', async () => {
     const all = await vscode.commands.getCommands(true);
     for (const c of ['plainwire.acquireOAuthToken', 'plainwire.clearOAuthTokens']) assert.ok(all.includes(c), c);

@@ -56,8 +56,8 @@
           <tr><th scope="row">Team sharing</th><td>Through git, free, any team size</td><td>Postman workspaces (Free plan: 1 user)</td></tr>
           <tr><th scope="row">GUI request editor and response viewer</th><td class="yes">Yes</td><td class="yes">Yes</td></tr>
           <tr><th scope="row">Environments and variables</th><td class="yes">Yes (<code>http-client.env.json</code>)</td><td class="yes">Yes</td></tr>
-          <tr><th scope="row">Tests</th><td><code># @assert</code> lines, common <code>pm.*</code> tests converted on import</td><td class="yes">JavaScript test scripts</td></tr>
-          <tr><th scope="row">Pre-request / test scripts in JavaScript</th><td class="no">No</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Tests</th><td><code># @assert</code> lines and JavaScript <code>client.test</code>; imported <code>pm.test</code> scripts run</td><td class="yes">JavaScript test scripts</td></tr>
+          <tr><th scope="row">Pre-request / test scripts in JavaScript</th><td class="yes">Yes, since 0.13: JetBrains <code>&lt; {% %}</code> / <code>&gt; {% %}</code> scripts and a Postman-compatible <code>pm</code> API, without <code>pm.sendRequest</code> (<a href="javascript-scripts-http-file.html">guide</a>)</td><td class="yes">Yes</td></tr>
           <tr><th scope="row">Collection runner and CLI for CI</th><td class="yes">Run all + free CLI and GitHub Action</td><td>Collection Runner; Postman CLI</td></tr>
           <tr><th scope="row">GraphQL</th><td class="yes">Yes, Query + Variables editor (<a href="graphql-requests-vscode.html">guide</a>)</td><td class="yes">Yes</td></tr>
           <tr><th scope="row">WebSocket</th><td class="yes">Yes, since 0.12 (<a href="websocket-client-vscode.html">guide</a>)</td><td class="yes">Yes</td></tr>
@@ -74,13 +74,13 @@
     <ol class="steps">
       <li><strong>Export</strong> the collection from Postman (collection menu &rarr; <strong>Export</strong> &rarr; Collection v2.1) and each environment you need.</li>
       <li><strong>Install Plainwire</strong> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> (<a href="./#install">install steps</a>).</li>
-      <li>Run <strong>Plainwire: Import from Postman&hellip;</strong> and pick the exported files. Each folder becomes a <code>.http</code> file; environments go to <code>http-client.env.json</code>; collection variables become <code>@name = value</code> lines; common tests become <code># @assert</code> lines; anything that cannot be converted is listed as a warning.</li>
+      <li>Run <strong>Plainwire: Import from Postman&hellip;</strong> and pick the exported files. Each folder becomes a <code>.http</code> file; environments go to <code>http-client.env.json</code>; collection variables become <code>@name = value</code> lines; common tests become <code># @assert</code> lines; other test scripts and pre-request scripts are kept as <code>&gt; {% %}</code> / <code>&lt; {% %}</code> blocks that run with a <code>pm</code> API; anything else is listed as a warning.</li>
       <li><strong>Commit</strong> the files. Your teammates get them with <code>git pull</code>.</li>
     </ol>
     <p>The full field mapping is in <a href="postman-collection-to-http-file.html">Postman collections to .http files</a>. Without the extension, the <a href="run-http-files-in-ci.html">command-line runner</a> converts too: <code>node plainwire.mjs import my-collection.json</code>, with <code>plainwire.mjs</code> from the latest release.</p>
 
     <h2>When to stay with Postman</h2>
-    <p>If your tests depend on JavaScript (<code>pm.sendRequest</code>, computed signatures, loops over responses), or your team relies on mock servers, monitors or published documentation, Postman does those things and Plainwire does not. Plainwire is for the everyday loop of writing, sending and checking requests, kept in plain files you own.</p>
+    <p>If your scripts send requests of their own (<code>pm.sendRequest</code>), load libraries with <code>require()</code> or use <code>pm.visualizer</code>, <code>pm.cookies</code> or <code>pm.vault</code>, or your team relies on mock servers, monitors or published documentation, Postman does those things and Plainwire does not. Plainwire runs the common <code>pm.test</code>, <code>pm.expect</code> and variable calls, not all of Postman&rsquo;s sandbox (<a href="javascript-scripts-http-file.html#postman">what is covered</a>). Plainwire is for the everyday loop of writing, sending and checking requests, kept in plain files you own.</p>
 
     <h2>Questions</h2>
     <details>

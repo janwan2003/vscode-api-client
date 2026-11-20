@@ -10,6 +10,8 @@ export interface CliRow extends RunRow {
   responseBody?: string;
   /** For a server-sent events response: how many events arrived and how the stream ended. For a WebSocket, also how many of them were sent. */
   stream?: { events: number; end: string; sent?: number };
+  /** `client.log` / `console.log` output of the request's scripts. */
+  logs?: string[];
 }
 
 const xml = (s: string) =>

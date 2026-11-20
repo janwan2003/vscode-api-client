@@ -8,9 +8,10 @@ import { bodyFileRef, normalizeBasicAuth, toWireForm } from './preview.ts';
 import { ensureScheme, sendRequest, type SendOptions } from './send.ts';
 import { isWebSocketRequest, parseWsScript, sendWebSocket, type WsScript } from './websocket.ts';
 import type { SseEvent } from './sse.ts';
+import { runScript, scriptSources, type ScriptContext, type ScriptSide } from './scripts.ts';
 
 export { bodyFileRef, normalizeBasicAuth } from './preview.ts';
-import { authKey, referencedRequestNames, resolveRequest, resolveText, type NamedExchange, type VariableContext } from './variables.ts';
+import { authKey, referencedRequestNames, resolveRequest, resolveText, UnresolvedVariableError, type NamedExchange, type VariableContext } from './variables.ts';
 
 /**
  * Everything the executor needs from its surroundings. The VS Code extension implements it with
@@ -44,6 +45,18 @@ export interface ExecHost {
   oauth2?: OAuth2Manager;
   /** Called after every exchange, including chained dependencies (history, logging). */
   onExchange?(e: { request: HttpRequest; file?: string; response?: HttpResponse; error?: string }): void | Promise<void>;
+  /**
+   * Run JetBrains-style `< {% %}` pre-request scripts and `> {% %}` response handlers (core/scripts.ts).
+   * Default true. When false they are kept in the file but skipped.
+   */
+  runScripts?: boolean | (() => boolean);
+  /**
+   * `client.global` values, shared by every request this executor sends. Pass a map to keep them
+   * (the extension saves it per workspace); without one the executor starts empty.
+   */
+  globals?: Map<string, string>;
+  /** Called after a script changed `client.global` (to save it). */
+  onGlobalsChanged?(globals: Map<string, string>): void | Promise<void>;
 }
 
 /** Options for one `Executor.run` call (not applied to the chained requests it sends first). */
@@ -73,8 +86,10 @@ export function requestSendOptions(req: HttpRequest): Pick<SendOptions, 'timeout
 export interface ExecResult {
   resolved: HttpRequest;
   response: HttpResponse;
-  /** Results of the request's `# @assert` lines (empty when it has none). */
+  /** Results of the request's `# @assert` lines, then its response handlers' `client.test` results (empty when it has none). */
   assertions: AssertionResult[];
+  /** `client.log` / `console.log` output of the request's scripts, pre-request first. */
+  logs: string[];
 }
 
 /**
@@ -83,8 +98,48 @@ export interface ExecResult {
  */
 export class Executor {
   private readonly named = new Map<string, Map<string, NamedExchange>>();
+  /** `client.global` values set by scripts (`{{name}}` in later requests). */
+  readonly globals: Map<string, string>;
 
-  constructor(private readonly host: ExecHost) {}
+  constructor(private readonly host: ExecHost) {
+    this.globals = host.globals ?? new Map();
+  }
+
+  private scriptsOn(): boolean {
+    const r = this.host.runScripts;
+    return typeof r === 'function' ? r() : r !== false;
+  }
+
+  /** Run the scripts of one side of `req` in order; the first one that throws stops the rest. */
+  private async runScripts(side: ScriptSide, req: HttpRequest, file: string | undefined, sctx: ScriptContext, res?: HttpResponse): Promise<{ tests: AssertionResult[]; logs: string[]; error?: string }> {
+    const out = { tests: [] as AssertionResult[], logs: [] as string[], error: undefined as string | undefined };
+    const sources = scriptSources(side === 'pre' ? req.rawBefore : req.rawAfter, side);
+    if (!sources.length || !this.scriptsOn()) return out;
+    const before = JSON.stringify([...this.globals]);
+    for (const src of sources) {
+      let code = src.code;
+      let label = side === 'pre' ? 'pre-request script' : 'response handler';
+      if (src.path !== undefined) {
+        label = src.path;
+        try {
+          code = new TextDecoder().decode(await this.host.readBodyFile(src.path, file));
+        } catch (e) {
+          out.error = `${src.path}: could not be read (${(e as Error).message})`;
+          out.tests.push({ source: label, passed: false, message: out.error });
+          break;
+        }
+      }
+      const r = runScript(code ?? '', side, req, sctx, res, label);
+      out.tests.push(...r.tests);
+      out.logs.push(...r.logs);
+      if (r.error) {
+        out.error = `${label}: ${r.error}`;
+        break;
+      }
+    }
+    if (JSON.stringify([...this.globals]) !== before) await this.host.onGlobalsChanged?.(this.globals);
+    return out;
+  }
 
   /** Forget named responses for a file, so the next run sends chained requests again. */
   resetSession(file: string): void {
@@ -93,7 +148,7 @@ export class Executor {
 
   /** Resolve without sending; see `previewRequest`. Uses responses already received for `file`. */
   preview(req: HttpRequest, file: string | undefined): Promise<PreviewResult> {
-    return previewRequest(req, this.host, file, this.named.get(file ?? ''));
+    return previewRequest(req, this.host, file, this.named.get(file ?? ''), this.globals, this.scriptsOn());
   }
 
   async run(req: HttpRequest, file: string | undefined, signal?: AbortSignal, opts: RunOptions = {}): Promise<ExecResult> {
@@ -131,9 +186,34 @@ export class Executor {
       named,
       processEnv: process.env,
       dotenv: await this.host.dotenv(file),
+      globals: this.globals,
+      requestVariables: new Map(),
     };
+    const sctx: ScriptContext = {
+      globals: this.globals,
+      requestVariables: ctx.requestVariables!,
+      environment: ctx.environment,
+      resolve: (t) => resolveText(t, ctx),
+    };
+    const pre = await this.runScripts('pre', req, file, sctx);
+    if (pre.error) {
+      const msg = `Not sent: the ${pre.error}${pre.logs.length ? `\n${pre.logs.join('\n')}` : ''}`;
+      await this.host.onExchange?.({ request: req, file, error: msg });
+      throw new Error(msg);
+    }
     await this.fetchAuthTokens(text, ctx, signal);
-    let resolved = resolveRequest(req, ctx);
+    let resolved: HttpRequest;
+    try {
+      resolved = resolveRequest(req, ctx);
+    } catch (e) {
+      if (e instanceof UnresolvedVariableError) {
+        const setter = globalSetter(e.variable, loaded);
+        if (setter) {
+          throw new Error(`${e.message}. It is set by client.global.set in the response handler of ${setter}: ${this.scriptsOn() ? 'send that request first (or use Run all).' : 'scripts are turned off (setting plainwire.runScripts, or --no-scripts).'}`);
+        }
+      }
+      throw e;
+    }
     normalizeBasicAuth(resolved);
 
     const ws = isWebSocketRequest(resolved);
@@ -178,12 +258,29 @@ export class Executor {
       }
       await this.host.onExchange?.({ request: req, file, response });
       const assertions = req.asserts?.length ? runAssertions(req.asserts, response, (t) => resolveText(t, ctx)) : [];
-      return { resolved, response, assertions };
+      const post = await this.runScripts('response', req, file, sctx, response);
+      assertions.push(...pre.tests, ...post.tests);
+      return { resolved, response, assertions, logs: [...pre.logs, ...post.logs] };
     } catch (e) {
       await this.host.onExchange?.({ request: req, file, error: (e as Error).message });
       throw e;
     }
   }
+}
+
+/** "`login` (line 3)" for the first request in `loaded` whose `> {% %}` handler sets `client.global` `name`. */
+function globalSetter(name: string, loaded: LoadedHttpFile): string | undefined {
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`client\\.global\\.set\\(\\s*["'\`]${esc}["'\`]`);
+  const files = [{ file: undefined as string | undefined, parsed: loaded.parsed }, ...loaded.imported];
+  for (const f of files) {
+    for (const r of f.parsed.requests) {
+      if (!scriptSources(r.rawAfter, 'response').some((s) => s.code !== undefined && re.test(s.code))) continue;
+      const where = f.file ? ` in ${baseName(f.file)}` : '';
+      return `${r.name ? `"${r.name}" ` : ''}${r.method} ${r.url} (line ${r.requestLine + 1}${where})`;
+    }
+  }
+  return undefined;
 }
 
 /** Text of every part of a request that may hold `{{variables}}`. */
@@ -236,7 +333,7 @@ export interface PreviewResult {
  * Chained values come only from responses already received in this session; nothing else is sent.
  * A `< ./file` body stays a file reference; a `<@ ./file` body is read and resolved.
  */
-export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'readHttpFile' | 'resolveImport' | 'readBodyFile' | 'dotenv' | 'environment' | 'oauth2'>, file: string | undefined, named: Map<string, NamedExchange> = new Map()): Promise<PreviewResult> {
+export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'readHttpFile' | 'resolveImport' | 'readBodyFile' | 'dotenv' | 'environment' | 'oauth2'>, file: string | undefined, named: Map<string, NamedExchange> = new Map(), globals?: Map<string, string>, runScripts = true): Promise<PreviewResult> {
   const loaded = await loadHttpFile(host, file);
   const unresolved = new Set<string>();
   const ctx: VariableContext = {
@@ -246,7 +343,16 @@ export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'rea
     processEnv: process.env,
     dotenv: await host.dotenv(file),
     unresolved,
+    globals: globals ? new Map(globals) : undefined,
+    requestVariables: new Map(),
   };
+  // Pre-request scripts run on copies, so a preview never changes `client.global`; errors are ignored.
+  if (globals && runScripts) {
+    for (const src of scriptSources(req.rawBefore, 'pre')) {
+      if (src.code === undefined) continue;
+      runScript(src.code, 'pre', req, { globals: ctx.globals!, requestVariables: ctx.requestVariables!, environment: ctx.environment, resolve: (t) => resolveText(t, { ...ctx, unresolved: new Set() }) });
+    }
+  }
   await fillAuth(requestText(req), ctx, host.oauth2, { cachedOnly: true });
   let resolved = resolveRequest(req, ctx);
   normalizeBasicAuth(resolved);

@@ -1,3 +1,4 @@
+import { runScript, scriptSources } from '../src/core/scripts.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -114,7 +115,10 @@ test('graphql body becomes a REST Client GraphQL request (query, blank line, var
 test('one warning per request with scripts; empty collection script ignored', () => {
   const scriptWarnings = col.warnings.filter((w) => /script/.test(w));
   // List pets' one-line `pm.test('200', () => pm.response.to.have.status(200));` now converts fully.
-  assert.deepEqual(scriptWarnings, ['"Auth / Login": pre-request script and test script skipped.']);
+  // Login's scripts set variables, so they are kept whole as runnable < {% %} / > {% %} blocks.
+  assert.deepEqual(scriptWarnings, []);
+  assert.deepEqual(find(col, 'Login').rawBefore, ['< {%', "pm.variables.set('ts', Date.now());", '%}']);
+  assert.deepEqual(find(col, 'Login').rawAfter, ['> {%', "pm.collectionVariables.set('accessToken', pm.response.json().token);", '%}']);
   assert.deepEqual(find(col, 'List pets').asserts, ['status == 200']);
 });
 
@@ -170,21 +174,32 @@ test('every request round-trips through serializeHttpFile/parseHttpFile', () => 
 test('one-line pm.test wrappers, status lists, negated text include, above; oauth2 warned once', () => {
   const c = importPostman(load('postman-real-tests.json'));
   const login = find(c, 'Login');
-  assert.deepEqual(login.asserts, [
-    'status == 200',
-    'body isJson',
-    'status matches /^(200|201|403)$/',
-    'body !contains "<script>"',
-    '$.items.length > 1',
-    '$.total == 2',
-  ]);
-  // The check inside the if-block is not converted (an @assert has no condition) and is named;
-  // pm.environment.set is counted as a script statement. Everything about one request is one line.
+  // A conditional check and pm.environment.set cannot be @assert lines, so the whole script is kept
+  // as a > {% %} handler; it runs with the pm API (checked against a response below).
+  assert.equal(login.asserts, undefined);
+  assert.equal(login.rawAfter?.[0], '> {%');
+  assert.equal(login.rawAfter?.at(-1), '%}');
   assert.deepEqual(c.warnings.filter((w) => w.startsWith('"Auth / Login"')), [
-    '"Auth / Login": test script converted to 6 # @assert check(s); not converted: 1 check inside if/loop/callback/try ' +
-      "(1 in 'conditional'), 1 other script statement(s); dynamic variable(s) {{$randomUserName}} have no Plainwire " +
-      'equivalent; define them as variables or replace them.',
+    '"Auth / Login": dynamic variable(s) {{$randomUserName}} have no Plainwire equivalent; define them as variables or replace them.',
   ]);
+  const code = scriptSources(login.rawAfter, 'response')[0].code!;
+  const globals = new Map<string, string>();
+  const body = JSON.stringify({ items: [{ kind: 'note' }, { kind: 'x' }], total: 2, token: 'T-1' });
+  const ok = runScript(code, 'response', login, { globals, requestVariables: new Map(), environment: {}, resolve: (t) => t }, { status: 200, statusText: 'OK', headers: [['Content-Type', 'application/json']], body, bodyEncoding: 'utf8', size: body.length, timeMs: 5, url: 'x' });
+  assert.equal(ok.error, undefined);
+  assert.deepEqual(ok.tests.map((t) => [t.source, t.passed]), [['status is 200', true], ['json', true], ['allowed codes', true], ['no script tag', true], ['two checks', true], ['conditional', true]]);
+  assert.equal(globals.get('token'), 'T-1');
+  const bad = JSON.stringify({ items: [{ kind: 'x' }], total: 3, token: 'T-2' });
+  const failed = runScript(code, 'response', login, { globals, requestVariables: new Map(), environment: {}, resolve: (t) => t }, { status: 403, statusText: 'Forbidden', headers: [['Content-Type', 'text/html']], body: bad, bodyEncoding: 'utf8', size: bad.length, timeMs: 5, url: 'x' });
+  assert.deepEqual(failed.tests.map((t) => [t.source, t.passed, t.passed ? '' : t.message]), [
+    ['status is 200', false, 'expected response to have status 200 (is 403)'],
+    ['json', false, 'expected response to be JSON, got text/html'],
+    ['allowed codes', true, ''],
+    ['no script tag', true, ''],
+    ['two checks', false, 'expected 1 to be above 1'],
+    ['conditional', false, 'expected "x" to deeply equal "note"'],
+  ]);
+  assert.equal(globals.get('token'), 'T-2');
   assert.equal(c.warnings.filter((w) => w.includes('OAuth 2.0')).length, 1);
   assert.ok(c.warnings.includes('Collection auth: OAuth 2.0 auth has no stored access token; not imported.'));
 });
@@ -269,11 +284,11 @@ test('Postman import warns per request with the conditional test name; unconditi
       },
     ],
   });
-  assert.deepEqual(find(c, 'Get user').asserts, ['status == 200']);
-  assert.deepEqual(c.warnings, [
-    `"Get user": test script converted to 1 # @assert check(s); not converted: 1 check inside if/loop/callback/try (1 in 'admin fields').`,
-    '"Only conditional": test script not converted: 1 check inside if/loop/callback/try (1 outside any pm.test).',
-  ]);
+  // Conditional checks cannot be @assert lines: both scripts are kept whole as > {% %} handlers.
+  assert.equal(find(c, 'Get user').asserts, undefined);
+  assert.equal(find(c, 'Get user').rawAfter?.length, 11);
+  assert.deepEqual(find(c, 'Only conditional').rawAfter, ['> {%', 'if (pm.response.code === 200) { pm.expect(pm.response.json().ok).to.eql(true); }', '%}']);
+  assert.deepEqual(c.warnings, []);
   assert.equal(find(c, 'Only conditional').asserts, undefined);
 });
 
@@ -295,8 +310,11 @@ test('Postman import reports at most one warning line per request, and keeps eve
       ],
     }],
   });
-  assert.deepEqual(c.warnings, [
-    '"Upload": body is the file "a.bin"; check that the path exists relative to the .http file; test script converted to 1 # @assert ' +
-      'check(s); not converted: 1 check inside if/loop/callback/try (1 outside any pm.test); pre-request script skipped.',
-  ]);
+  assert.deepEqual(c.warnings, ['"Upload": body is the file "a.bin"; check that the path exists relative to the .http file.']);
+  // A script line ending in %} would close the block early: that script stays a warning.
+  const c2 = importPostman({
+    info: { name: 'x', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+    item: [{ name: 'Odd', request: { method: 'GET', url: 'https://e.test/' }, event: [{ listen: 'prerequest', script: { exec: ['var t = "50" // %}', 'pm.sendRequest("x")'] } }, { listen: 'test', script: { exec: ['pm.sendRequest("https://e.test/", () => {}); if (x) {}'] } }] }],
+  });
+  assert.deepEqual(c2.warnings, ['"Odd": test script uses pm.sendRequest, which Plainwire\'s pm API does not support; pre-request script skipped.']);
 });

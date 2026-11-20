@@ -2,7 +2,7 @@
   "name": "plainwire",
   "displayName": "Plainwire — API Client (no login, plain .http files)",
   "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible), with GraphQL, tests, a collection runner, copy as code and a free CLI for CI. One-click import from Thunder Client, Postman and cURL.",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -39,6 +39,8 @@
     "ci",
     "graphql",
     "websocket",
+    "scripts",
+    "pre-request script",
     "httpyac",
     "code snippet"
   ],
@@ -115,6 +117,11 @@
       {
         "command": "plainwire.clearCookies",
         "title": "Clear Cookies",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.clearScriptVariables",
+        "title": "Show / Clear Script Variables (client.global)…",
         "category": "Plainwire"
       },
       {
@@ -573,7 +580,8 @@
         "path": "./syntaxes/http.tmLanguage.json",
         "embeddedLanguages": {
           "meta.embedded.block.json": "json",
-          "meta.embedded.block.xml": "xml"
+          "meta.embedded.block.xml": "xml",
+          "meta.embedded.block.javascript": "javascript"
         }
       }
     ],
@@ -594,6 +602,11 @@
           "type": "boolean",
           "default": true,
           "description": "Follow HTTP redirects. Per request: add `# @no-redirect`."
+        },
+        "plainwire.runScripts": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Run JavaScript in `.http` files, JetBrains HTTP Client format: `< {% ... %}` before a request (sign it, set `request.variables`) and `> {% ... %}` after it (`client.test`, `client.global.set('token', response.body.token)`). Scripts run only in trusted workspaces, with a 5 second limit. Turn off to keep them in the file but skip them."
         },
         "plainwire.rememberCookies": {
           "type": "boolean",

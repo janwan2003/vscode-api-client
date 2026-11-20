@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pre-request scripts and tests in .http files in VS Code | Plainwire</title>
+<meta name="description" content="Run JetBrains HTTP Client scripts in VS Code, Cursor or VSCodium: &lt; {% %} pre-request scripts, &gt; {% %} response handlers with client.test and client.global, and Postman pm.test scripts from imported collections. Also in CI. Free, no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/javascript-scripts-http-file.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Pre-request scripts and response handlers in .http files">
+<meta property="og:description" content="JetBrains-style JavaScript in plain .http files: sign requests, save a token, write tests, and run imported Postman scripts, in VS Code and in CI.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/javascript-scripts-http-file.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Pre-request scripts and tests in <code>.http</code> files</h1>
+    <p>Plainwire 0.13 runs JavaScript written in <code>.http</code> files, in the JetBrains HTTP Client format. A <code>&lt; {% &hellip; %}</code> block above a request is a <strong>pre-request script</strong>: it can compute a signature or a timestamp before the request is sent. A <code>&gt; {% &hellip; %}</code> block after a request is a <strong>response handler</strong>: it can save a token for later requests and run tests with <code>client.test</code>. The same files run in IntelliJ IDEA and WebStorm, in VS Code, Cursor and VSCodium, and in CI with the free <code>plainwire</code> CLI.</p>
+    <p>Postman collections you import keep their scripts too: Plainwire runs them with a Postman-compatible <code>pm</code> API (<a href="#postman">details below</a>). REST Client, the most-installed <code>.http</code> extension, does not run scripts; <a href="https://github.com/Huachao/vscode-restclient/issues/521">issue #521</a> asks for it.</p>
+
+    <h2 id="token">Log in once, reuse the token</h2>
+    <p>The response handler runs after the response arrives. <code>response.body</code> is the parsed JSON (or the text, when the body is not JSON), and <code>client.global.set</code> stores a value that later requests use as <code>{{name}}</code>:</p>
+<pre><span class="k">###</span> Log in
+POST <span class="v">{{baseUrl}}</span>/auth/login
+Content-Type: application/json
+
+{"user": "ada", "password": "<span class="v">{{password}}</span>"}
+
+&gt; {%
+  client.test('logged in', () =&gt; {
+    client.assert(response.status === 200, 'status ' + response.status);
+    client.assert(response.body.token, 'no token in the response');
+  });
+  client.global.set('token', response.body.token);
+%}
+
+<span class="k">###</span> Who am I
+<span class="c"># @assert $.name == "ada"</span>
+GET <span class="v">{{baseUrl}}</span>/me
+Authorization: Bearer <span class="v">{{token}}</span></pre>
+    <p>Send <em>Log in</em> once; every later request in the workspace can use <code>{{token}}</code> until you clear it. In the extension, <code>client.global</code> values are kept per workspace (they survive a reload). In the CLI they last for one run. If you send <em>Who am I</em> before anything has set <code>token</code>, the error names the request whose handler sets it and asks you to send that one first, or to use <strong>Run all</strong>.</p>
+    <p>For a single value from one response, <a href="http-file-syntax.html#chaining">request chaining</a> (<code>{{login.response.body.$.token}}</code>) needs no script and sends <code>login</code> for you when needed. A script is useful when you want to check the response first, combine values, or share one token across many files.</p>
+
+    <h2 id="sign">Sign a request before it is sent</h2>
+    <p>A pre-request script runs before the request&rsquo;s <code>{{variables}}</code> are filled in. <code>request.variables.set(name, value)</code> sets a variable for this request only. This example signs the body with HMAC-SHA256 and a secret from the environment:</p>
+<pre><span class="k">###</span> Create an order (signed)
+&lt; {%
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const signature = crypto.hmac.sha256()
+    .withTextSecret(request.environment.get('apiSecret'))
+    .updateWithText(ts + '\n' + request.body.tryGetSubstituted())
+    .digest().toHex();
+  request.variables.set('ts', ts);
+  request.variables.set('signature', signature);
+%}
+POST <span class="v">{{baseUrl}}</span>/orders
+Content-Type: application/json
+X-Timestamp: <span class="v">{{ts}}</span>
+X-Signature: <span class="v">{{signature}}</span>
+
+{"item": "book", "qty": 1}</pre>
+    <p><code>request.environment.get</code> reads the active environment, including values from <code>http-client.private.env.json</code>. <code>tryGetSubstituted()</code> returns the text with the variables it can resolve filled in; <code>getRaw()</code> returns it as written. If a pre-request script throws or times out, the request is <strong>not sent</strong>: you see &ldquo;Not sent: the pre-request script: &hellip;&rdquo; with the script&rsquo;s log.</p>
+
+    <h2 id="tests">Tests with <code>client.test</code></h2>
+    <p><code>client.test(name, fn)</code> records a passed check when <code>fn</code> returns and a failed one when it throws, for example through <code>client.assert(condition, message)</code>. These results appear next to your <a href="api-tests-in-http-files.html"><code># @assert</code> checks</a>: in the response&rsquo;s Tests tab, in the <strong>Run all</strong> report, and in the CLI&rsquo;s output and JUnit, JSON and Markdown reports and GitHub annotations. A request passes when all its checks of both kinds pass.</p>
+<pre><span class="k">###</span> List orders
+<span class="c"># @assert status == 200</span>
+GET <span class="v">{{baseUrl}}</span>/orders
+Authorization: Bearer <span class="v">{{token}}</span>
+
+&gt; {%
+  client.test('every order has an id', () =&gt; {
+    for (const order of response.body.items) {
+      client.assert(order.id, 'order without an id: ' + JSON.stringify(order));
+    }
+  });
+  client.test('JSON response', () =&gt; {
+    client.assert(response.contentType.mimeType === 'application/json', response.contentType.mimeType);
+  });
+  client.log('orders:', response.body.items.length, 'first id:', jsonPath(response.body, '$.items[0].id'));
+%}</pre>
+    <p>A <code>client.assert</code> outside any <code>client.test</code>, or an uncaught error, ends the handler and counts as one failed check. <code>client.exit()</code> ends a script early without failing it. <code>client.log</code> and <code>console.log</code> lines appear under &ldquo;Script log&rdquo; in the response&rsquo;s Tests tab (a Log tab when the request has no checks).</p>
+
+    <h3>Streams: server-sent events and WebSocket</h3>
+    <p>For a <a href="server-sent-events-vscode.html">server-sent events</a> or <a href="websocket-client-vscode.html">WebSocket</a> request, the handler runs once the stream has ended, and <code>response.body.onEachMessage</code> replays the messages that were received (JSON messages are parsed; for WebSocket, only the server&rsquo;s messages):</p>
+<pre>&gt; {%
+  const types = [];
+  response.body.onEachMessage((message, unsubscribe) =&gt; {
+    types.push(message.type);
+    if (message.type === 'done') unsubscribe();
+  });
+  client.test('got a pong', () =&gt; client.assert(types.includes('pong'), 'got ' + types.join(', ')));
+%}</pre>
+    <p><code>response.body.onEachLine</code> does the same line by line.</p>
+
+    <h2 id="reference">What a script can use</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Name</th><th scope="col">What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>request.variables.set(name, value)</code>, <code>.get(name)</code></td><td>A variable for this request only. Set it in a pre-request script.</td></tr>
+          <tr><td><code>request.environment.get(name)</code></td><td>A value from the active environment, or <code>null</code>.</td></tr>
+          <tr><td><code>request.method</code>, <code>request.url</code>, <code>request.headers</code>, <code>request.body</code></td><td><code>url.tryGetSubstituted()</code>, <code>headers.findByName(name).tryGetSubstitutedValue()</code>, <code>headers.all()</code>, <code>body.getRaw()</code>, <code>body.tryGetSubstituted()</code>.</td></tr>
+          <tr><td><code>response.status</code>, <code>response.body</code></td><td>Response handlers only. The body is parsed JSON, the text, or a stream (above).</td></tr>
+          <tr><td><code>response.headers.valueOf(name)</code>, <code>.valuesOf(name)</code></td><td>The first value of a header (or <code>null</code>), or all its values.</td></tr>
+          <tr><td><code>response.contentType.mimeType</code>, <code>.charset</code></td><td>From the <code>Content-Type</code> header, e.g. <code>application/json</code>.</td></tr>
+          <tr><td><code>client.test(name, fn)</code>, <code>client.assert(cond, msg)</code></td><td>Checks, reported with <code># @assert</code> results.</td></tr>
+          <tr><td><code>client.global.set/get/clear/clearAll/isEmpty</code></td><td>Values kept between requests and used as <code>{{name}}</code>. Stored as strings; objects are stored as JSON.</td></tr>
+          <tr><td><code>client.log(&hellip;)</code>, <code>console.log(&hellip;)</code>, <code>client.exit()</code></td><td>Write to the script log; stop the script.</td></tr>
+          <tr><td><code>crypto.sha256().updateWithText(s).digest().toHex()</code></td><td>Also <code>md5</code>, <code>sha1</code>, <code>sha384</code>, <code>sha512</code>; <code>crypto.hmac.sha256().withTextSecret(key)</code> (or <code>withHexSecret</code>, <code>withBase64Secret</code>); <code>.toBase64()</code>, <code>.toUrlSafeBase64()</code>.</td></tr>
+          <tr><td><code>$random.uuid</code>, <code>$random.integer(from, to)</code></td><td>Also <code>alphabetic(n)</code>, <code>alphanumeric(n)</code>, <code>hexadecimal(n)</code>, <code>float(from, to)</code>, <code>email</code>.</td></tr>
+          <tr><td><code>jsonPath(obj, '$.a.b')</code>, <code>btoa</code>, <code>atob</code></td><td>A JSONPath lookup (or <code>null</code>); Base64 encode and decode.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Code can also live in a file next to the <code>.http</code> file: <code>&lt; ./sign.js</code> above the request line, <code>&gt; ./check-order.js</code> after the request. A request can have several scripts on each side; they run in file order, and the first one that fails stops the rest.</p>
+
+    <h2 id="priority">Which value a <code>{{variable}}</code> gets</h2>
+    <ol>
+      <li><code>request.variables.set</code> from this request&rsquo;s pre-request script</li>
+      <li>File variables (<code>@name = value</code>)</li>
+      <li>The active environment (<code>http-client.env.json</code> and the private file)</li>
+      <li><code>client.global</code></li>
+    </ol>
+    <p>So a value saved with <code>client.global.set('token', &hellip;)</code> is not used while your environment or file also defines <code>token</code>, even as an empty string. Remove that entry, or use a different name.</p>
+
+    <h2 id="editor">In the editor</h2>
+    <ul>
+      <li>The request editor has a <strong>Scripts</strong> tab with a box for the pre-request script and one for the response handler; Plainwire writes them to the file as <code>&lt; {% %}</code> and <code>&gt; {% %}</code> blocks. Script files the request uses are named above the boxes.</li>
+      <li><strong>Plainwire: Show / Clear Script Variables (client.global)&hellip;</strong> lists the stored values and clears one or all of them.</li>
+      <li>The setting <code>plainwire.runScripts</code> (on by default) turns scripts off; they stay in the file and are skipped.</li>
+    </ul>
+
+    <h2 id="postman">Postman scripts</h2>
+    <p>When you <a href="postman-collection-to-http-file.html">import a Postman collection</a>, a test script made only of common checks still becomes <code># @assert</code> lines. Any other test script (one that sets variables, or has conditions or loops) and every pre-request script is kept whole as a <code>&gt; {% %}</code> or <code>&lt; {% %}</code> block:</p>
+<pre><span class="k">###</span> Create user
+&lt; {%
+pm.variables.set("requestId", "req-" + Date.now());
+%}
+POST <span class="v">{{baseUrl}}</span>/users
+X-Request-Id: <span class="v">{{requestId}}</span>
+Content-Type: application/json
+
+{"name":"Ada"}
+
+&gt; {%
+pm.test("created", function () {
+    pm.response.to.have.status(201);
+    var body = pm.response.json();
+    pm.expect(body).to.have.property("id");
+    pm.expect(body.name).to.be.a("string").and.not.empty;
+    pm.environment.set("userId", body.id);
+});
+tests["fast enough"] = responseTime &lt; 2000;
+%}</pre>
+    <p>Plainwire runs these blocks with its own implementation of the <code>pm</code> API. What works:</p>
+    <ul>
+      <li><code>pm.test</code>, and <code>pm.expect</code> with the common assertion chain: <code>equal</code>, <code>eql</code>, <code>include</code>, <code>a</code>/<code>an</code>, <code>above</code>, <code>below</code>, <code>least</code>, <code>most</code>, <code>within</code>, <code>lengthOf</code>, <code>match</code>, <code>oneOf</code>, <code>property</code>, <code>keys</code>, <code>members</code>; <code>ok</code>, <code>true</code>, <code>false</code>, <code>null</code>, <code>undefined</code>, <code>exist</code>, <code>empty</code>; <code>not</code> and <code>deep</code>. It is not all of Chai.</li>
+      <li><code>pm.response</code>: <code>code</code>, <code>status</code>, <code>responseTime</code>, <code>json()</code>, <code>text()</code>, <code>headers.get</code>, and <code>pm.response.to.have.status/header/body/jsonBody</code>, <code>to.be.ok/success/error/json</code>.</li>
+      <li><code>pm.environment</code>, <code>pm.collectionVariables</code> and <code>pm.globals</code>: <code>set</code> writes to <code>client.global</code>, so later requests use the value as <code>{{name}}</code>. <code>pm.variables.set</code> in a pre-request script applies to that request only. <code>get</code> reads request variables, then <code>client.global</code>, then the environment.</li>
+      <li>The legacy forms: <code>tests["name"] = condition</code>, <code>postman.setEnvironmentVariable</code>, <code>responseBody</code>, <code>responseCode</code>.</li>
+    </ul>
+    <p>Not supported: <code>pm.sendRequest</code> (put that request in the <code>.http</code> file and chain it with <code># @name</code>), <code>require()</code>, <code>pm.visualizer</code>, <code>pm.cookies</code>, <code>pm.vault</code>, and async tests. The importer prints a warning for a script that uses <code>pm.sendRequest</code>, <code>require()</code>, <code>pm.visualizer</code>, <code>pm.cookies</code>, <code>pm.execution</code> or <code>pm.vault</code>. Scripts on a Postman folder or on the whole collection are not imported and are listed as warnings. Thunder Client scripts are not imported.</p>
+
+    <h2 id="ci">In CI</h2>
+    <p>The free <a href="run-http-files-in-ci.html"><code>plainwire</code> CLI</a> runs scripts the same way:</p>
+<pre>$ plainwire run api/ --env staging --junit results.xml   <span class="c"># scripts run</span>
+$ plainwire run api/ --no-scripts                         <span class="c"># skip every &lt; {% %} and &gt; {% %}</span>
+$ plainwire run api/ -v                                   <span class="c"># also print every script's log</span></pre>
+    <p>For a failed request the CLI always prints that request&rsquo;s script log. Running the examples on this page against a local test server, with the CLI built from the 0.13 source on 20 November 2026, printed:</p>
+<pre>  ✓ POST Log in 200 · 23 ms · 1/1 checks
+  ✓ GET Who am I 200 · 4 ms · 1/1 checks
+  ✓ POST Create an order (signed) 201 · 3 ms · 1/1 checks
+  ✓ GET List orders 200 · 2 ms · 3/3 checks
+      log orders: 2 first id: 1
+  ✓ GET Events 200 · 3 ms · 3 events (closed) · 1/1 checks</pre>
+
+    <h2 id="safety">Safety</h2>
+    <p>Scripts run in a separate Node.js <code>vm</code> context with a 5 second time limit. That context keeps scripts from changing Plainwire by accident; it is <strong>not a security sandbox</strong>, and a script can reach the rest of Node.js. Treat scripts in <code>.http</code> files like any other code in your repository: review them in pull requests, and do not run files you have not read.</p>
+    <ul>
+      <li>In VS Code, scripts run only in trusted workspaces. In Restricted Mode, VS Code does not enable Plainwire at all.</li>
+      <li>The CLI runs scripts by default. Use <code>--no-scripts</code> when a pipeline runs files from people you do not trust, such as pull requests from forks.</li>
+      <li>Set <code>plainwire.runScripts</code> to <code>false</code> to keep scripts in the files but never run them in the editor.</li>
+    </ul>
+
+    <h2>Limits</h2>
+    <ul>
+      <li>Scripts run synchronously. There is no <code>fetch</code>, <code>require</code> or timer, and work left in a Promise when the script returns is not waited for.</li>
+      <li>A script cannot send another request. Put it in the file and use <code># @name</code> chaining or <strong>Run all</strong>.</li>
+      <li>httpYac&rsquo;s <code>{{ &hellip; }}</code> script blocks and <code>?? js</code> lines with arbitrary JavaScript are not run; <code>?? js</code> with a simple path works (<a href="api-tests-in-http-files.html#httpyac">details</a>).</li>
+      <li><code>client.global</code> and <code>request.variables</code> values are strings.</li>
+    </ul>
+
+    <h2>FAQ</h2>
+    <details><summary>Does it work in Cursor, Windsurf and VSCodium?</summary><p>Yes, it is the same extension. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a>; see <a href="api-client-for-cursor-vscodium.html">installing in Cursor and VSCodium</a>.</p></details>
+    <details><summary>Do I need scripts for tests?</summary><p>No. Most checks fit on one <a href="api-tests-in-http-files.html"><code># @assert</code> line</a>, such as <code>status == 200</code> or <code>$.id exists</code>. Use <code>client.test</code> when a check needs a loop, a condition or a computed value.</p></details>
+    <details><summary>Is anything sent to Plainwire?</summary><p>No. There is no account and no telemetry. The extension makes no network requests except the ones you send, and the source is on <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a> (MIT).</p></details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

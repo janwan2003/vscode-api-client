@@ -224,9 +224,9 @@ export class RequestPanel {
       timer ??= setTimeout(flush, 100);
     };
     try {
-      const { resolved, response, assertions } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token, onEvent);
+      const { resolved, response, assertions, logs } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token, onEvent);
       if (timer) clearTimeout(timer);
-      if (this.cts === cts) this.post({ type: 'response', response, resolved, assertions });
+      if (this.cts === cts) this.post({ type: 'response', response, resolved, assertions, logs });
     } catch (e) {
       if (timer) clearTimeout(timer);
       if (this.cts === cts) this.post({ type: 'error', message: (e as Error).message });

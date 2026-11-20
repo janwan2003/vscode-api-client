@@ -177,7 +177,7 @@
           'Env: ', h('b', {}, S.meta.env || 'none'))),
       h('div', { class: 'split' },
         h('section', { class: 'req' },
-          tabs(['params', 'Params', countParams()], ['headers', 'Headers', S.request.headers.filter((x) => !x.disabled).length], ['body', 'Body', bodyType() === 'none' ? '' : '●'], ['auth', 'Auth', authInfo().type === 'none' ? '' : '●'], ['tests', 'Tests', (S.request.asserts || []).length || ''], ['info', 'Info', '']),
+          tabs(['params', 'Params', countParams()], ['headers', 'Headers', S.request.headers.filter((x) => !x.disabled).length], ['body', 'Body', bodyType() === 'none' ? '' : '●'], ['auth', 'Auth', authInfo().type === 'none' ? '' : '●'], ['tests', 'Tests', (S.request.asserts || []).length || ''], ['scripts', 'Scripts', scriptCount() || ''], ['info', 'Info', '']),
           h('div', { id: 'reqBody', class: 'pane' })),
         h('section', { class: 'res', id: 'res' })),
     );
@@ -349,6 +349,8 @@
       }
     } else if (S.reqTab === 'tests') {
       renderTests(pane);
+    } else if (S.reqTab === 'scripts') {
+      renderScripts(pane);
     } else if (S.reqTab === 'info') {
       pane.append(
         h('label', { class: 'field' }, 'Title', h('input', { value: S.request.title || '', placeholder: 'Shown in the sidebar (### Title)', oninput: (e) => { S.request.title = e.target.value || undefined; changed(); } })),
@@ -365,6 +367,64 @@
       S.request.meta = { ...(S.request.meta || {}) };
       if (e.target.checked) S.request.meta[key] = ''; else delete S.request.meta[key];
       changed(); } }), label);
+  }
+
+  // Scripts, JetBrains HTTP Client format: `< {% %}` above the request line (rawBefore), `> {% %}` after the body (rawAfter).
+  const SIDES = { pre: { key: 'rawBefore', mark: '<' }, response: { key: 'rawAfter', mark: '>' } };
+  /** The first inline `{% %}` block of a side in `lines`: its line range and code; plus script-file lines (`> ./x.js`). */
+  function findScript(lines, mark) {
+    const files = [];
+    let found = null;
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      const lead = l.trimStart();
+      if (lead[0] !== mark || !/\s/.test(lead[1] || '')) continue;
+      const rest = lead.slice(1).trim();
+      if (rest.startsWith('{%')) {
+        let j = i;
+        let code;
+        if (/%\}\s*$/.test(rest) && rest.length > 3) code = rest.slice(2, rest.lastIndexOf('%}')).trim();
+        else {
+          const body = rest.slice(2).trim() ? [rest.slice(2)] : [];
+          for (j = i + 1; j < lines.length && !/%\}\s*$/.test(lines[j]); j++) body.push(lines[j]);
+          if (j < lines.length) { const tail = lines[j].replace(/%\}\s*$/, ''); if (tail.trim()) body.push(tail); }
+          code = body.join('\n');
+        }
+        if (!found) found = { start: i, end: j + 1, code };
+        i = j;
+      } else if (/^\S+$/.test(rest)) files.push(rest);
+    }
+    return { block: found, files };
+  }
+  function scriptCount() {
+    let n = 0;
+    for (const side of Object.values(SIDES)) { const f = findScript(S.request[side.key] || [], side.mark); n += (f.block && f.block.code.trim() ? 1 : 0) + f.files.length; }
+    return n;
+  }
+  function setScript(side, code) {
+    const { key, mark } = SIDES[side];
+    const lines = (S.request[key] || []).slice();
+    const { block } = findScript(lines, mark);
+    const repl = code.trim() ? [mark + ' {%', ...code.replace(/\r\n/g, '\n').split('\n'), '%}'] : [];
+    if (block) lines.splice(block.start, block.end - block.start, ...repl);
+    else lines.push(...repl);
+    S.request[key] = lines.length ? lines : undefined;
+    changed();
+  }
+  const SCRIPT_PH = {
+    pre: "// Runs before the request is sent. Examples:\nrequest.variables.set('ts', Date.now().toString());\nrequest.variables.set('sig', crypto.hmac.sha256()\n  .withTextSecret(request.environment.get('secret'))\n  .updateWithText(request.body.tryGetSubstituted()).digest().toHex());",
+    response: "// Runs on the response. Examples:\nclient.test('status is 200', () => {\n  client.assert(response.status === 200, 'got ' + response.status);\n});\nclient.global.set('token', response.body.token); // use as {{token}}",
+  };
+  function renderScripts(pane) {
+    for (const [side, title] of [['pre', 'Pre-request script'], ['response', 'Response handler']]) {
+      const { block, files } = findScript(S.request[SIDES[side].key] || [], SIDES[side].mark);
+      pane.append(h('div', { class: 'gql-label' }, title, files.length ? h('span', { class: 'hint' }, '  · also runs ' + files.join(', ')) : null),
+        h('textarea', { class: 'code script', spellcheck: 'false', placeholder: SCRIPT_PH[side], value: block ? block.code : '',
+          oninput: (e) => setScript(side, e.target.value), onkeydown: tabKey }));
+    }
+    pane.append(h('p', { class: 'hint' }, 'JavaScript in the JetBrains HTTP Client format, saved in the .http file as "< {% … %}" above the request and "> {% … %}" after it. ',
+      'Available: client.test / assert / log / global.set / global.get, response.status / body / headers.valueOf(name), request.variables.set, request.environment.get, crypto, $random, jsonPath. ',
+      'client.global values work as {{name}} in later requests (Plainwire: Show / Clear Script Variables). Scripts run with a 5 second limit, only in trusted workspaces; turn them off with the plainwire.runScripts setting.'));
   }
 
   const ASSERT_EXAMPLES = ['status == 200', 'time < 1000', 'header content-type contains json', '$.id exists', '$.items.length > 0', 'body contains "ok"'];
@@ -450,6 +510,7 @@
     }
     const ct = (r.headers.find(([k]) => k.toLowerCase() === 'content-type') || [, ''])[1];
     const tests = S.assertions || [];
+    const logs = S.logs || [];
     const setCookies = r.headers.filter(([k]) => k.toLowerCase() === 'set-cookie').map(([, v]) => parseSetCookie(v));
     if (S.resTab === 'cookies' && !setCookies.length && !r.sentCookie) S.resTab = 'body';
     const failed = tests.filter((t) => !t.passed).length;
@@ -464,15 +525,16 @@
         h('span', { class: 'spacer' }),
         h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'openBody', body: r.bodyEncoding === 'utf8' ? prettyText(r.body, ct) : r.body, contentType: ct }) }, 'Open in editor'),
         h('button', { class: 'link', onclick: () => navigator.clipboard.writeText(r.body) }, 'Copy')),
-      h('div', { class: 'tabs' }, ...[['body', 'Body'], ['headers', 'Headers (' + r.headers.length + ')'], ...(setCookies.length || r.sentCookie ? [['cookies', 'Cookies (' + setCookies.length + ')']] : []), ...(tests.length ? [['tests', 'Tests (' + (tests.length - failed) + '/' + tests.length + ')']] : []), ['request', 'Sent request']].map(([id, label]) =>
+      h('div', { class: 'tabs' }, ...[['body', 'Body'], ['headers', 'Headers (' + r.headers.length + ')'], ...(setCookies.length || r.sentCookie ? [['cookies', 'Cookies (' + setCookies.length + ')']] : []), ...(tests.length ? [['tests', 'Tests (' + (tests.length - failed) + '/' + tests.length + ')']] : logs.length ? [['tests', 'Log']] : []), ['request', 'Sent request']].map(([id, label]) =>
         h('button', { class: 'tab' + (S.resTab === id ? ' active' : ''), onclick: () => { S.resTab = id; persist(); renderResponse(); } }, label))),
     );
     const pane = h('div', { class: 'pane resp' });
     res.append(pane);
-    if (S.resTab === 'tests' && tests.length) {
-      pane.append(h('table', { class: 'tests' }, ...tests.map((t) => h('tr', { class: t.passed ? 'pass' : 'fail' },
+    if (S.resTab === 'tests' && (tests.length || logs.length)) {
+      if (tests.length) pane.append(h('table', { class: 'tests' }, ...tests.map((t) => h('tr', { class: t.passed ? 'pass' : 'fail' },
         h('td', { class: 'mark' }, t.passed ? '✓' : '✗'), h('td', { class: 'code' }, t.source),
         h('td', {}, t.passed ? (t.actual !== undefined ? 'actual: ' + t.actual : 'passed') : t.message)))));
+      if (logs.length) pane.append(h('div', { class: 'gql-label' }, 'Script log'), h('pre', { class: 'code' }, logs.join('\n')));
     } else if (S.resTab === 'cookies') {
       if (setCookies.length) {
         pane.append(h('table', { class: 'hdrs cookies' },
@@ -610,7 +672,7 @@
       S.request = m.request;
       S.request.headers = S.request.headers || [];
       S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [] };
-      if (m.response) { S.response = m.response; S.error = null; S.assertions = []; S.lastAssertions = []; }
+      if (m.response) { S.response = m.response; S.error = null; S.assertions = []; S.lastAssertions = []; S.logs = []; }
       S.dirty = false;
       S.sending = false;
       persist();
@@ -628,8 +690,8 @@
       if (first) render(); else renderResponse();
     } else if (m.type === 'response') {
       S.sending = false; S.stream = []; S.response = m.response; S.resolved = m.resolved; S.error = null;
-      S.assertions = m.assertions || []; S.lastAssertions = S.assertions;
-      if (S.resTab === 'tests' && !S.assertions.length) S.resTab = 'body';
+      S.assertions = m.assertions || []; S.lastAssertions = S.assertions; S.logs = m.logs || [];
+      if (S.resTab === 'tests' && !S.assertions.length && !S.logs.length) S.resTab = 'body';
       persist(); render();
     } else if (m.type === 'error') {
       S.sending = false; S.stream = []; S.error = m.message; persist(); render();

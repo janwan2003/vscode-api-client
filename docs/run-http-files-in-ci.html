@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       <span class="c"># start your API here, e.g. docker compose up -d</span>
-      - uses: janwan2003/vscode-api-client@v0.12.0
+      - uses: janwan2003/vscode-api-client@v0.13.0
         with:
           files: api/
           env: ci
@@ -165,14 +165,15 @@ api-tests:
         <tr><td><code>-k, --insecure</code></td><td>Accept self-signed or invalid TLS certificates (or put <code># @insecure</code> above one request).</td></tr>
         <tr><td><code>--proxy &lt;url&gt;</code></td><td>HTTP proxy. Default: <code>HTTPS_PROXY</code> / <code>HTTP_PROXY</code>; <code>NO_PROXY</code> is honoured.</td></tr>
         <tr><td><code>--no-redirect</code></td><td>Do not follow redirects (or <code># @no-redirect</code> per request).</td></tr>
+        <tr><td><code>--no-scripts</code></td><td>Do not run JavaScript <code>&lt; {% %}</code> / <code>&gt; {% %}</code> scripts (<a href="javascript-scripts-http-file.html">scripts guide</a>). Use it for files you have not reviewed, such as pull requests from forks.</td></tr>
         <tr><td><code>--junit</code>, <code>--json</code>, <code>--markdown &lt;file&gt;</code></td><td>Write a report.</td></tr>
-        <tr><td><code>-v, --verbose</code></td><td>Print the response body of failed requests.</td></tr>
+        <tr><td><code>-v, --verbose</code></td><td>Print the response body of failed requests and every script&rsquo;s log (failed requests always print their script log).</td></tr>
         <tr><td><code>-q, --quiet</code></td><td>Print only failures and the summary.</td></tr>
       </tbody>
     </table></div>
 
     <h2 id="import">Converting Postman and Thunder Client collections</h2>
-    <p>If your requests still live in a Postman or Thunder Client export, convert them first. Common test snippets become <code># @assert</code> lines:</p>
+    <p>If your requests still live in a Postman or Thunder Client export, convert them first. Common test snippets become <code># @assert</code> lines; other Postman scripts are kept as <code>&gt; {% %}</code> / <code>&lt; {% %}</code> blocks and run with a <code>pm</code> API:</p>
 <pre>node plainwire.mjs import postman_collection.json --out api/
 node plainwire.mjs import thunder-tests/ --out api/
 node plainwire.mjs run api/</pre>
@@ -184,12 +185,12 @@ node plainwire.mjs run api/</pre>
       <tbody>
         <tr><td>Runs</td><td><code>.http</code> files</td><td><code>.http</code> files</td><td>Collections stored by the Thunder Client extension</td><td>Postman collection JSON</td></tr>
         <tr><td>Price</td><td>Free</td><td>Free</td><td>Listed on the Free plan</td><td>Free</td></tr>
-        <tr><td>Checks</td><td><code># @assert</code> lines</td><td><code>??</code> lines and JS</td><td>Tests set up in the extension</td><td>JS <code>pm.test</code></td></tr>
+        <tr><td>Checks</td><td><code># @assert</code> lines and JS <code>client.test</code></td><td><code>??</code> lines and JS</td><td>Tests set up in the extension</td><td>JS <code>pm.test</code></td></tr>
         <tr><td>Install</td><td>One file, Node 18+</td><td>npm package</td><td>npm package, Node 22+, plus the extension</td><td>npm package</td></tr>
-        <tr><td>JavaScript scripting</td><td>No</td><td>Yes</td><td>Paid plans</td><td>Yes</td></tr>
+        <tr><td>JavaScript scripting</td><td>Yes, JetBrains <code>&lt; {% %}</code> / <code>&gt; {% %}</code> and Postman <code>pm</code> scripts (<code>--no-scripts</code> to skip)</td><td>Yes</td><td>Paid plans</td><td>Yes</td></tr>
       </tbody>
     </table></div>
-    <p class="small">Based on each project&rsquo;s public documentation and pricing pages, read November 2026. If you need JavaScript in your tests, httpYac or Newman will suit you better. If you want plain files, readable checks and a single download, try plainwire.</p>
+    <p class="small">Based on each project&rsquo;s public documentation and pricing pages, read November 2026. If your scripts send their own requests (<code>pm.sendRequest</code>) or need npm packages, httpYac or Newman will suit you better. If you want plain files, readable checks and a single download, try plainwire; see <a href="javascript-scripts-http-file.html">scripts in .http files</a> for what runs.</p>
 
     <h2 id="faq">Questions</h2>
     <details>

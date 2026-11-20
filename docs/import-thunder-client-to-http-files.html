@@ -101,7 +101,7 @@ Content-Type: application/json
           <tr><td>Secret environment values</td><td><code>http-client.private.env.json</code> (gitignored)</td></tr>
           <tr><td><code>{{variable}}</code></td><td>Unchanged: <code>{{variable}}</code></td></tr>
           <tr><td>Tests</td><td>Common checks (status, time, body, headers, JSON values, counts, types) become <a href="api-tests-in-http-files.html"><code># @assert</code> lines</a> (0.2+); others are listed as warnings</td></tr>
-          <tr><td>Pre/post scripts</td><td>No equivalent; not imported</td></tr>
+          <tr><td>Pre/post scripts</td><td>Not imported (Thunder Client&rsquo;s script API is not supported; Plainwire runs <a href="javascript-scripts-http-file.html">JetBrains-style scripts</a>)</td></tr>
         </tbody>
       </table>
     </div>
@@ -160,7 +160,7 @@ Content-Type: application/json
     <ul>
       <li>Search for <code>{{#</code> and replace leftover Thunder Client system variables.</li>
       <li>Move tokens and passwords out of <code>http-client.env.json</code> into the private file.</li>
-      <li>Note which requests had tests or scripts; those checks need to be done by hand for now.</li>
+      <li>Note which requests had scripts or tests listed as warnings; rewrite the ones you need as <code># @assert</code> lines or <a href="javascript-scripts-http-file.html"><code>&gt; {% %}</code> handlers</a>.</li>
       <li>Send one request per environment to confirm the values resolve.</li>
     </ul>
     <p>Related: <a href="thunder-client-alternative.html">why and how to switch from Thunder Client</a>, and the <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>

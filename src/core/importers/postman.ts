@@ -72,6 +72,8 @@ export function cleanImportedRequest(req: HttpRequest, label: string, warnings: 
   if (title) out.title = title;
   const asserts = req.asserts?.map((a) => a.replace(/[\r\n]+/g, ' ').trim()).filter(Boolean);
   if (asserts?.length) out.asserts = asserts;
+  if (req.rawBefore?.length) out.rawBefore = req.rawBefore;
+  if (req.rawAfter?.length) out.rawAfter = req.rawAfter;
   if (req.body !== undefined && req.body.trim() !== '') {
     out.body = req.body.replace(/\r\n/g, '\n');
     if (/^###/m.test(out.body)) {
@@ -187,11 +189,32 @@ function applyAuth(auth: Obj | undefined, req: HttpRequest, label: string, warni
   }
 }
 
+/**
+ * Keep a Postman script as a `< {% %}` / `> {% %}` block (rawBefore / rawAfter). False (and the
+ * script stays a "skipped" warning) when a line would end the block early.
+ */
+function embedScript(req: HttpRequest, mark: '<' | '>', code: string, label: string, w: string[]): boolean {
+  const lines = code.replace(/\r\n?/g, '\n').replace(/\s+$/, '').split('\n');
+  if (lines.some((l) => /%\}\s*$/.test(l))) return false;
+  const block = [`${mark} {%`, ...lines, '%}'];
+  if (mark === '<') req.rawBefore = [...(req.rawBefore ?? []), ...block];
+  else req.rawAfter = [...(req.rawAfter ?? []), ...block];
+  const unsupported = [/\bpm\.sendRequest\b/.test(code) ? 'pm.sendRequest' : '', /\brequire\s*\(/.test(code) ? 'require()' : '', /\bpm\.(?:visualizer|cookies|execution|vault)\b/.test(code) ? 'pm.visualizer/cookies/execution/vault' : '']
+    .filter(Boolean);
+  if (unsupported.length) w.push(`${label}: ${mark === '<' ? 'pre-request' : 'test'} script uses ${unsupported.join(', ')}, which Plainwire's pm API does not support`);
+  return true;
+}
+
 /** Code of the enabled `test` scripts in a Postman `event` list. */
 function testScript(events: unknown): string {
+  return eventScript(events, 'test');
+}
+
+/** Code of the enabled scripts for one `listen` value (`test`, `prerequest`). */
+function eventScript(events: unknown, listen: string): string {
   const parts: string[] = [];
   for (const e of arr(events)) {
-    if (!isObj(e) || e.disabled === true || str(e.listen) !== 'test') continue;
+    if (!isObj(e) || e.disabled === true || str(e.listen) !== listen) continue;
     const script = isObj(e.script) ? e.script : undefined;
     const exec = script ? script.exec : undefined;
     parts.push(Array.isArray(exec) ? exec.map(str).join('\n') : str(exec));
@@ -408,8 +431,19 @@ function walk(items: unknown, path: string[], inheritedAuth: InheritedAuth | und
     }
     let kinds = scriptKinds(item.event);
     const code = testScript(item.event);
+    // Pre-request scripts run as `< {% %}` with Plainwire's Postman-compatible `pm` API.
+    const preCode = eventScript(item.event, 'prerequest');
+    if (preCode.trim() && embedScript(req, '<', preCode, label, w)) kinds = kinds.filter((k) => k !== 'pre-request script');
     if (code.trim()) {
       const t = convertPostmanTests(code);
+      // Fully convertible scripts become `# @assert` lines; anything else (variables, conditions,
+      // loops) is kept whole as a `> {% %}` handler, which runs it with the `pm` API.
+      if ((t.skipped.length || t.conditional || !t.asserts.length) && embedScript(req, '>', code, label, w)) {
+        kinds = kinds.filter((k) => k !== 'test script');
+        t.skipped = [];
+        t.conditional = 0;
+        t.asserts = [];
+      }
       if (t.asserts.length) req.asserts = t.asserts;
       if (t.asserts.length || !t.skipped.length || t.conditional) kinds = kinds.filter((k) => k !== 'test script');
       if (t.asserts.length && t.skipped.length) {

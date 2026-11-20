@@ -17,13 +17,16 @@ export interface RunSource {
 
 export type RunResult = ExecResult;
 
+const GLOBALS_KEY = 'plainwire.scriptGlobals';
+
 /** Sends requests with the shared core Executor, reading files through the VS Code workspace and recording history. */
 export class Runner {
   private readonly exec: Executor;
   /** OAuth 2 tokens for `{{$auth.token("id")}}`, kept in memory for this window. */
   readonly oauth2: OAuth2Manager;
 
-  constructor(private readonly envs: EnvironmentManager, history: History, cookies?: CookieStore, log?: (m: string) => void) {
+  constructor(private readonly envs: EnvironmentManager, history: History, cookies?: CookieStore, log?: (m: string) => void, state?: vscode.Memento) {
+    const saved = state?.get<[string, string][]>(GLOBALS_KEY);
     this.oauth2 = new OAuth2Manager({
       send: (req, signal) => sendRequest(req, { ...vscodeSendOptions(req), signal }),
       openBrowser: async (url) => {
@@ -48,11 +51,19 @@ export class Runner {
       get cookieJar() {
         return cookies?.enabled ? cookies.jar : undefined;
       },
+      runScripts: () => vscode.workspace.isTrusted && vscode.workspace.getConfiguration('plainwire').get<boolean>('runScripts', true),
+      globals: new Map(Array.isArray(saved) ? saved : []),
+      onGlobalsChanged: async (g) => void (await state?.update(GLOBALS_KEY, [...g])),
       onExchange: async ({ request, file, response, error }) => {
         if (cookies?.enabled) await cookies.save();
         await history.add({ request: stripPosition(request), response, error, file });
       },
     });
+  }
+
+  /** `client.global` values set by response handlers, kept per workspace. */
+  get globals(): Map<string, string> {
+    return this.exec.globals;
   }
 
   /** Forget named responses for a file, so the next run sends chained requests again. */

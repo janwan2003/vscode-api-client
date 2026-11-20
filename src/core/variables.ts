@@ -26,6 +26,10 @@ export interface VariableContext {
    * braces (`$auth.token("id")`). The executor fetches the tokens before resolving (core/oauth2.ts).
    */
   auth?: Map<string, string>;
+  /** `request.variables.set(...)` from this request's pre-request script: used before anything else. */
+  requestVariables?: Map<string, string>;
+  /** `client.global.set(...)` from earlier scripts: used when no file or environment variable has the name. */
+  globals?: Map<string, string>;
 }
 
 export class UnresolvedVariableError extends Error {
@@ -54,12 +58,16 @@ export function resolveText(text: string, ctx: VariableContext, depth = 0): stri
 
 function resolveOne(expr: string, ctx: VariableContext, depth: number): string {
   if (expr.startsWith('$')) return systemVariable(expr, ctx);
+  const rv = ctx.requestVariables?.get(expr);
+  if (rv !== undefined) return rv;
   // File variables win over environment (REST Client order: request > file > environment).
   const fv = [...ctx.fileVariables].reverse().find((v) => v.name === expr);
   if (fv) return resolveText(fv.value, ctx, depth + 1);
   if (Object.prototype.hasOwnProperty.call(ctx.environment, expr)) {
     return resolveText(ctx.environment[expr], ctx, depth + 1);
   }
+  const gv = ctx.globals?.get(expr);
+  if (gv !== undefined) return gv;
   const chained = chainedVariable(expr, ctx);
   if (chained !== undefined) return chained;
   throw new UnresolvedVariableError(expr);

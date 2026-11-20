@@ -50,6 +50,7 @@ section { display: flex; flex-direction: column; min-height: 0; }
 textarea.code { width: 100%; min-height: 180px; height: calc(100% - 75px); resize: vertical; font-family: var(--mono); font-size: var(--vscode-editor-font-size); tab-size: 2; }
 textarea.code.gql-query { height: 45%; min-height: 140px; }
 textarea.code.gql-vars { height: 25%; min-height: 80px; }
+textarea.code.script { height: 30%; min-height: 110px; }
 .gql-label { font-size: .9em; margin: 6px 0 3px; }
 .tools { display: flex; gap: 10px; align-items: center; margin: 4px 0; }
 pre.code, .json { font-family: var(--mono); font-size: var(--vscode-editor-font-size); white-space: pre-wrap; word-break: break-word; margin: 0; }

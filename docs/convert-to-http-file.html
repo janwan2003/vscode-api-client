@@ -60,7 +60,7 @@
           <button type="button" id="pw-zip" class="btn secondary pw-small">Download all (.zip)</button>
         </div>
         <div id="pw-warnings-box" class="pw-warnings note" hidden>
-          <strong>Not converted</strong> (pre-request scripts, unsupported auth, checks that are not simple assertions):
+          <strong>Not converted</strong> (Thunder Client scripts, folder- or collection-level Postman scripts, unsupported auth, script calls Plainwire does not support):
           <ul id="pw-warnings"></ul>
         </div>
       </div>
@@ -78,7 +78,8 @@
         <tr><td>Bearer, Basic, API key auth</td><td><code>Authorization</code> or the API key header / query parameter, inherited auth applied per request</td></tr>
         <tr><td>Bodies: raw, JSON, form, multipart, GraphQL, binary</td><td>The same body in <code>.http</code> syntax; files as <code>&lt; ./path</code></td></tr>
         <tr><td>Thunder Client tests, simple Postman <code>pm.test</code> checks</td><td><code># @assert status == 200</code>, <code># @assert $.id exists</code> and similar lines</td></tr>
-        <tr><td>Pre-request and test scripts</td><td>Not converted; listed under &ldquo;Not converted&rdquo;</td></tr>
+        <tr><td>Other Postman test scripts and pre-request scripts</td><td>Kept as <code>&gt; {% %}</code> / <code>&lt; {% %}</code> blocks that Plainwire runs with a Postman-compatible <code>pm</code> API (<a href="javascript-scripts-http-file.html#postman">details</a>)</td></tr>
+        <tr><td>Thunder Client scripts, folder- and collection-level Postman scripts</td><td>Not converted; listed under &ldquo;Not converted&rdquo;</td></tr>
       </tbody>
     </table></div>
 

@@ -56,7 +56,7 @@
     <p>Collections list files ending in <code>.http</code> or <code>.rest</code> inside the open workspace folder. Files outside the workspace, or excluded by your editor&rsquo;s file exclusion settings, may not be listed.</p>
 
     <h3>An import came out wrong</h3>
-    <p>Scripts and tests from Thunder Client or Postman are not imported, because Plainwire does not run scripts yet. If a request, header or body is missing or wrong, please report it with a <em>minimal, secret-free</em> copy of the exported file.</p>
+    <p>Thunder Client scripts are not imported. Postman test and pre-request scripts are kept as <code>&gt; {% %}</code> / <code>&lt; {% %}</code> blocks, except scripts on a folder or the whole collection, which are listed as warnings; a script that uses <code>pm.sendRequest</code> or <code>require()</code> is kept but those calls fail when it runs (<a href="javascript-scripts-http-file.html#postman">what the <code>pm</code> API covers</a>). If a request, header or body is missing or wrong, please report it with a <em>minimal, secret-free</em> copy of the exported file.</p>
 
     <h2 id="report">How to report a bug</h2>
     <ol>

@@ -108,7 +108,7 @@ Content-Type: application/json
       <li><code>wss://</code> through an HTTP proxy uses <code>CONNECT</code>, like HTTPS; self-signed certificates work with <code># @insecure</code>. Plain <code>ws://</code> through a proxy is sent as an absolute-URL request, which some proxies refuse.</li>
       <li>You cannot type messages into an open connection yet; edit the script and send again.</li>
       <li>Copy as code is for HTTP requests only. Socket.IO, STOMP and other protocols on top of WebSocket are not decoded: you see their frames as text.</li>
-      <li>JetBrains response handler scripts (<code>&gt; {% %}</code>) are kept in the file but not run, as for every request.</li>
+      <li>JetBrains response handlers (<code>&gt; {% %}</code>) run once the connection has ended; <code>response.body.onEachMessage</code> replays the received messages (<a href="javascript-scripts-http-file.html">scripts guide</a>).</li>
     </ul>
 
     <h2>FAQ</h2>

@@ -18,11 +18,12 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
 - **Server-sent events** (new in 0.7): `text/event-stream` responses show event by event as they arrive, with Stop, `# @max-events 3`, `# @timeout 30s`, and checks such as `# @assert events[-1].data == "[DONE]"` or `events[0].data.text == Hi` (JSON data is parsed). The CLI prints the event count.
 - **Shared files** (new in 0.6): `# @import ../shared/auth.http` (httpYac) or `import ../shared/auth.http` (JetBrains) makes another file's variables and named requests available, so one login request serves every file. The importing file's own variables win; nested imports and cycles are handled. Works in the editor, Run all and the CLI.
 - **Import**: Thunder Client collection exports and the `thunder-tests` workspace folder, Postman v2.0/v2.1 collections and environments, **OpenAPI 3.0/3.1 and Swagger 2.0** definitions in YAML or JSON (one file per tag, example bodies, auth, a status check per request), cURL commands (or paste a cURL command into the URL box). Export any request as cURL.
-- **Tests and Run all (free, no run limits)**: add checks as `# @assert` lines (`status == 200`, `$.id exists`, `time < 500`, `header content-type contains json`, `$.items.length > 0`, `$.email matches /@example\.com$/`) or in the editor's Tests tab. *Run all* sends every request in a file, folder or workspace in order and shows a pass/fail report you can re-run or copy as Markdown. Thunder Client tests and common Postman test snippets are converted on import. [Syntax guide](https://janwan2003.github.io/vscode-api-client/api-tests-in-http-files.html).
+- **Tests and Run all (free, no run limits)**: add checks as `# @assert` lines (`status == 200`, `$.id exists`, `time < 500`, `header content-type contains json`, `$.items.length > 0`, `$.email matches /@example\.com$/`) or in the editor's Tests tab. *Run all* sends every request in a file, folder or workspace in order and shows a pass/fail report you can re-run or copy as Markdown. Thunder Client tests and common Postman test snippets are converted on import; other Postman test and pre-request scripts are kept as script blocks and run (see **Scripts**). [Syntax guide](https://janwan2003.github.io/vscode-api-client/api-tests-in-http-files.html).
   ![Run all report](docs/run-all.png)
 - **Real-world networking**: any port, self-signed certificates (`# @insecure` per request or `plainwire.rejectUnauthorized: false`), HTTP proxies (`plainwire.proxy`, VS Code's `http.proxy`, `HTTPS_PROXY`), header names sent with your casing, gzip/deflate/brotli.
 - **Free CLI and GitHub Action for CI**: `plainwire run api/ --env staging --junit results.xml` runs the same files in your pipeline, with no account and no run limits. One file, Node 18+. [CI guide](https://janwan2003.github.io/vscode-api-client/run-http-files-in-ci.html).
 - **GraphQL**: `X-REQUEST-TYPE: GraphQL` requests (REST Client's format: query, blank line, variables JSON), with a Query + Variables editor. [Guide](https://janwan2003.github.io/vscode-api-client/graphql-requests-vscode.html).
+- **Scripts** (new in 0.13): JavaScript in the JetBrains HTTP Client format. `< {% … %}` above a request runs before it is sent (`request.variables.set('signature', …)`, `crypto.hmac.sha256()…`); `> {% … %}` after it runs on the response (`client.test`, `client.assert`, `client.global.set('token', response.body.token)`, then `{{token}}` in later requests). Also `< ./sign.js` / `> ./check.js` files. Results show next to `# @assert` checks in the editor, Run all and the CLI (`--no-scripts` to skip, `-v` for every script's log). Imported Postman scripts run with a Postman-compatible `pm` API (no `pm.sendRequest`). Scripts run only in trusted workspaces, in a Node `vm` context with a 5 s limit; that is not a security sandbox, so treat scripts like any code in your repo. Setting `plainwire.runScripts`. [Guide](https://janwan2003.github.io/vscode-api-client/javascript-scripts-http-file.html).
 - **WebSocket** (new in 0.12): `WEBSOCKET wss://…` requests in the JetBrains HTTP Client format. Messages separated by `===`, `=== wait-for-server` to wait for a reply, every message shown both ways with its time, checks on `messages[-1].data`; Stop, `# @max-events`, timeouts; same in the CLI. [Guide](https://janwan2003.github.io/vscode-api-client/websocket-client-vscode.html).
 - **Copy as Code**: cURL, JavaScript/Node.js fetch, Python requests, Go, HTTPie, PowerShell, wget, C#, PHP, Java, with variables resolved.
 - **httpYac compatible tests**: `?? status == 200`-style lines run as checks too.
@@ -64,7 +65,7 @@ unchanged, as are `$schema` and the order of your keys. With several env files i
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.12.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.13.0.vsix`; same for `cursor` / `codium`).
 
 ## Run the same files in CI
 
@@ -76,7 +77,7 @@ node plainwire.mjs run api/ --env staging --junit results.xml
 ```yaml
 # .github/workflows/api-tests.yml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.12.0
+- uses: janwan2003/vscode-api-client@v0.13.0
   with:
     files: api/
     env: ci
@@ -91,8 +92,8 @@ See the [privacy policy](https://janwan2003.github.io/vscode-api-client/privacy.
 
 ## Not yet
 
-JavaScript pre-request/test scripts, GraphQL schema autocomplete, gRPC, SOCKS proxies, client
-certificates. (OAuth 2 arrived in 0.10 and WebSocket in 0.12.)
+GraphQL schema autocomplete, gRPC, SOCKS proxies, client certificates, `pm.sendRequest` in Postman
+scripts, Thunder Client script import. (OAuth 2 arrived in 0.10, WebSocket in 0.12 and scripts in 0.13.)
 
 ## Develop
 

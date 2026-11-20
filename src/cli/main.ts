@@ -41,10 +41,12 @@ Run options:
       --no-redirect         Do not follow redirects
       --no-cookie-jar       Do not remember cookies between requests (default: cookies set by a
                             response are sent with later requests of the run, like a browser)
+      --no-scripts          Do not run JavaScript handlers (< {% %} before a request, > {% %} after it;
+                            default: run them, JetBrains HTTP Client format)
       --junit <file>        Write a JUnit XML report
       --json <file>         Write a JSON report
       --markdown <file>     Write a Markdown report
-  -v, --verbose             Print the response body of failed requests
+  -v, --verbose             Print the response body of failed requests and every script's client.log output
   -q, --quiet               Only print failures and the summary
       --no-color            No colours (also NO_COLOR=1)
 
@@ -104,6 +106,7 @@ async function run(args: string[]): Promise<number> {
       proxy: { type: 'string' },
       'no-redirect': { type: 'boolean' },
       'no-cookie-jar': { type: 'boolean' },
+      'no-scripts': { type: 'boolean' },
       junit: { type: 'string' },
       json: { type: 'string' },
       markdown: { type: 'string' },
@@ -196,6 +199,7 @@ async function run(args: string[]): Promise<number> {
     cookieJar: o['no-cookie-jar'] ? undefined : new CookieJar(),
     sendOptions,
     oauth2,
+    runScripts: !o['no-scripts'],
   });
 
   if (!o.quiet) {
@@ -232,7 +236,8 @@ async function run(args: string[]): Promise<number> {
       continue;
     }
     try {
-      const { response, assertions } = await exec.run(plan[i].req, plan[i].file);
+      const { response, assertions, logs } = await exec.run(plan[i].req, plan[i].file);
+      row.logs = logs;
       row.status = response.status;
       row.timeMs = response.timeMs;
       row.assertions = assertions;
@@ -256,9 +261,11 @@ async function run(args: string[]): Promise<number> {
       if (!ok) {
         for (const l of failureText(row).split('\n')) out(`      ${col.red(l)}`);
         out(`      ${col.dim(`at ${row.file}:${row.line}`)}`);
+        if (!o.verbose && row.logs?.length) for (const l of row.logs) out(`      ${col.dim('log')} ${l}`);
         if (o.verbose && row.responseBody) out(row.responseBody.split('\n').map((l) => `      ${col.dim('│')} ${l}`).join('\n'));
       }
     }
+    if (o.verbose && row.logs?.length && (!o.quiet || !ok)) for (const l of row.logs) out(`      ${col.dim('log')} ${l}`);
     if (!ok && o.bail) bailed = true;
   }
   const s = summarize(rows, Date.now() - started);
