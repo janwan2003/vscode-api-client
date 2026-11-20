@@ -88,11 +88,29 @@ Complaints and paywall:
 
 ## Status
 
-**Plainwire 0.4.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action). Not yet on the VS Code Marketplace
+**Plainwire 0.4.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus two free in-browser converter
+tools on the site (session 6). Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
 What exists (TypeScript, no runtime dependencies, 68 KB `.vsix`, 83 KB CLI file):
+- Session 6 (2026-11-20, unreleased on `main`): **free in-browser converters on the site** —
+  `convert-to-http-file.html` (Postman collection/environment, Thunder Client export or `thunder-tests/*.json`, cURL → `.http`
+  files + `http-client.env.json`; paste, choose or drop several files; copy, download, download all as `.zip`) and
+  `http-file-to-curl.html` (`.http` → the 11 Copy-as-Code targets, file variables + pasted `KEY=value` or
+  `http-client.env.json` resolved, `#to=<target>` preselects). Source `src/web/` (`convert.ts` pure, `ui.ts` DOM, `zip.ts`
+  store-only zip), bundled by `node scripts/build-web.mjs` into the committed `docs/convert.js` (73 KB; CI runs `--check`
+  so it cannot go stale). The pure preview steps moved from `exec.ts`/`send.ts` into `src/core/preview.ts` and `wire.ts`
+  (old exports kept). Linked from the landing page (new "Free online converters" section), the nav of every page, and the
+  3 conversion guides; sitemap 16 URLs. **HTTPie snippet fix:** `--ignore-stdin` unless the body is `< file` (HTTPie read
+  a non-TTY stdin as the body: `--raw` errored, body-less requests hung 10 s); CI now installs HTTPie.
+  **httpYac parser work** (subagent, merged): on 83 real public httpYac files (GitHub code search, 8 `??` queries, 305 found)
+  compared with httpYac 6.16.7's own parser: 77/83 files identical in requests/method/URL/`??` placement (was 56), 699/699
+  requests (was 662); `?? body <path>` supported (252 real lines were rejected), last-operator split, requests without
+  `###`, scripts/handlers/`>>`/`/* */` kept but never sent (`rawBefore`/`rawAfter` in `model.ts`). Of 1171 real `??` lines,
+  1129 supported, 42 fail as "unsupported" (27 need JavaScript, 6 xpath, 9 that httpYac itself treats as body). Known
+  semantic gaps kept: httpYac's `exists`/`isTrue`/`isFalse` are truthy/falsy checks (ours: defined / exactly true/false; 50
+  real lines); quoted values compare differently. Postman importer: one warning line per request.
 - 0.4.0 (2026-11-20, session 5): **GraphQL** in REST Client's format (`X-REQUEST-TYPE: GraphQL`, query, blank line, variables
   JSON → `{query, variables, operationName}`; `src/core/graphql.ts`, applied in `exec.ts` for run and preview, GraphQL body mode
   in the editor; Postman/Thunder GraphQL now import in this form). **Copy as Code…** (`src/core/codegen.ts`,
@@ -126,9 +144,29 @@ What exists (TypeScript, no runtime dependencies, 68 KB `.vsix`, 83 KB CLI file)
   `.http` files, History in workspaceState), CodeLens (Send / Open in Plainwire / Copy as cURL), environments from
   `http-client(.private).env.json` + `rest-client.environmentVariables` + `plainwire.environmentVariables`, status-bar
   env picker, import commands, `.http` TextMate grammar.
-- `docs/`: GitHub Pages site, 12 pages (landing, privacy, support, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
-  `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (14 URLs).
+- `docs/`: GitHub Pages site, 14 pages (landing, privacy, support, 2 converter tools, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
+  `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (16 URLs).
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (session 6) how:
+- `corepack pnpm@9.15.0 typecheck` clean; locally `node scripts/test.mjs` 197 pass / 0 fail / 31 skipped after the converters, then
+  with HTTPie 3.2.4 in a temp venv 203 / 0 / 25, and after merging the httpYac/Postman branch **211 / 0 / 25** (skips: Go,
+  PHP, .NET, pwsh not installed here). e2e 12/12 again after the merge; browser check re-run on the rebuilt bundle. New `test/web.test.ts` (5): browser `httpToCode` output equals the extension's
+  `previewRequest` + `generateCode` for **all 11 targets** on 4 requests (file vars, env, Basic auth, form, GraphQL, no scheme,
+  chained var); `convertToHttp` equals the CLI import path on the Postman fixtures; env parsing; the zip is read back by
+  Python `zipfile` (CRC, UTF-8 names, dates).
+- GitHub CI run 44745925858 (fed30bc) success; CI run **44747172511** (8981333, Node 20 + 22) success: 227 pass, 0 fail,
+  1 skipped (browser fetch with a file body, by design); HTTPie 3.2.4 installed, `docs/convert.js is up to date`.
+- Headless Chromium (Playwright's cached chromium-1255) against a local server and then **the live Pages URLs**: all 3
+  examples, two-file upload (Postman collection + env → 9 requests, 6 files), zip download (Python `testzip` OK), copy,
+  invalid input message, env picker with `$shared` + `prod`, `#to=go`, 11 targets; **0 requests to any other origin**, no
+  page errors. Found and fixed during this: `.pw-row{display:flex}` overrode `hidden` (empty-state buttons showed), and
+  a false "`# @name`" claim in the mapping table.
+- e2e 12/12 in VS Code 1.147 after the `exec.ts` refactor; `.vsix` still 14 files, 67.5 KB (web code not shipped).
+- Pages deploys for both commits success; the two tool pages, `convert.js` (byte-identical to local) and `sitemap.xml` → 200;
+  live HTTPie snippet shows `--ignore-stdin`. Search Console: sitemap resubmitted (`scripts/gsc.py sitemap` → 204).
+- NOT verified: the converters in Firefox/Safari (Chromium only); drag-and-drop (file picker only); very large collections
+  (largest tried: the 9-request fixture).
 
 Verified 2026-11-20 (0.4.0, session 5) how:
 - `corepack pnpm@9.15.0 typecheck` clean; `node scripts/test.mjs`: 223 tests, 192 pass, 0 fail, 31 skipped (runtime snippet
@@ -213,14 +251,18 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.4.0.vsix` with the commands in `store/LISTING.md`. Still the whole
-   validation channel.
-2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04 and record impressions in `## Metrics`.
-3. `pip install httpie` in CI so the last 6 skipped snippet runtime tests run (Go/PHP/.NET/pwsh already run on ubuntu-latest).
-4. Run real httpYac `.http` files (GitHub code search) through `plainwire run --grep` to check the `??` grammar; compact the
-   long per-test warning lists from the Postman importer (one line per request).
-5. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; SSE/WebSocket; GraphQL schema introspection/autocomplete.
-6. After listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
+   (OPERATOR-INBOX.md). Then publish with the commands in `store/LISTING.md`. Still the whole validation channel.
+2. **Cut 0.4.1** (not done this session, time): `main` has the HTTPie `--ignore-stdin` fix, the httpYac parser fixes and the
+   one-line Postman warnings. Bump `package.json`, move CHANGELOG "Unreleased", `pnpm package` + `node scripts/build-cli.mjs`,
+   `gh release create v0.4.1` with the 3 assets, update the version on `docs/index.html`, wait for CI + Action smoke.
+3. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
+   especially the 2 converter pages (the bet: tool pages rank faster than guides).
+4. httpYac semantics: make `exists`/`isTrue`/`isFalse` truthy/falsy for `??` lines only (50 real lines), warn when a file has
+   scripts we keep but do not run; compact Thunder import warnings like Postman's.
+5. Converters: test in Firefox; add an OpenAPI → `.http` converter page (another switching path with search demand).
+6. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; SSE/WebSocket; GraphQL introspection.
+7. After the store listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly. (Skipped this
+   session on purpose: a 0-star, unlisted project is likely to be rejected, and the charter forbids spray-posting.)
 
 ## Monetization plan
 
@@ -254,8 +296,19 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   sitemap submitted (`scripts/gsc.py`). 3 new SEO guides; inbox item moved out of "Resolved". Evidence: 223 tests (216 pass on
   CI 44744261749), e2e 12/12 in VS Code 1.147 and VSCodium 1.143, real GraphQL server 3/3, Postman regression on 40 real
   exports, Action smoke 44743945176, release v0.4.0, 8 Pages URLs 200.
+- 2026-11-20 builder (session 6): stores still blocked. Shipped (on `main`, unreleased) two **in-browser converter tools** on the
+  site sharing the extension's core (Postman/Thunder/cURL → `.http`; `.http` → 11 languages), linked site-wide, sitemap
+  resubmitted; an **HTTPie snippet bug** (failed/hung outside a TTY) found by actually running HTTPie and fixed; a subagent
+  validated httpYac support on 83 real files (56 → 77 identical to httpYac's parser) and compacted Postman warnings. Evidence:
+  211/0/25 local tests, CI 44747172511 227 pass / 0 fail, e2e 12/12, live pages driven in headless Chromium with 0 external
+  requests, GSC sitemap 204.
 
 ## Metrics
+
+- 2026-11-20 (session 6): GitHub release downloads v0.4.0 `.vsix` 0, `plainwire.mjs` 0, tgz 0; v0.3.0 `.vsix` 1, `plainwire.mjs` 4,
+  tgz 1 (Action smoke runs and our own checks account for most); repo 0 stars, 0 forks; traffic views 0, clones 0 (source:
+  `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`). Search Console: sitemap still
+  pending, analytics empty (`scripts/gsc.py status`); resubmitted with 16 URLs.
 
 - 2026-11-20 (session 5): GitHub release downloads v0.3.0 `.vsix` 0, `plainwire.mjs` 0, tgz 0; v0.2.0 2; v0.1.0 2; repo 0 stars,
   0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`,

@@ -3,6 +3,8 @@
 ## Unreleased
 
 - **Copy as Code → HTTPie** snippets now pass `--ignore-stdin` (except for `< file` bodies). Without it HTTPie read stdin whenever it was not a terminal (scripts, CI, editor tasks): `--raw` bodies failed with "cannot be mixed" and requests without a body waited 10 s. Found by running the snippets against a real HTTPie 3.2.4; CI now installs HTTPie so these runtime tests run.
+- **httpYac compatibility, checked on 83 real public `.http` files** (305 found with GitHub code search; compared against httpYac 6.16.7's own parser, nothing sent): 77/83 files now parse into the same requests (was 56), 699/699 requests found (was 662). `?? body <path>` (e.g. `?? body data.id == 5`) now works; lines with several operators split at the last one, as httpYac does; `notequals`/`not equals`, `==200`. A new method line starts a new request even without `###`. `{{ }}` scripts, `< {% %}`/`> {% %}` handlers, `>>` redirects and `/* */` comments are kept in the file but never sent. Multi-line URLs are joined; `@a=b`, `@a b`, `@a := b` variables are read. JavaScript and xpath assertions still fail as unsupported (never evaluated).
+- **Postman import**: at most one warning line per request, with checks skipped inside if/loop/callback/try summarised as a count.
 - **Website**: free in-browser converters, [Postman / Thunder Client / cURL → .http](https://janwan2003.github.io/vscode-api-client/convert-to-http-file.html) and [.http → cURL and 10 other languages](https://janwan2003.github.io/vscode-api-client/http-file-to-curl.html), built from the same code as the extension.
 
 ## 0.4.0 (2026-11-20)
