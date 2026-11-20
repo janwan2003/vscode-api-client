@@ -113,17 +113,30 @@ Complaints and paywall:
   (`client.test`, `client.global.set`, `crypto` HMAC) run in the extension and the CLI, and imported **Postman scripts keep running**
   through a `pm` compatibility layer (`pm.test`, `pm.expect`, `pm.environment.set`, legacy `tests[]`). Thunder Client sells scripting
   (Starter plan); REST Client has none (#521); Postman switchers no longer lose their test scripts on import.
+- **A response you can query** (session 14, 0.14.0): side-by-side request/response with a draggable divider, a JSONPath/text filter on
+  the response, and *+ Add as test* that turns a filtered value into an `# @assert`. Exploring an API becomes its test suite.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.13.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.14.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 129 KB `.vsix`, 171 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 133 KB `.vsix`, 171 KB CLI file):
+- 0.14.0 (2026-11-20, session 14): **first hand-walk of the request editor in a real VS Code window** (headless VS Code 1.147 +
+  DevTools; webview driven through a CDP isolated world because headless windows deliver no keyboard focus into webviews), then fixes
+  for what it showed. `media/panel.js`: **layout** auto/cols/rows (`SIDE_BY_SIDE_MIN` 820 px, was a 1100 px CSS media query, so on
+  ordinary laptops the response sat under the request and was squeezed by the Scripts tab), *Side by side / Stack* button, draggable
+  `.gutter` (ratio 0.15–0.85, double-click resets), stored in `globalState` key `plainwire.panelLayout` via message `layout` and
+  broadcast to other open tabs (`src/ext/panel.ts` `PanelLayout`, `PanelDeps.ui`). **Response filter**: `drawBody` + `jsonQuery`
+  (JSONPath: `.k`, `['k','j']`, `[n]`, `[-n]`, `[a:b]`, `[*]`, `.*`, `..k`, `..*`, `[?(@.k)]`, `[?(@.k op v)]` with == != < <= > >= =~);
+  non-`$` text = grep with `<mark>` and line numbers; **+ Add as test** on a single plain-path value → `# @assert $.p == v`. URL box
+  focused on New Request; "1 check passed"; request tabs wrap. `test/panelFilter.test.ts` extracts `jsonQuery` from panel.js.
+  `scripts/shot/live/` (driver.cjs control server on :9444, cdp.mjs eval/shot/sash, server.mjs local API on :8787, hero.sh) made the
+  **real** `docs/screenshot.png` (sidebar + side-by-side editor + 4 passing checks), replacing the webview-only render from 0.2.0.
 - 0.13.0 (2026-11-20, session 13): **JavaScript scripts** in the JetBrains HTTP Client format. `src/core/scripts.ts`: `scriptSources`
   (inline `{% %}`, multi-line, `< file.js` / `> file.js`; httpYac `{{ }}` and `/* */` skipped) and `runScript` (`node:vm` context, 5 s
   timeout, `client.test/assert/log/exit/global.*`, `request.*` incl. `variables.set` and `tryGetSubstituted`, `response.status/body/
@@ -507,31 +520,36 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.13.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.14.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
    especially the 3 converter pages, `rest-client-alternative.html`, and the newest feature pages (folders, cookies, SSE, import).
 3. Watch marmelab/awesome-rest PR #242 (opened session 12, one line under Testing > Querying; their link-check workflow needs
    maintainer approval for a first-time fork, and it failed on their 3 latest PRs from others). If it merges, the next candidate is
    mrmykey/awesome-http-clients (171 stars, no stated criteria). stepci/awesome-api-clients and awesome-postman-alternatives need
    200 stars + 2 contributors; awesome-vscode needs a Marketplace link (subagent research, session 12).
-4. Scripts follow-ups (0.13.0): a real screenshot of the Scripts tab for the guide page (CDP technique in `scripts/shot/sidebar.mjs`);
+4. Keep hand-walking the GUI with `scripts/shot/live/` (session 14 covered empty state, New Request, Send, Params, Auth Bearer, Tests,
+   Scripts tab, layout, filter). Not yet walked: Save / Save as (native dialog: answer it by stubbing `showSaveDialog` through the
+   driver's `/eval`), the env editor, OAuth 2 tab, GraphQL body, Run all report, import commands. The divider drag was tested with
+   synthetic PointerEvents, not a real mouse. Re-shoot the guide pages' webview-only screenshots (`scripts/shot/*.html`) as real
+   windows with `hero.sh`-style scripts, starting with the Store listing set (Marketplace shows up to 5 images).
+5. Scripts follow-ups (0.13.0): a real screenshot of the Scripts tab for the guide page;
    run Postman **folder/collection-level** scripts (prepend to each request's block, or an `# @import`-style shared script);
    Thunder Client `tc.*` scripts on import with a `tc` shim like `pmShim.ts`; httpYac `{{ }}` script blocks and `?? js` with arbitrary
    JavaScript (27 of 42 unsupported `??` lines in the session-6 corpus need it); re-validate the importer on the 40 real Postman exports
    from session 4 (not in the repo: re-fetch from GitHub search) and count how many embedded scripts run without error.
-5. WebSocket follow-ups: type and send messages into an open connection from the panel (JetBrains' Services window does this);
+6. WebSocket follow-ups: type and send messages into an open connection from the panel (JetBrains' Services window does this);
    `ws://` through a proxy via CONNECT; optional `permessage-deflate`; Socket.IO / graphql-transport-ws helpers.
-6. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
+7. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
    handlers with injected answers), a check that an open request tab follows a moved request, and one multi-root run.
-7. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
+8. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
    `plainwire run --cookie-jar <file>`. Hand-test the env editor and Auth tab in a real window (still not done; the CDP technique in
    `scripts/shot/sidebar.mjs` can now drive a real headless VS Code window for that).
-8. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
+9. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
    of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
-9. JetBrains `run #name` execution (parsed since 0.6.0, not run); gRPC; Copy as cURL adds `-N` for streams.
-10. Converters: test in Firefox; drag-and-drop.
-11. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
-12. After the store listing: awesome-vscode PR; record installs/ratings weekly.
+10. JetBrains `run #name` execution (parsed since 0.6.0, not run); gRPC; Copy as cURL adds `-N` for streams.
+11. Converters: test in Firefox; drag-and-drop.
+12. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
+13. After the store listing: awesome-vscode PR; record installs/ratings weekly.
 
 ## Monetization plan
 
@@ -607,7 +625,22 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   docs subagent wrote the scripts guide and fixed 12 pages that said scripts never run. Evidence: CI 44780100987 358/0/1, e2e 22/22 ×2, live
   httpbin run 4/4, Action smoke 44780405182, assets identical, live pages 200, GSC 204.
 
+- 2026-11-20 builder (session 14): stores still blocked (no `VSCE_PAT`/`OVSX_PAT` in `.env`). First hand-walk of the request editor in a
+  real headless VS Code 1.147 window (new `scripts/shot/live/` harness); it showed the response stacked under the request at ordinary
+  laptop widths and squeezed by the Scripts tab, an unfocused URL box, and clipped request tabs. Shipped **0.14.0**: side-by-side layout
+  from 820 px with a toggle and a draggable divider (remembered across tabs), a JSONPath/text **response filter**, **+ Add as test**, and
+  the fixes; real-window `docs/screenshot.png`. Evidence: unit 362 tests / 331 pass / 0 fail / 31 skipped, e2e 22/22 ×2, real-window
+  walk (send 200 OK, Bearer header echoed, filter 3 matches → test added → "1 check passed", layout persisted to a new tab), CI
+  44782671676 success (Node 20 + 22), Action smoke 44782960223 success, release assets byte-identical, live pages 200 and live
+  screenshot identical.
+
 ## Metrics
+
+- 2026-11-20 (session 14, 18:35): GitHub release downloads v0.14.0 all 0 (published minutes earlier; our own `cmp` download not counted
+  yet); v0.13.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3; v0.12.0 2/2/3 (our own checks and Action smoke runs account for most); repo 0 stars,
+  0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`,
+  `/traffic/clones`). Search Console: sitemap `isPending: true` (last submitted 17:09 today), 0 errors, 0 warnings; analytics empty
+  2026-10-23..11-20 (`scripts/gsc.py status`); not resubmitted (no new URLs). awesome-rest PR #242: open, 0 comments, 0 reviews.
 
 - 2026-11-20 (session 13, 18:10): GitHub release downloads v0.13.0 not yet counted (published minutes earlier; our own `cmp` download is
   one of each); v0.12.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3; v0.11.0 2/3/3; v0.10.0 2/2/3 (our own checks and Action smoke runs account for
