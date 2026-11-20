@@ -2,7 +2,7 @@
   "name": "plainwire",
   "displayName": "Plainwire — API Client (no login, plain .http files)",
   "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible), with GraphQL, tests, a collection runner, copy as code and a free CLI for CI. One-click import from Thunder Client, Postman and cURL.",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -49,7 +49,8 @@
     "workspaceContains:**/*.http",
     "workspaceContains:**/*.rest",
     "onLanguage:http",
-    "onView:plainwire.collections"
+    "onView:plainwire.collections",
+    "onStartupFinished"
   ],
   "contributes": {
     "commands": [
@@ -617,6 +618,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show Send / Open in Plainwire / Copy as cURL above requests in .http files."
+        },
+        "plainwire.offerThunderImport": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Once, after startup, offer to import Thunder Client data found on this computer (its storage folder in VS Code, Cursor, Windsurf, VSCodium… or a `thunder-tests` folder). Reads local files only; nothing is sent anywhere. **Plainwire: Import from Thunder Client…** does the same at any time."
         },
         "plainwire.importFolder": {
           "type": "string",

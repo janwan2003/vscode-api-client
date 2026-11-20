@@ -6,7 +6,8 @@ import { Executor, requestLabel, rowState, summarize, markdownReport } from '../
 import { fetchText } from '../core/fetchText.ts';
 import { parseHttpFile } from '../core/httpFile.ts';
 import { attachEnvironments, collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
-import { importThunderWorkspace } from '../core/importers/thunder.ts';
+import { describeThunderStore, readThunderStore } from '../core/importers/thunderStore.ts';
+import { findThunderData, readThunderDir } from '../core/thunderLocate.ts';
 import type { ImportedCollection, ParsedRequest } from '../core/model.ts';
 import { OAuth2Manager } from '../core/oauth2.ts';
 import { describeNetworkError, sendRequest, type SendOptions } from '../core/send.ts';
@@ -14,7 +15,7 @@ import type { HttpRequest } from '../core/model.ts';
 import { spawn } from 'node:child_process';
 import { envHint, envsDefining, mergeEnvironment, parseDotenv, UnresolvedVariableError } from '../core/variables.ts';
 import { loadEnvironments } from './env.ts';
-import { findHttpFiles, walk } from './files.ts';
+import { findHttpFiles } from './files.ts';
 import { failureText, githubAnnotations, jsonReport, junitReport, type CliRow } from './report.ts';
 
 declare const PLAINWIRE_VERSION: string;
@@ -28,6 +29,8 @@ Usage:
                                                           Convert Thunder Client / Postman exports, OpenAPI / Swagger
                                                           definitions (a file or a URL) or a curl command file to
                                                           .http files
+  plainwire import --thunder [--history] [--out dir]      Import Thunder Client's own data from this computer (VS Code,
+                                                          Cursor, Windsurf, VSCodium...): no export, no login needed
 
 Run options:
   -e, --env <name>          Environment from http-client.env.json / http-client.private.env.json / .vscode/settings.json
@@ -58,6 +61,7 @@ Examples:
   plainwire run api/ --env staging --junit results.xml
   plainwire run "tests/**/*.http" --var token=$API_TOKEN --bail
   plainwire import postman_collection.json --out http/
+  plainwire import --thunder --history
   plainwire import https://petstore3.swagger.io/api/v3/openapi.json --out petstore/
 `;
 
@@ -304,11 +308,19 @@ async function run(args: string[]): Promise<number> {
 }
 
 async function importCmd(args: string[]): Promise<number> {
-  const { values: o, positionals } = parseArgs({ args, allowPositionals: true, options: { out: { type: 'string', short: 'o' }, force: { type: 'boolean' }, insecure: { type: 'boolean', short: 'k' }, proxy: { type: 'string' } } });
-  if (!positionals.length) throw new UsageError('import needs at least one file: a Postman or Thunder Client export (.json), an OpenAPI / Swagger definition (.json, .yaml, or its https:// URL), a thunder-tests/ folder, or a file with a curl command');
+  const { values: o, positionals } = parseArgs({ args, allowPositionals: true, options: { out: { type: 'string', short: 'o' }, force: { type: 'boolean' }, insecure: { type: 'boolean', short: 'k' }, proxy: { type: 'string' }, thunder: { type: 'boolean' }, history: { type: 'boolean' } } });
+  if (!positionals.length && !o.thunder) throw new UsageError('import needs at least one file: a Postman or Thunder Client export (.json), an OpenAPI / Swagger definition (.json, .yaml, or its https:// URL), a thunder-tests/ folder, or a file with a curl command');
   const cwd = process.cwd();
   const outDir = resolve(cwd, o.out ?? 'http');
   let collections: ImportedCollection[] = [];
+  if (o.thunder) {
+    const found = findThunderData();
+    if (!found.length) throw new UsageError('No Thunder Client data found on this computer (looked in the globalStorage/rangav.vscode-thunder-client folder of VS Code, Insiders, Cursor, Windsurf, VSCodium, Code - OSS, Trae, Kiro, Positron and their remote servers). Pass the folder instead: plainwire import <folder>');
+    const [use, ...others] = found;
+    process.stdout.write(`Thunder Client data (${use.label}): ${use.dir}\n  ${describeThunderStore(use.summary)}${use.summary.history && !o.history ? ' (add --history to import the history too)' : ''}\n`);
+    for (const x of others) process.stdout.write(`Also found (${x.label}, not imported): ${x.dir}\n  ${describeThunderStore(x.summary)}; import it with: plainwire import "${x.dir}"\n`);
+    collections.push(...importThunderDir(use.dir, !!o.history));
+  }
   for (const p of positionals) {
     if (/^https?:\/\//i.test(p)) {
       const proxy = o.proxy || process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined;
@@ -319,7 +331,7 @@ async function importCmd(args: string[]): Promise<number> {
     }
     const abs = resolve(cwd, p);
     if (!existsSync(abs)) throw new UsageError(`Not found: ${p}`);
-    if (statSync(abs).isDirectory()) collections.push(...importThunderDir(abs));
+    if (statSync(abs).isDirectory()) collections.push(...importThunderDir(abs, !!o.history));
     else collections.push(...detectAndImport(readFileSync(abs, 'utf8'), abs.split(/[\\/]/).pop()));
   }
   collections = attachEnvironments(collections);
@@ -342,25 +354,12 @@ async function importCmd(args: string[]): Promise<number> {
   return 0;
 }
 
-/** A Thunder Client `thunder-tests/` folder (legacy single files and the newer per-collection layout). */
-function importThunderDir(dir: string): ImportedCollection[] {
-  const read = (name: string) => (existsSync(join(dir, name)) ? JSON.parse(readFileSync(join(dir, name), 'utf8')) : undefined);
-  const collections: ImportedCollection[] = [];
-  const legacy = { collections: read('thunderCollection.json'), requests: read('thunderclient.json'), environments: read('thunderEnvironment.json') };
-  if (legacy.collections || legacy.requests) collections.push(...importThunderWorkspace(legacy));
-  for (const sub of ['collections', 'environments']) {
-    const d = join(dir, sub);
-    if (!existsSync(d)) continue;
-    for (const f of walk(d, (p) => p.endsWith('.json'))) {
-      try {
-        collections.push(...detectAndImport(readFileSync(f, 'utf8'), f.split(/[\\/]/).pop()));
-      } catch (e) {
-        process.stderr.write(`Skipped ${relative(dir, f)}: ${(e as Error).message}\n`);
-      }
-    }
-  }
-  if (!collections.length) throw new UsageError(`No Thunder Client collections found in ${relative(process.cwd(), dir) || dir}.`);
-  return collections;
+/** A folder of Thunder Client data: a `thunder-tests/` folder or the extension's own storage folder (every layout). */
+function importThunderDir(dir: string, history: boolean): ImportedCollection[] {
+  const store = readThunderStore(readThunderDir(dir), { history });
+  for (const s of store.skipped) process.stderr.write(`Skipped ${s}\n`);
+  if (!store.collections.length) throw new UsageError(`No Thunder Client collections found in ${relative(process.cwd(), dir) || dir}.`);
+  return store.collections;
 }
 
 /** Best effort: open a URL in the default browser (the URL is printed too). */

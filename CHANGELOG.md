@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.0 (2026-11-20)
+
+- **Import straight from Thunder Client's own storage: no export, no login.** *Plainwire: Import from Thunder Client…* now lists every folder on this computer where Thunder Client keeps its data (`globalStorage/rangav.vscode-thunder-client` of VS Code, Insiders, Cursor, Windsurf, VSCodium, Code - OSS, Trae, Kiro and Positron, their profiles and remote `*-server` folders, the workspace's `thunder-tests`, and a Custom Location set in Thunder's settings), with what each holds ("2 collections, 41 requests, 1 environment, 120 history entries"). Pick one and its collections, folders, environments and tests become `.http` files. Thunder Client does not need to be installed or signed in.
+- **Once, after startup**, when such data exists and a folder is open, Plainwire offers the import in a notification (*Import* / *Don't ask again*; setting `plainwire.offerThunderImport`). It reads local files only; nothing is sent anywhere.
+- **Every storage layout:** per-collection `collections/tc_col_*.json` + `environments/tc_env_*.json`, the legacy `thunderclient.json`/`thunderCollection.json`/`thunderEnvironment.json`, the older NeDB databases `thunderclient.db`/`thunderCollection.db`/`thunderEnvironment.db` (later records replace earlier ones, deleted ones are dropped), request bodies written as arrays of lines (Thunder 2.39+), and requests stored one file each. Backup folders are skipped.
+- **History too, if you want it:** Thunder's Activity tab (`thunderActivity.json`/`.db`) imports as one *Thunder Client history* file, newest first, duplicates removed.
+- **CLI:** `plainwire import --thunder [--history]` finds and imports that data; `plainwire import <folder>` reads any Thunder data folder; `.db` files can be passed directly. The website converter accepts `.db` files.
+
 ## 0.16.0 (2026-11-20)
 
 From a hand-walk of streams, GraphQL, cURL paste, Copy as Code, OAuth 2 and the tree in a real VS Code window.

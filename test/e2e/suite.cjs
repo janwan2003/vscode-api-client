@@ -161,6 +161,27 @@ exports.run = async function run() {
     });
   });
 
+  await check("Thunder Client's own storage folder is found next to ours and imported with its history", async () => {
+    const dir = api.thunderDirForTest();
+    fs.mkdirSync(path.join(dir, 'collections'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'environments'), { recursive: true });
+    const r = { _id: 'r1', colId: 'c1', containerId: '', name: 'Local storage request', url: '{{host}}/from-storage', method: 'GET', sortNum: 1, headers: [], params: [], tests: [] };
+    fs.writeFileSync(path.join(dir, 'collections', 'tc_col_local.json'), JSON.stringify({ _id: 'c1', colName: 'From Storage', folders: [], requests: [r] }));
+    fs.writeFileSync(path.join(dir, 'environments', 'tc_env_dev.json'), JSON.stringify({ _id: 'e1', name: 'dev', data: [{ name: 'host', value: 'http://127.0.0.1:1' }] }));
+    fs.writeFileSync(path.join(dir, 'thunderActivity.db'), JSON.stringify({ ...r, _id: 'h1', colId: 'history', url: 'http://127.0.0.1:1/old' }) + '\n');
+    const found = api.findThunderForTest();
+    const loc = found.find((l) => l.dir === dir);
+    assert.ok(loc, 'storage folder not found: ' + JSON.stringify(found.map((l) => l.dir)));
+    assert.equal(loc.label, vscode.env.appName);
+    assert.deepEqual(loc.summary, { collections: 1, requests: 1, environments: 1, history: 1 });
+    await api.importThunderForTest(loc, true, vscode.window.createOutputChannel('t2'));
+    const files = (await vscode.workspace.findFiles('http/**/*.http')).map((u) => fs.readFileSync(u.fsPath, 'utf8'));
+    assert.ok(files.some((t) => t.includes('GET {{host}}/from-storage')), 'collection request not written');
+    assert.ok(files.some((t) => t.includes('GET http://127.0.0.1:1/old')), 'history not written');
+    const env = await vscode.workspace.findFiles('http/**/http-client.env.json');
+    assert.ok(env.some((u) => /"host": "http:\/\/127\.0\.0\.1:1"/.test(fs.readFileSync(u.fsPath, 'utf8'))), 'environment not written');
+  });
+
   await check('OpenAPI YAML import writes .http + env files and the request sends with $shared baseUrl', async () => {
     const spec = [
       'openapi: 3.0.3',

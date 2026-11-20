@@ -4,6 +4,7 @@ import { CODE_TARGETS, generateCode, type CodeTarget } from '../core/codegen.ts'
 import { parseHttpFile } from '../core/httpFile.ts';
 import { attachEnvironments, collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
 import type { ImportedCollection } from '../core/model.ts';
+import { readThunderStore } from '../core/importers/thunderStore.ts';
 import { normalizeBasicAuth, toWireForm, bodyFileRef } from '../core/preview.ts';
 import { mergeEnvironment, parseDotenv, resolveRequest, type VariableContext } from '../core/variables.ts';
 import { ensureScheme } from '../core/wire.ts';
@@ -19,9 +20,19 @@ export interface ImportResult {
 }
 
 /** Postman / Thunder Client exports or curl commands → `.http` files + `http-client.env.json`. */
+/** Thunder Client's own data files, which only make sense together (requests in one, their collection names in another). */
+const THUNDER_DATA = /^(thunder(client|Collection|Environment|Activity)\.(json|db)|tc_(col|env)_.+\.json|.+\.db)$/i;
+
 export function convertToHttp(inputs: { name?: string; text: string }[]): ImportResult {
   let collections: ImportedCollection[] = [];
   const errors: string[] = [];
+  const thunder = inputs.filter((i) => i.name && THUNDER_DATA.test(i.name.split(/[\\/]/).pop() ?? '') && i.text.trim());
+  if (thunder.length > 1) {
+    const store = readThunderStore(thunder.map((i) => ({ path: i.name as string, text: i.text })), { history: true });
+    collections.push(...store.collections);
+    errors.push(...store.skipped);
+    inputs = inputs.filter((i) => !thunder.includes(i));
+  }
   for (const input of inputs) {
     if (!input.text.trim()) continue;
     try {

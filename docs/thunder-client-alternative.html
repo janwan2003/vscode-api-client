@@ -35,6 +35,10 @@
     <p>Thunder Client made a GUI API client inside VS Code popular. Its recent versions ask you to sign in before you can send requests, and the free plan now has limits. If you only want to fill in a URL, press Send and keep your requests next to your code, Plainwire does that for free, with no account and no limits, and stores everything as plain <code>.http</code> files in your repository.</p>
     <p class="small">Plainwire is an independent open-source project. It is not affiliated with or endorsed by Thunder Client, Postman or REST Client.</p>
 
+    <div class="note">
+      <p><strong>Take your collections with you, no export and no login (new in 0.17).</strong> Thunder Client keeps your collections, environments and history as files on your computer. Plainwire reads them straight from that folder: run <strong>Plainwire: Import from Thunder Client&hellip;</strong>, or <code>plainwire import --thunder</code> in a terminal, and they become <code>.http</code> files in your project. Nothing is sent anywhere. <a href="thunder-client-data-location.html">Where Thunder Client stores its data</a>.</p>
+    </div>
+
     <h2>What changed in Thunder Client</h2>
     <p>According to the <a href="https://www.thunderclient.com/pricing">Thunder Client pricing page</a> (as read on 20 November 2026), the free plan allows 50 requests per collection and 50 collection runs per month, while Git Sync and custom scripting are on paid plans. Recent versions also require signing in to an account to send requests, which is the most common complaint in the extension&rsquo;s recent marketplace reviews. Thunder Client remains a capable product with features Plainwire does not have yet; if those limits do not affect you, there may be no reason to switch.</p>
 
@@ -43,7 +47,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th scope="col"></th><th scope="col">Plainwire 0.13</th><th scope="col">Thunder Client (free plan)</th><th scope="col">REST Client</th></tr>
+          <tr><th scope="col"></th><th scope="col">Plainwire 0.17</th><th scope="col">Thunder Client (free plan)</th><th scope="col">REST Client</th></tr>
         </thead>
         <tbody>
           <tr><th scope="row">Price</th><td class="yes">Free, MIT open source</td><td>Free plan; paid plans from $3/user/month (billed annually)</td><td class="yes">Free, open source</td></tr>
@@ -60,7 +64,7 @@
           <tr><th scope="row">GraphQL editor</th><td class="yes">Yes, Query + Variables (<a href="graphql-requests-vscode.html">guide</a>)</td><td class="yes">Yes</td><td>GraphQL requests written as text</td></tr>
           <tr><th scope="row">Import Thunder Client / Postman / cURL</th><td class="yes">Yes / Yes / Yes</td><td>n/a / Yes / Yes</td><td>No / No / Yes (cURL)</td></tr>
           <tr><th scope="row">Telemetry</th><td class="yes">None</td><td><span class="unk">Not verified</span></td><td><span class="unk">Not verified</span></td></tr>
-          <tr><th scope="row">Last release</th><td>v0.8, November 2026</td><td>November 2026</td><td>2022</td></tr>
+          <tr><th scope="row">Last release</th><td>v0.17, November 2026</td><td>November 2026</td><td>2022</td></tr>
           <tr><th scope="row">Install in Cursor / VSCodium</th><td><code>.vsix</code> now; Open VSX coming soon</td><td>Open VSX</td><td>Open VSX</td></tr>
         </tbody>
       </table>
@@ -68,9 +72,8 @@
 
     <h2>How to switch in five minutes</h2>
     <ol class="steps">
-      <li><strong>Export your collections from Thunder Client.</strong> In the Thunder Client sidebar, open the <em>Collections</em> tab, open the menu (<strong>&hellip;</strong>) next to a collection and choose <strong>Export</strong>. You get a JSON file such as <code>thunder-collection_Shop API.json</code>. Do the same for each environment in the <em>Env</em> tab. If your project already has a <code>thunder-tests</code> folder (written by Thunder Client&rsquo;s save-to-workspace or Git Sync feature), you can skip this step and import the folder directly.</li>
       <li><strong>Install Plainwire.</strong> Download the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (see <a href="./#install">install steps</a>).</li>
-      <li><strong>Import.</strong> Run <strong>Plainwire: Import from Thunder Client…</strong> (Command Palette, or the button in the Plainwire sidebar), and pick the exported JSON file(s) or the <code>thunder-tests</code> folder. Plainwire writes the requests as <code>.http</code> files into your workspace.</li>
+      <li><strong>Import, without exporting first.</strong> Open your project and run <strong>Plainwire: Import from Thunder Client…</strong> (Command Palette, or the button in the Plainwire sidebar). It lists the Thunder Client data it finds on this computer, in VS Code, Cursor, Windsurf, VSCodium and other editors, and in the project&rsquo;s <code>thunder-tests</code> folder, with the number of collections, requests and environments in each. Pick one; you do not need to export anything or sign in to Thunder Client. Plainwire writes the requests as <code>.http</code> files into your workspace. Already have exported JSON files? Choose <strong>Choose exported or data file(s)&hellip;</strong> in the same list.</li>
       <li><strong>Set up environments.</strong> Imported environment values go into <code>http-client.env.json</code>. Move secrets (tokens, passwords, API keys) into <code>http-client.private.env.json</code> and add that file to <code>.gitignore</code>.</li>
       <li><strong>Commit.</strong> Review the new <code>.http</code> files, send a couple of requests from the <strong>Send Request</strong> links, and commit them. Your teammates get the collection with their next <code>git pull</code>, no account needed.</li>
     </ol>
@@ -92,7 +95,7 @@ Content-Type: application/json
     <h2>What does not carry over</h2>
     <ul>
       <li><strong>Tests and scripts.</strong> Thunder Client pre/post-request scripts are not imported: Plainwire runs JavaScript in the JetBrains HTTP Client format (and Postman&rsquo;s <code>pm</code> API), not Thunder Client&rsquo;s script API, so rewrite them as <a href="javascript-scripts-http-file.html"><code>&lt; {% %}</code> / <code>&gt; {% %}</code> scripts</a> if you need them. Since 0.2.0, the common Thunder Client tests (status, response time, body and header checks, JSON values, counts and types) are converted to <code># @assert</code> lines you can run with <strong>Run all</strong>; see <a href="api-tests-in-http-files.html">API tests in .http files</a>.</li>
-      <li><strong>Request history.</strong> Your Thunder Client activity history stays in Thunder Client; Plainwire starts its own local history.</li>
+      <li><strong>Request history.</strong> Since 0.17 you can bring Thunder Client&rsquo;s Activity history along: choose <strong>Also the history</strong> during the import (or add <code>--history</code> in the CLI) and it becomes one <code>Thunder Client history</code> <code>.http</code> file, newest first, without duplicates. Plainwire&rsquo;s own history of sent requests starts fresh.</li>
       <li><strong>OAuth 2</strong> (Client Credentials, Authorization Code with PKCE, Password, Device flow) works since 0.10: see <a href="oauth2-http-file-vscode.html">OAuth 2.0 tokens in .http files</a>. <strong>WebSocket</strong> works since 0.12 (<a href="websocket-client-vscode.html">guide</a>); <strong>gRPC</strong> is not available yet. GraphQL requests are imported with their query and variables.</li>
     </ul>
 
@@ -106,7 +109,7 @@ Content-Type: application/json
     </details>
     <details>
       <summary>Can I use Plainwire and Thunder Client side by side?</summary>
-      <p>Yes. They do not share storage. Plainwire only touches <code>.http</code> / <code>.rest</code> files and its own local history.</p>
+      <p>Yes. They do not share storage. Plainwire only writes <code>.http</code> / <code>.rest</code> files and its own local history; when you import, it reads Thunder Client&rsquo;s files but does not change them.</p>
     </details>
     <details>
       <summary>Does it work in Cursor and Windsurf?</summary>

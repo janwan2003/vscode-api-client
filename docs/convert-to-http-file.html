@@ -41,7 +41,7 @@
         <textarea id="pw-src" spellcheck="false" placeholder="Paste a Postman collection, Thunder Client export, OpenAPI definition or curl command here, or drop files on this box."></textarea>
         <div class="pw-row">
           <label class="btn secondary pw-small" for="pw-files">Choose files&hellip;</label>
-          <input id="pw-files" type="file" multiple accept=".json,.yaml,.yml,.txt,.sh,application/json,text/plain" hidden>
+          <input id="pw-files" type="file" multiple accept=".json,.db,.yaml,.yml,.txt,.sh,application/json,text/plain" hidden>
           <span class="small">Examples:</span>
           <button type="button" class="btn secondary pw-small" data-example="postman">Postman</button>
           <button type="button" class="btn secondary pw-small" data-example="thunder">Thunder Client</button>
@@ -94,6 +94,7 @@
     <h2>FAQ</h2>
     <details><summary>Is my collection sent anywhere?</summary><p>No. The converter is a script on this page (<a href="https://github.com/janwan2003/vscode-api-client/tree/main/src/web">source</a>). It reads the text you paste or the files you choose, converts them in memory and lets you copy or download the result. Nothing is uploaded and nothing is stored after you close the tab.</p></details>
     <details><summary>Can I convert a whole <code>thunder-tests</code> folder?</summary><p>Yes. Choose all of its JSON files at once (for example <code>thunderclient.json</code>, <code>thunderCollection.json</code> and <code>thunderEnvironment.json</code>, or the <code>collections/</code> and <code>environments/</code> files of the newer layout) and they are combined into one result.</p></details>
+    <details><summary>Can I convert Thunder Client&rsquo;s own data files?</summary><p>Yes: drop a <code>thunderclient.db</code>, <code>thunderActivity.json</code> (the Activity history) or another Thunder Client <code>.db</code> file here. For a whole data folder, the extension (<strong>Plainwire: Import from Thunder Client&hellip;</strong>) or <code>plainwire import --thunder</code> reads it in one go, with no export or login; see <a href="thunder-client-data-location.html">where Thunder Client stores its data</a>.</p></details>
     <details><summary>Postman v1 collections?</summary><p>Not supported. Open the collection in Postman and export it again as Collection v2.1.</p></details>
     <details><summary>How is this different from the extension&rsquo;s import?</summary><p>It is the same converter. In VS Code, <strong>Plainwire: Import from Thunder Client / Postman / cURL</strong> writes the files straight into your workspace; the CLI does it with <code>plainwire import</code>.</p></details>
   </div>

@@ -121,6 +121,11 @@ function applyAuth(auth: Obj | undefined, req: HttpRequest, label: string, warni
   }
 }
 
+/** Thunder 2.39 started writing request bodies (and docs) as arrays of lines for smaller git diffs. */
+function lines(x: unknown): string {
+  return Array.isArray(x) ? x.map((l) => (typeof l === 'string' ? l : str(l))).join('\n') : str(x);
+}
+
 function applyBody(body: unknown, req: HttpRequest, label: string, warnings: string[]): void {
   if (!isObj(body)) return;
   const type = str(body.type);
@@ -131,7 +136,7 @@ function applyBody(body: unknown, req: HttpRequest, label: string, warnings: str
     case 'json':
     case 'text':
     case 'xml': {
-      const raw = str(body.raw);
+      const raw = lines(body.raw);
       if (!raw.trim()) return;
       req.body = raw;
       setType(BODY_TYPES[type]);
@@ -169,7 +174,7 @@ function applyBody(body: unknown, req: HttpRequest, label: string, warnings: str
     case 'graphql': {
       const g = isObj(body.graphql) ? body.graphql : {};
       const vars = typeof g.variables === 'string' ? g.variables : g.variables ? JSON.stringify(g.variables) : '';
-      applyGraphqlBody(req, str(g.query), vars);
+      applyGraphqlBody(req, lines(g.query), typeof g.variables === 'string' || !Array.isArray(g.variables) ? vars : lines(g.variables));
       return;
     }
     case 'binary': {
@@ -182,7 +187,7 @@ function applyBody(body: unknown, req: HttpRequest, label: string, warnings: str
     }
     default:
       // 'none', missing, or unknown: no body. Keep raw text for unknown types if present.
-      if (type && type !== 'none' && str(body.raw).trim()) req.body = str(body.raw);
+      if (type && type !== 'none' && lines(body.raw).trim()) req.body = lines(body.raw);
   }
 }
 

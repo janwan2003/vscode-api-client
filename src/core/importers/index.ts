@@ -5,10 +5,19 @@ import { importPostman, importPostmanEnvironment, isObj, isPostmanCollection, is
 import { importOpenApi, isOpenApi } from './openapi.ts';
 import { parseYaml } from '../yaml.ts';
 import { importThunder, importThunderEnvironments, importThunderWorkspace, isThunderCollection, isThunderEnvironment } from './thunder.ts';
+import { looksLikeNedb, readThunderStore } from './thunderStore.ts';
 
 export { importPostman, importPostmanEnvironment } from './postman.ts';
 export { importOpenApi } from './openapi.ts';
 export { importThunder, importThunderWorkspace, importThunderEnvironments } from './thunder.ts';
+export { readThunderStore, describeThunderStore } from './thunderStore.ts';
+
+/** Thunder Client's own data files: NeDB `.db` databases and the Activity (history) file. */
+function importThunderDataFile(text: string, fileName: string | undefined): ImportedCollection[] {
+  const store = readThunderStore([{ path: fileName ?? 'thunder.db', text }], { history: true });
+  if (!store.collections.length) throw new Error(`${fileName ?? 'This file'} has no Thunder Client requests, collections or environments${store.skipped.length ? ` (${store.skipped[0]})` : ''}.`);
+  return store.collections;
+}
 
 /**
  * YAML aliases share objects, so a small file can expand to an enormous tree ("billion laughs").
@@ -50,6 +59,9 @@ export function detectAndImport(text: string, fileName?: string, sourceUrl?: str
     c.folders.push({ name: '', requests: [req] });
     return [c];
   }
+  if (/\.db$/i.test(fileName ?? '') || (!trimmed.startsWith('[') && looksLikeNedb(trimmed) && trimmed.includes('\n'))) {
+    return importThunderDataFile(trimmed, fileName);
+  }
   let json: unknown;
   try {
     json = JSON.parse(trimmed);
@@ -85,6 +97,7 @@ export function detectAndImport(text: string, fileName?: string, sourceUrl?: str
   }
   if (Array.isArray(json)) {
     const items = json.filter(isObj);
+    if (/(^|[\\/])thunderActivity\.json$/i.test(fileName ?? '') || items.some((x) => x.colId === 'history')) return importThunderDataFile(trimmed, fileName ?? 'thunderActivity.json');
     if (items.some((x) => 'colName' in x || ('folders' in x && '_id' in x && !('url' in x)))) {
       return importThunderWorkspace({ collections: json });
     }
@@ -102,7 +115,7 @@ export function detectAndImport(text: string, fileName?: string, sourceUrl?: str
   }
   throw new Error(
     `${fileName ?? 'This file'} is not a recognized export. Supported: Postman Collection v2.0/v2.1, Postman environment, ` +
-      'OpenAPI 3.x / Swagger 2.0, Thunder Client collection export, thunder-tests/*.json, or a curl command.',
+      'OpenAPI 3.x / Swagger 2.0, Thunder Client collection export, thunder-tests/*.json, Thunder Client .db files, or a curl command.',
   );
 }
 

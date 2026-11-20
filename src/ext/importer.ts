@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { attachEnvironments, collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
-import { importThunderWorkspace } from '../core/importers/thunder.ts';
+import { describeThunderStore, readThunderStore } from '../core/importers/thunderStore.ts';
+import { findThunderData, inspectThunderDir, readThunderDir, THUNDER_EXTENSION_ID, type ThunderCandidate, type ThunderLocation } from '../core/thunderLocate.ts';
 import { fetchText } from '../core/fetchText.ts';
 import type { ImportedCollection } from '../core/model.ts';
 import { vscodeSendOptions } from './runner.ts';
@@ -62,7 +63,7 @@ export async function writeCollections(imported: ImportedCollection[], output: v
 }
 
 const DIALOG = {
-  thunder: { filters: { 'JSON export': ['json'] }, title: 'Thunder Client collection or environment export (.json)' },
+  thunder: { filters: { 'Thunder Client data': ['json', 'db'] }, title: 'Thunder Client export (.json) or data file (thunderclient.db, tc_col_*.json, thunderActivity.json)' },
   postman: { filters: { 'JSON export': ['json'] }, title: 'Postman collection v2.0/v2.1 or environment export (.json)' },
   openapi: { filters: { 'OpenAPI / Swagger': ['json', 'yaml', 'yml'] }, title: 'OpenAPI 3.x or Swagger 2.0 definition (.json, .yaml)' },
 };
@@ -95,16 +96,11 @@ export async function importFromUrl(url: string, output: vscode.OutputChannel): 
 }
 
 export async function importFromFiles(kind: 'thunder' | 'postman' | 'openapi', output: vscode.OutputChannel): Promise<void> {
-  const root = vscode.workspace.workspaceFolders?.[0]?.uri;
-  if (kind === 'thunder' && root) {
-    // Thunder Client's "save to workspace" folder.
-    const tt = vscode.Uri.joinPath(root, 'thunder-tests');
-    if (await exists(tt)) {
-      const pick = await vscode.window.showQuickPick(['Import the thunder-tests folder in this workspace', 'Choose exported JSON file(s)…'], { placeHolder: 'Found a thunder-tests folder' });
-      if (!pick) return;
-      if (pick.startsWith('Import the')) return importThunderFolder(tt, output);
-    }
-  }
+  if (kind === 'thunder') return importThunderLocal(output);
+  return importChosenFiles(kind, output);
+}
+
+async function importChosenFiles(kind: 'thunder' | 'postman' | 'openapi', output: vscode.OutputChannel): Promise<void> {
   const uris = await vscode.window.showOpenDialog({ canSelectMany: true, openLabel: 'Import', ...DIALOG[kind] });
   if (!uris?.length) return;
   const collections: ImportedCollection[] = [];
@@ -115,25 +111,107 @@ export async function importFromFiles(kind: 'thunder' | 'postman' | 'openapi', o
   await writeCollections(collections, output);
 }
 
-async function importThunderFolder(dir: vscode.Uri, output: vscode.OutputChannel): Promise<void> {
-  const read = async (name: string) => ((await exists(vscode.Uri.joinPath(dir, name))) ? readJson(vscode.Uri.joinPath(dir, name)) : undefined);
-  const collections: ImportedCollection[] = [];
-  const legacy = { collections: await read('thunderCollection.json'), requests: await read('thunderclient.json'), environments: await read('thunderEnvironment.json') };
-  if (legacy.collections || legacy.requests) collections.push(...importThunderWorkspace(legacy));
-  // Newer layout: one JSON file per collection / environment in sub-folders.
-  for (const sub of ['collections', 'environments']) {
-    const d = vscode.Uri.joinPath(dir, sub);
-    if (!(await exists(d))) continue;
-    for (const [name, type] of await vscode.workspace.fs.readDirectory(d)) {
-      if (type !== vscode.FileType.File || !name.endsWith('.json')) continue;
-      const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(d, name)));
-      try {
-        collections.push(...detectAndImport(text, name));
-      } catch (e) {
-        output.appendLine(`Skipped ${sub}/${name}: ${(e as Error).message}`);
-      }
-    }
+/** Where this editor keeps extension data: Thunder Client's folder is a sibling of ours. Set by activate(). */
+let ownStorage: vscode.Uri | undefined;
+export function setOwnStorage(uri: vscode.Uri): void {
+  ownStorage = uri;
+}
+
+/**
+ * Folders that may hold Thunder Client data, most specific first: the workspace's thunder-tests
+ * (Save to Workspace), any folder named in Thunder Client's own settings (Custom Location /
+ * Workspace Relative Path), this editor's Thunder storage folder, then every editor's (thunderLocate.ts).
+ */
+function extraThunderDirs(): ThunderCandidate[] {
+  const out: ThunderCandidate[] = [];
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+  if (root?.scheme === 'file') out.push({ dir: vscode.Uri.joinPath(root, 'thunder-tests').fsPath, label: 'this workspace (thunder-tests)' });
+  const cfg = vscode.workspace.getConfiguration('thunder-client') as unknown as Record<string, unknown>;
+  for (const [key, value] of Object.entries(cfg)) {
+    if (typeof value !== 'string' || !value.trim()) continue;
+    if (!/location|path|folder|dir/i.test(key)) continue;
+    let dir = value.trim().replace(/^\$HOME(?=[\\/]|$)|^~(?=[\\/]|$)/, process.env.HOME ?? process.env.USERPROFILE ?? '~');
+    if (!/^([a-z]:)?[\\/]/i.test(dir) && root?.scheme === 'file') dir = vscode.Uri.joinPath(root, dir).fsPath;
+    out.push({ dir, label: `Thunder Client setting "${key}"` });
+    out.push({ dir: dir.replace(/[\\/]+$/, '') + '/thunder-tests', label: `Thunder Client setting "${key}"` });
   }
-  if (!collections.length) throw new Error('No Thunder Client collections found in thunder-tests/.');
-  await writeCollections(collections, output);
+  // Desktop VS Code gives globalStorageUri the `vscode-userdata:` scheme (1.147), not `file:`; both are local paths.
+  if (ownStorage && (ownStorage.scheme === 'file' || ownStorage.scheme === 'vscode-userdata')) out.push({ dir: vscode.Uri.joinPath(ownStorage, '..', THUNDER_EXTENSION_ID).fsPath, label: `${vscode.env.appName}` });
+  return out;
+}
+
+/** Thunder Client data on this computer, most recently changed first. */
+export function findLocalThunderData(): ThunderLocation[] {
+  return findThunderData(extraThunderDirs());
+}
+
+/** One-time offer at startup when Thunder Client data exists on this computer (setting plainwire.offerThunderImport). */
+export async function offerThunderImport(state: vscode.Memento, output: vscode.OutputChannel): Promise<void> {
+  const KEY = 'plainwire.thunderImportOffered';
+  if (state.get<boolean>(KEY) || !vscode.workspace.getConfiguration('plainwire').get<boolean>('offerThunderImport', true)) return;
+  if (!vscode.workspace.workspaceFolders?.length) return; // imports are written into a workspace folder
+  const found = findLocalThunderData().filter((l) => l.summary.requests > 0);
+  if (!found.length) return;
+  await state.update(KEY, true);
+  const [first] = found;
+  const where = found.length > 1 ? `${found.length} places (newest: ${first.label})` : first.label;
+  const pick = await vscode.window.showInformationMessage(
+    `Plainwire found Thunder Client data from ${where}: ${describeThunderStore(first.summary)}. Import it as .http files in this workspace? No export or login needed; nothing leaves your computer.`,
+    'Import',
+    "Don't ask again",
+  );
+  if (pick === 'Import') await importThunderLocal(output, found);
+}
+
+/** Pick a Thunder Client data folder found on this computer (or a file / folder) and import it. */
+export async function importThunderLocal(output: vscode.OutputChannel, found?: ThunderLocation[]): Promise<void> {
+  const locations = found ?? findLocalThunderData();
+  type Item = vscode.QuickPickItem & { loc?: ThunderLocation; id?: 'files' | 'folder' };
+  const items: Item[] = locations.map((loc) => ({
+    label: `$(database) ${loc.label}`,
+    description: loc.modified ? `changed ${new Date(loc.modified).toLocaleDateString()}` : undefined,
+    detail: `${describeThunderStore(loc.summary)} · ${loc.dir}`,
+    loc,
+  }));
+  if (items.length) items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+  items.push(
+    { label: '$(file) Choose exported or data file(s)…', detail: 'A collection or environment export (.json), thunderclient.db, tc_col_*.json, thunderActivity.json', id: 'files' },
+    { label: '$(folder) Choose a folder…', detail: "A thunder-tests folder, Thunder Client's Custom Location, or a copy of its storage folder", id: 'folder' },
+  );
+  const pick = await vscode.window.showQuickPick(items, {
+    placeHolder: locations.length ? 'Thunder Client data found on this computer. Choose what to import (nothing is sent anywhere)' : 'No Thunder Client data found in the usual places. Choose a file or folder',
+    matchOnDetail: true,
+  });
+  if (!pick) return;
+  if (pick.id === 'files') return importChosenFiles('thunder', output);
+  let loc = pick.loc;
+  if (pick.id === 'folder') {
+    const dirs = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, openLabel: 'Import', title: 'Folder with Thunder Client data' });
+    if (!dirs?.length) return;
+    loc = inspectThunderDir({ dir: dirs[0].fsPath, label: dirs[0].fsPath });
+    if (!loc) throw new Error(`No Thunder Client collections, requests or environments found in ${dirs[0].fsPath}.`);
+  }
+  if (!loc) return;
+  let history = false;
+  if (loc.summary.history) {
+    const h = await vscode.window.showQuickPick(
+      [
+        { label: 'Collections and environments', detail: describeThunderStore({ ...loc.summary, history: 0 }), history: false },
+        { label: 'Also the history', detail: `Adds the ${loc.summary.history} distinct requests from Thunder's Activity tab as one "Thunder Client history" file`, history: true },
+      ],
+      { placeHolder: 'Import the history too?' },
+    );
+    if (!h) return;
+    history = h.history;
+  }
+  await importThunderLocation(loc, history, output);
+}
+
+/** Convert one Thunder Client data folder and write it into the workspace (no UI before the write). */
+export async function importThunderLocation(loc: ThunderLocation, history: boolean, output: vscode.OutputChannel): Promise<void> {
+  const store = readThunderStore(loc.files.length ? loc.files : readThunderDir(loc.dir), { history });
+  for (const s of store.skipped) output.appendLine(`Skipped ${s}`);
+  if (!store.collections.length) throw new Error(`No Thunder Client collections found in ${loc.dir}.`);
+  output.appendLine(`Thunder Client data from ${loc.label}: ${loc.dir}`);
+  await writeCollections(store.collections, output);
 }

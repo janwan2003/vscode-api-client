@@ -10,7 +10,7 @@ import { CookieStore } from './cookies.ts';
 import { EnvEditorPanel } from './envEditor.ts';
 import { EnvironmentManager } from './environments.ts';
 import { History, type HistoryEntry } from './history.ts';
-import { importFromFiles, importFromUrl, importOpenApi, onImported, writeCollections } from './importer.ts';
+import { findLocalThunderData, importThunderLocation, importFromFiles, importFromUrl, importOpenApi, offerThunderImport, onImported, setOwnStorage, writeCollections } from './importer.ts';
 import { detectAndImport } from '../core/importers/index.ts';
 import { RequestPanel, type PanelDeps } from './panel.ts';
 import { readText, Runner } from './runner.ts';
@@ -199,8 +199,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     })),
   );
 
+  // Thunder Client's storage folder is a sibling of ours; offer its data once, after startup settles.
+  setOwnStorage(context.globalStorageUri);
+  const offer = setTimeout(() => void offerThunderImport(context.globalState, output).catch((e) => output.appendLine(`Thunder Client check failed: ${(e as Error).message}`)), 4000);
+  context.subscriptions.push({ dispose: () => clearTimeout(offer) });
+
   // Exposed for the integration tests in test/e2e.
   return {
+    findThunderForTest: findLocalThunderData,
+    thunderDirForTest: () => vscode.Uri.joinPath(context.globalStorageUri, '..', 'rangav.vscode-thunder-client').fsPath,
+    importThunderForTest: (loc: Parameters<typeof importThunderLocation>[0], withHistory: boolean) => importThunderLocation(loc, withHistory, output),
     deps,
     importUrlForTest: (url: string) => importFromUrl(url, output),
     historyForTest: history,

@@ -32,7 +32,7 @@
 <main id="content">
   <div class="wrap">
     <section class="hero">
-      <span class="tagline">Free and open source (MIT) &middot; v0.15</span>
+      <span class="tagline">Free and open source (MIT) &middot; v0.17</span>
       <h1>A GUI API client for VS Code that saves plain <code>.http</code> files</h1>
       <p class="lead">Plainwire gives you a form-style request editor (method, URL, params, headers, body, auth, Send) and a response viewer right inside VS Code, Cursor, Windsurf and VSCodium. There is no login, no account and no limit on requests, collections or runs. Every request is saved as a plain <code>.http</code> file in your repository, in the same format REST Client and the JetBrains HTTP Client use, so git is your sync and teammates without the extension can still read and run them.</p>
       <div class="cta">
@@ -48,11 +48,11 @@
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>plainwire-0.16.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>plainwire-0.17.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, Cursor, Windsurf or VSCodium open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and pick the file. Or from a terminal:
-<pre>code --install-extension plainwire-0.16.0.vsix
-cursor --install-extension plainwire-0.16.0.vsix
-codium --install-extension plainwire-0.16.0.vsix</pre></li>
+<pre>code --install-extension plainwire-0.17.0.vsix
+cursor --install-extension plainwire-0.17.0.vsix
+codium --install-extension plainwire-0.17.0.vsix</pre></li>
         <li><strong>Open any folder with a <code>.http</code> file</strong> (or create one). A <strong>Send Request</strong> and an <strong>Open in editor</strong> link appear above each request. Requires VS Code 1.85 or newer, or an editor built on it.</li>
       </ol>
       <p class="small">Listings on the VS Code Marketplace and on Open VSX (the registry Cursor, Windsurf and VSCodium use) are coming soon.</p>
@@ -61,7 +61,7 @@ codium --install-extension plainwire-0.16.0.vsix</pre></li>
 
   <div class="section-soft">
     <div class="wrap">
-      <h2 style="margin-top:0">What you get in v0.15</h2>
+      <h2 style="margin-top:0">What you get in v0.17</h2>
       <div class="grid">
         <div class="card"><h3>Request editor</h3><p>Method, URL, a query-params table, a headers table, JSON / text / form bodies, and Bearer or Basic auth helpers. Press Send.</p></div>
         <div class="card"><h3>Response viewer <span class="small">(filter new in 0.14)</span></h3><p>Next to the request, with a draggable divider. Status, time and size at a glance; a collapsible JSON tree you can filter with JSONPath (<code>$.items[?(@.active)].id</code>) or text, and <strong>+ Add as test</strong> to turn a value into a check.</p></div>
@@ -78,7 +78,7 @@ codium --install-extension plainwire-0.16.0.vsix</pre></li>
         <div class="card"><h3>Shared files <span class="small">(new in 0.6)</span></h3><p><code># @import ../shared/auth.http</code> brings in another file&rsquo;s variables and its login request, so every file reuses one token. <a href="import-http-file-shared-variables.html">How it works</a>.</p></div>
         <div class="card"><h3>Variables and chaining</h3><p><code>{{$guid}}</code>, <code>{{$timestamp}}</code>, <code>{{$randomInt}}</code>, <code>{{$datetime}}</code>, <code>{{$processEnv}}</code>, <code>{{$dotenv}}</code>, and <code>{{login.response.body.$.token}}</code>.</p></div>
         <div class="card"><h3>Sidebar</h3><p>Every <code>.http</code> and <code>.rest</code> file in the workspace, in its folders, and a history of sent requests, kept locally.</p></div>
-        <div class="card"><h3>One-click import</h3><p>Thunder Client exports and <code>thunder-tests</code> folders, Postman v2.0/v2.1 collections and environments, OpenAPI 3 / Swagger 2.0 definitions (YAML or JSON, from a file or a URL), and cURL commands.</p></div>
+        <div class="card"><h3>One-click import <span class="small">(Thunder storage new in 0.17)</span></h3><p>Thunder Client straight from its storage on your computer, no export or login (<a href="thunder-client-data-location.html">how</a>), plus its exports and <code>thunder-tests</code> folders, Postman v2.0/v2.1 collections and environments, OpenAPI 3 / Swagger 2.0 definitions (YAML or JSON, from a file or a URL), and cURL commands.</p></div>
         <div class="card"><h3>GraphQL <span class="small">(new in 0.4)</span></h3><p>Query and Variables editor, written to the file as REST Client&rsquo;s <code>X-REQUEST-TYPE: GraphQL</code> format, so existing files just work. <a href="graphql-requests-vscode.html">Syntax and examples</a>.</p></div>
         <div class="card"><h3>Copy as code <span class="small">(new in 0.4)</span></h3><p>Any request as cURL, JavaScript or Node.js fetch, Python requests, Go, HTTPie, PowerShell, wget, C#, PHP or Java, with variables resolved.</p></div>
         <div class="card"><h3>CLI and GitHub Action for CI</h3><p>Run the same files in your pipeline: <code>plainwire run api/ --env ci --junit results.xml</code>. One file, Node 18+, no account, PR annotations. <a href="run-http-files-in-ci.html">Set it up</a>.</p></div>
@@ -131,7 +131,8 @@ X-Request-Id: <span class="v">{{$guid}}</span></pre>
       <div class="grid">
         <div class="card"><h3><a href="thunder-client-alternative.html">A free Thunder Client alternative without login</a></h3><p>What changed, a feature comparison, and how to move your collections.</p></div>
         <div class="card"><h3><a href="rest-client-alternative.html">A REST Client alternative with a GUI</a></h3><p>Same <code>.http</code> files, plus the most-requested REST Client features: run all, tests and a CLI.</p></div>
-        <div class="card"><h3><a href="import-thunder-client-to-http-files.html">Thunder Client collections to .http files</a></h3><p>Export, import, and how each Thunder Client field maps to the format.</p></div>
+        <div class="card"><h3><a href="import-thunder-client-to-http-files.html">Thunder Client collections to .http files</a></h3><p>Import straight from Thunder Client&rsquo;s storage or an export, and how each field maps to the format.</p></div>
+        <div class="card"><h3><a href="thunder-client-data-location.html">Where Thunder Client stores its data</a></h3><p>The folder per OS and editor, what each file is, and getting your requests out with no export or login.</p></div>
         <div class="card"><h3><a href="postman-collection-to-http-file.html">Postman collections to .http files</a></h3><p>Collections, folders, auth and environments to <code>http-client.env.json</code>.</p></div>
         <div class="card"><h3><a href="curl-to-http-file.html">cURL to .http and back</a></h3><p>Every common cURL flag and its <code>.http</code> equivalent.</p></div>
         <div class="card"><h3><a href="http-file-syntax.html">.http file syntax cheat sheet</a></h3><p>Requests, headers, bodies, variables, environments, system variables, chaining.</p></div>
@@ -164,7 +165,7 @@ X-Request-Id: <span class="v">{{$guid}}</span></pre>
       </details>
       <details>
         <summary>Does it work in Cursor, Windsurf and VSCodium?</summary>
-        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.16.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
+        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.17.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
       </details>
       <details>
         <summary>Can I keep using my REST Client files?</summary>

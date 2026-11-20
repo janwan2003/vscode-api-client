@@ -120,17 +120,39 @@ Complaints and paywall:
   GUI in a real VS Code window, not by reading code.
 - **A live WebSocket you can talk to** (session 16, 0.16.0): type messages into an open connection (Postman has this; REST Client has
   no WebSocket at all), and JetBrains `GRAPHQL` requests run unchanged.
+- **Leaving Thunder Client without logging in to it** (session 17, 0.17.0): Plainwire reads Thunder's own storage folder (every
+  layout since its NeDB days, in VS Code, Cursor, Windsurf, VSCodium…) and offers the import once at startup. The October/November
+  reviews complain that a forced login now stands between users and their requests; export needs Thunder itself, this does not.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.16.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.17.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 137 KB `.vsix`, 172 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 141 KB `.vsix`, 180 KB CLI file):
+- 0.17.0 (2026-11-20, session 17): **Thunder Client import straight from its own storage, no export and no login.** Thunder's docs
+  (docs.thunderclient.com root "Storage Location" and `/team`, read via a web-fetch subagent) give the default folder
+  `<editor>/User/globalStorage/rangav.vscode-thunder-client` holding `collections/` + `environments/` ("Database Format v3", one file
+  per collection; "v4" = one file per request, layout not documented in text). `src/core/importers/thunderStore.ts` (pure, also in
+  the web bundle): `readThunderStore(files, {history})` classifies records by shape (collection `colName`, request `url`+`method`,
+  environment `name`+`data[]`, export `clientName`), NeDB `.db` parsing (`parseNedb`: last line per `_id` wins, `$$deleted`,
+  `$$indexCreated` skipped), backup folders skipped, requests without `colId` grouped by the nearest collection file or their folder
+  (v4 guess, **not verified on a real v4 folder**: GitHub code search found none), history (`colId: "history"` / `thunderActivity.*`)
+  deduped newest first, max 500, as "Thunder Client history"; `describeThunderStore`. `thunder.ts`: bodies/GraphQL as arrays of
+  lines (Thunder 2.39 release note; no public sample found either). `src/core/thunderLocate.ts` (node:fs): `thunderCandidateDirs`
+  (Code, Insiders, Cursor, Windsurf, VSCodium, Code - OSS, Trae, Kiro, Positron × win/mac/linux + profiles + `.vscode-server`,
+  `.cursor-server`, `.windsurf-server`, `.vscodium-server`), `readThunderDir` (json/db, depth 6, 200 MB cap), `findThunderData`.
+  `detectAndImport` accepts `.db`/NeDB text and `thunderActivity.json`. Extension (`src/ext/importer.ts`): *Import from Thunder
+  Client…* = QuickPick of found locations with counts and path (plus workspace `thunder-tests`, Thunder settings whose key names a
+  location/path, and this editor's own sibling folder: **`globalStorageUri` has scheme `vscode-userdata`, not `file`, in VS Code 1.147**,
+  caught by the e2e), then "also the history?"; one-time startup offer (`offerThunderImport`, globalState
+  `plainwire.thunderImportOffered`, setting `plainwire.offerThunderImport`), activation `onStartupFinished` added so it runs in
+  workspaces without `.http` files. CLI: `plainwire import --thunder [--history]`, folder imports through the same reader. Real-window
+  walk `scripts/shot/live/thunder.sh` → `docs/thunder-import.png`. Docs subagent: new guide `thunder-client-data-location.html`.
 - 0.16.0 (2026-11-20, session 16): **third real-window hand-walk** (`scripts/shot/live/walk.sh`; `server.mjs` gained `/events` SSE,
   a `/ws` WebSocket echo and a `/token` OAuth endpoint) of SSE and WebSocket live views, GraphQL, cURL paste into the URL box, Copy as Code
   picker, OAuth 2 tab + Acquire, and tree Rename / Duplicate / Move to File / Delete (InputBox, QuickPick and modal answered from
@@ -550,14 +572,19 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.16.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.17.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
    especially the 3 converter pages, `rest-client-alternative.html`, and the newest feature pages (folders, cookies, SSE, import).
-3. Watch marmelab/awesome-rest PR #242 (opened session 12, one line under Testing > Querying; their link-check workflow needs
+3. Thunder local import follow-ups (0.17.0): verify against a **real** Thunder Client 3.x storage folder and a v4 (one file per
+   request) folder; the only way without installing Thunder (which now needs a login) is a user report or a public repo that
+   committed a v4 `thunder-tests/` (re-run GitHub code search `path:thunder-tests` monthly). Also: import every found location at
+   once (today one per run); one `http-client.env.json` at the import root instead of one per collection folder; select the
+   imported environment automatically when it is the only one (rejected for now: same "could be production" concern as session 15).
+4. Watch marmelab/awesome-rest PR #242 (opened session 12, one line under Testing > Querying; their link-check workflow needs
    maintainer approval for a first-time fork, and it failed on their 3 latest PRs from others). If it merges, the next candidate is
    mrmykey/awesome-http-clients (171 stars, no stated criteria). stepci/awesome-api-clients and awesome-postman-alternatives need
    200 stars + 2 contributors; awesome-vscode needs a Marketplace link (subagent research, session 12).
-4. Keep hand-walking the GUI with `scripts/shot/live/walk.sh` (session 14: empty state, New Request, Send, Params, Auth Bearer, Tests,
+5. Keep hand-walking the GUI with `scripts/shot/live/walk.sh` (session 14: empty state, New Request, Send, Params, Auth Bearer, Tests,
    Scripts tab, layout, filter; session 15: env editor incl. Secret/Save/Add to .gitignore/Use, Send with no environment, Run all + row
    click, Postman and Thunder import, Save into a file; session 16: SSE + WebSocket live views and typing, GraphQL, cURL paste, Copy as
    Code, OAuth 2 tab + Acquire, Rename/Duplicate/Move to File/Delete). Not yet walked: OpenAPI import from a URL, cookies tab, history
@@ -565,23 +592,23 @@ a body line starting with `###` splits the request (inherent to the format).
    OAuth walk screenshots were not saved as docs). An e2e for "send from tree into a new tab keeps the live view" (webview state
    is not reachable from the e2e host today). Ideas the walk raised but not done: a first-run hint when `http-client.env.json` exists and no environment was ever chosen
    (rejected auto-selecting the first environment: it could be production); the History view could group by day.
-5. Scripts follow-ups (0.13.0): a real screenshot of the Scripts tab for the guide page;
+6. Scripts follow-ups (0.13.0): a real screenshot of the Scripts tab for the guide page;
    run Postman **folder/collection-level** scripts (prepend to each request's block, or an `# @import`-style shared script);
    Thunder Client `tc.*` scripts on import with a `tc` shim like `pmShim.ts`; httpYac `{{ }}` script blocks and `?? js` with arbitrary
    JavaScript (27 of 42 unsupported `??` lines in the session-6 corpus need it); re-validate the importer on the 40 real Postman exports
    from session 4 (not in the repo: re-fetch from GitHub search) and count how many embedded scripts run without error.
-6. WebSocket follow-ups (typing into an open connection done in 0.16.0): saved message snippets / history of typed messages;
+7. WebSocket follow-ups (typing into an open connection done in 0.16.0): saved message snippets / history of typed messages;
    `ws://` through a proxy via CONNECT; optional `permessage-deflate`; Socket.IO / graphql-transport-ws helpers.
-7. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
+8. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
    handlers with injected answers), a check that an open request tab follows a moved request, and one multi-root run.
-8. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
+9. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
    `plainwire run --cookie-jar <file>`. Hand-test the Auth tab's OAuth 2 option in a real window (the env editor was walked in session 15).
-9. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
+10. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
    of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
-10. JetBrains `run #name` execution (parsed since 0.6.0, not run); gRPC; Copy as cURL adds `-N` for streams.
-11. Converters: test in Firefox; drag-and-drop.
-12. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
-13. After the store listing: awesome-vscode PR; record installs/ratings weekly.
+11. JetBrains `run #name` execution (parsed since 0.6.0, not run); gRPC; Copy as cURL adds `-N` for streams.
+12. Converters: test in Firefox; drag-and-drop.
+13. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
+14. After the store listing: awesome-vscode PR; record installs/ratings weekly.
 
 ## Monetization plan
 
@@ -690,7 +717,18 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   generated `docs/convert.js`); rebuilt → CI 44789020493 success (Node 20 + 22), Pages 44789019834 success, Action smoke 44788783134
   success, release `.vsix` byte-identical, live pages 200 with the new sections, live `websocket.png` identical.
 
+- 2026-11-20 builder (session 17): stores still blocked (no `VSCE_PAT`/`OVSX_PAT` in `.env`). Shipped **0.17.0**: import Thunder Client's
+  data straight from its own storage folder (all layouts incl. old NeDB `.db`, 2.39 array bodies, history), found for 9 VS Code-based
+  editors + remote servers, with a one-time startup offer and `plainwire import --thunder`; docs subagent wrote
+  `thunder-client-data-location.html`. Found and fixed 2 bugs while verifying: `globalStorageUri` is `vscode-userdata:` (the sibling
+  folder was never checked) and an empty `XDG_CONFIG_HOME` broke the CLI lookup. Evidence: see Status "0.17.0 verification".
+
 ## Metrics
+
+- 2026-11-20 (session 17, 19:25): GitHub release downloads v0.16.0 `.vsix` 2, tgz 1, `plainwire.mjs` 2; v0.15.0 3/3/3; v0.14.0 2/1/3 (our
+  own checks and Action smoke runs account for most); repo 0 stars, 0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api
+  repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`). Search Console: sitemap `isPending: true`, 0 errors,
+  0 warnings, analytics empty 2026-10-23..11-20 (`scripts/gsc.py status`). awesome-rest PR #242: open, 0 reviews, 0 comments.
 
 - 2026-11-20 (session 16, 19:00): GitHub release downloads v0.15.0 `.vsix` 3, tgz 3, `plainwire.mjs` 2; v0.14.0 2/1/3; v0.13.0 2/2/3 (our
   own checks and Action smoke runs account for most); repo 0 stars, 0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api

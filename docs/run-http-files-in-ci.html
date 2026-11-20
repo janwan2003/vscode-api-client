@@ -54,7 +54,7 @@
 node plainwire.mjs run              <span class="c"># every .http / .rest file under the current folder</span>
 node plainwire.mjs run api/ --env staging --junit results.xml</pre>
     <p>To get a <code>plainwire</code> command on your PATH, install the release tarball with npm (no registry account involved):</p>
-<pre>npm install -g https://github.com/janwan2003/vscode-api-client/releases/download/v0.8.0/plainwire-cli-0.8.0.tgz</pre>
+<pre>npm install -g https://github.com/janwan2003/vscode-api-client/releases/download/v0.17.0/plainwire-cli-0.17.0.tgz</pre>
     <p>The output looks like this:</p>
 <pre>plainwire 0.8.0 · 3 requests in 1 file · environment staging from http-client.env.json
 
@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       <span class="c"># start your API here, e.g. docker compose up -d</span>
-      - uses: janwan2003/vscode-api-client@v0.16.0
+      - uses: janwan2003/vscode-api-client@v0.17.0
         with:
           files: api/
           env: ci
@@ -134,7 +134,7 @@ jobs:
 api-tests:
   image: node:22-alpine
   script:
-    - wget -q https://github.com/janwan2003/vscode-api-client/releases/download/v0.8.0/plainwire.mjs
+    - wget -q https://github.com/janwan2003/vscode-api-client/releases/download/v0.17.0/plainwire.mjs
     - node plainwire.mjs run api/ --env ci --junit api-results.xml
   artifacts:
     when: always
@@ -173,9 +173,10 @@ api-tests:
     </table></div>
 
     <h2 id="import">Converting Postman and Thunder Client collections</h2>
-    <p>If your requests still live in a Postman or Thunder Client export, convert them first. Common test snippets become <code># @assert</code> lines; other Postman scripts are kept as <code>&gt; {% %}</code> / <code>&lt; {% %}</code> blocks and run with a <code>pm</code> API:</p>
+    <p>If your requests still live in Postman or Thunder Client, convert them first. Thunder Client data does not need an export: <code>import --thunder</code> reads it from Thunder Client&rsquo;s storage folder on this computer (<a href="thunder-client-data-location.html">where that is</a>). Common test snippets become <code># @assert</code> lines; other Postman scripts are kept as <code>&gt; {% %}</code> / <code>&lt; {% %}</code> blocks and run with a <code>pm</code> API:</p>
 <pre>node plainwire.mjs import postman_collection.json --out api/
 node plainwire.mjs import thunder-tests/ --out api/
+node plainwire.mjs import --thunder --out api/     <span class="c"># Thunder Client's own data, no export or login</span>
 node plainwire.mjs run api/</pre>
     <p>The field mappings are described in the <a href="postman-collection-to-http-file.html">Postman guide</a> and the <a href="import-thunder-client-to-http-files.html">Thunder Client guide</a>.</p>
 

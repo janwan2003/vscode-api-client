@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where does Thunder Client store data? Get it out without login | Plainwire</title>
+<meta name="description" content="The folder where Thunder Client keeps collections, environments and history on Windows, macOS, Linux, Cursor and Windsurf, what each file is, and how to turn it into .http files with no export and no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/thunder-client-data-location.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Where does Thunder Client store data? Get it out without login">
+<meta property="og:description" content="Thunder Client's storage folder per OS and editor, what each file holds, and a no-export, no-login way to turn it into .http files.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/thunder-client-data-location.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Where does Thunder Client store its data?</h1>
+    <p>Thunder Client keeps your collections, environments and request history as files on your own computer, in a folder named <code>rangav.vscode-thunder-client</code> inside your editor&rsquo;s <code>globalStorage</code> folder. Those files are yours: you can copy them, back them up, and turn them into plain <code>.http</code> files without exporting anything and without signing in to Thunder Client. This page lists the folders, explains the files, and shows three ways to get the requests out.</p>
+    <p class="small">Plainwire is an independent open-source project. It is not affiliated with or endorsed by Thunder Client. Facts about Thunder Client on this page come from its documentation (<a href="#sources">sources</a>), as read on 20 November 2026.</p>
+
+    <h2 id="paths">The folder, per operating system</h2>
+    <p>Thunder Client&rsquo;s documentation (&ldquo;Storage Location&rdquo;) gives these locations for VS Code:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">System</th><th scope="col">Folder</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Windows</th><td><code>%APPDATA%\Code\User\globalStorage\rangav.vscode-thunder-client</code></td></tr>
+          <tr><th scope="row">macOS</th><td><code>~/Library/Application Support/Code/User/globalStorage/rangav.vscode-thunder-client</code></td></tr>
+          <tr><th scope="row">Linux</th><td><code>~/.config/Code/User/globalStorage/rangav.vscode-thunder-client</code></td></tr>
+          <tr><th scope="row">VS Code Server (SSH, WSL)</th><td><code>~/.vscode-server/data/User/globalStorage/rangav.vscode-thunder-client</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>If your project used Thunder Client&rsquo;s <strong>Save to Workspace</strong> option, its documentation says the collections are stored in a <code>thunder-tests</code> folder in the workspace instead.</p>
+
+    <h2 id="editors">Cursor, Windsurf, VSCodium and other editors</h2>
+    <p>Editors built on VS Code use the same layout under their own folder name: replace <code>Code</code> in the paths above with the name in this table. These are the places Plainwire looks; Thunder Client&rsquo;s documentation only lists VS Code.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Editor</th><th scope="col">Replace <code>Code</code> with</th><th scope="col">Remote (SSH / WSL) folder</th></tr></thead>
+        <tbody>
+          <tr><td>VS Code</td><td><code>Code</code></td><td><code>~/.vscode-server/data</code></td></tr>
+          <tr><td>VS Code Insiders</td><td><code>Code - Insiders</code></td><td><code>~/.vscode-server-insiders/data</code></td></tr>
+          <tr><td>Cursor</td><td><code>Cursor</code></td><td><code>~/.cursor-server/data</code></td></tr>
+          <tr><td>Windsurf</td><td><code>Windsurf</code></td><td><code>~/.windsurf-server/data</code></td></tr>
+          <tr><td>VSCodium</td><td><code>VSCodium</code></td><td><code>~/.vscodium-server/data</code></td></tr>
+          <tr><td>Code - OSS</td><td><code>Code - OSS</code></td><td>&ndash;</td></tr>
+          <tr><td>Trae</td><td><code>Trae</code></td><td>&ndash;</td></tr>
+          <tr><td>Kiro</td><td><code>Kiro</code></td><td>&ndash;</td></tr>
+          <tr><td>Positron</td><td><code>Positron</code></td><td>&ndash;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>For example, Cursor on macOS: <code>~/Library/Application Support/Cursor/User/globalStorage/rangav.vscode-thunder-client</code>. On a remote host, add <code>/User/globalStorage/rangav.vscode-thunder-client</code> to the folder in the last column. If you use editor profiles, a profile can have its own copy under <code>User/profiles/&lt;id&gt;/globalStorage/rangav.vscode-thunder-client</code>. If you set a custom storage location in Thunder Client&rsquo;s settings, the data is in that folder.</p>
+
+    <h2 id="get-out">Get your requests out without exporting or logging in</h2>
+    <p>Plainwire (new in 0.17) reads that folder directly. It does not need Thunder Client to be running or signed in, it only reads the files, and nothing is sent anywhere. The result is a set of <code>.http</code> files under <code>http/&lt;collection&gt;/</code> plus an <code>http-client.env.json</code> for your environments, which you can open in Plainwire, REST Client or a JetBrains IDE and commit to git.</p>
+
+    <h3>In VS Code, Cursor or Windsurf: the extension</h3>
+    <ol class="steps">
+      <li>Install Plainwire from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest <code>.vsix</code> release</a> (<a href="./#install">install steps</a>) and open the folder where the requests should live.</li>
+      <li>Run <strong>Plainwire: Import from Thunder Client&hellip;</strong> from the Command Palette. It lists every Thunder Client data folder it found, newest first, with what is in it (for example &ldquo;2 collections, 41 requests, 1 environment, 120 history entries&rdquo;) and the folder path.</li>
+      <li>Pick one. If it has history, choose <strong>Collections and environments</strong> or <strong>Also the history</strong>.</li>
+      <li>The <code>.http</code> files appear in the Plainwire sidebar. Send a request or two to check them, then commit.</li>
+    </ol>
+    <p>Plainwire searches the folders in the tables above (including profiles and remote <code>*-server/data</code> folders), the workspace&rsquo;s <code>thunder-tests</code> folder, and folders named in Thunder Client&rsquo;s own settings. If your data is somewhere else, for example a copy on a USB stick, use <strong>Choose a folder&hellip;</strong> in the same list, or <strong>Choose exported or data file(s)&hellip;</strong> for single <code>.json</code> or <code>.db</code> files.</p>
+    <p>Once, a few seconds after startup, if Plainwire finds Thunder Client data with requests and a folder is open, it asks: &ldquo;Plainwire found Thunder Client data from Cursor: &hellip; Import it as .http files in this workspace? No export or login needed; nothing leaves your computer.&rdquo; with <strong>Import</strong> and <strong>Don&rsquo;t ask again</strong>. The setting <code>plainwire.offerThunderImport</code> (default <code>true</code>) turns that offer off.</p>
+    <!-- SCREENSHOT: thunder-import.png (1280x800, real VS Code window). If the image is replaced, update width/height and the alt text; if it is removed, remove this <figure>. -->
+    <figure>
+      <img src="thunder-import.png" width="1280" height="800" alt="VS Code with Plainwire's Import from Thunder Client list open: under the prompt &quot;Thunder Client data found on this computer. Choose what to import (nothing is sent anywhere)&quot;, one entry for Visual Studio Code, changed 11/20/2026, holding 2 collections, 4 requests, 1 environment and 2 history entries, with its folder path; below it, Choose exported or data file(s) and Choose a folder.">
+      <figcaption class="small"><strong>Plainwire: Import from Thunder Client&hellip;</strong> lists the Thunder Client data it found on this computer, newest first. Screenshot of a real VS Code window.</figcaption>
+    </figure>
+
+    <h3>From a terminal: the CLI</h3>
+    <p>The <a href="run-http-files-in-ci.html">Plainwire CLI</a> is one file that needs Node 18 or newer:</p>
+<pre>curl -fsSLO https://github.com/janwan2003/vscode-api-client/releases/latest/download/plainwire.mjs
+node plainwire.mjs import --thunder              <span class="c"># the most recently changed Thunder data folder</span>
+node plainwire.mjs import --thunder --history    <span class="c"># also the Activity history</span>
+node plainwire.mjs import ./thunder-tests        <span class="c"># any folder of Thunder data</span>
+node plainwire.mjs import thunderclient.db       <span class="c"># single .json or .db files</span></pre>
+    <p><code>--thunder</code> searches the editor folders above (not <code>thunder-tests</code> or custom locations; pass those as a folder). It imports the most recently changed one, prints any other folders it found together with the command to import them, and writes to <code>http/</code> (change it with <code>--out</code>). A run against a Cursor folder on Linux looks like this:</p>
+<pre>Thunder Client data (Cursor): /home/you/.config/Cursor/User/globalStorage/rangav.vscode-thunder-client
+  1 collection, 2 requests, 1 environment, 1 history entry
+Imported 3 requests into 4 files:
+  http/Shop API/Orders.http
+  http/Shop API/http-client.env.json
+  http/Thunder Client history/requests.http
+  http/Thunder Client history/http-client.env.json</pre>
+
+    <h3>In the browser: the online converter</h3>
+    <p>The <a href="convert-to-http-file.html">online converter</a> runs the same code in your browser, with nothing uploaded. Drop a single data file on it, such as <code>thunderclient.db</code> or <code>thunderActivity.json</code>, or a collection export. For a whole data folder the extension or the CLI is the better route, because they read the folder as one and keep requests in their collections.</p>
+
+    <h2 id="files">What each file is</h2>
+    <p>Thunder Client&rsquo;s team documentation describes <code>collections</code> and <code>environments</code> folders and two database formats: <strong>v3</strong> (the default), where &ldquo;each collection is stored in a single JSON file&rdquo;, and <strong>v4</strong>, where &ldquo;each collection is stored as multiple JSON files&rdquo;. Older versions used other file names. These are the files Plainwire&rsquo;s importer recognises:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">File</th><th scope="col">What it holds</th></tr></thead>
+        <tbody>
+          <tr><td><code>collections/tc_col_*.json</code></td><td>One collection with its folders and requests (database format v3)</td></tr>
+          <tr><td><code>environments/tc_env_*.json</code></td><td>One environment and its variables</td></tr>
+          <tr><td><code>thunderCollection.json</code>, <code>thunderclient.json</code>, <code>thunderEnvironment.json</code></td><td>Older layout: collections and folders, requests, and environments, each in one file</td></tr>
+          <tr><td><code>thunderCollection.db</code>, <code>thunderclient.db</code>, <code>thunderEnvironment.db</code></td><td>Older NeDB databases: one JSON record per line. A later line for the same record replaces an earlier one, and deleted records are left out</td></tr>
+          <tr><td><code>thunderActivity.json</code>, <code>thunderActivity.db</code></td><td>The history in Thunder Client&rsquo;s Activity tab (records with <code>"colId": "history"</code>)</td></tr>
+          <tr><td>One file per request (database format v4)</td><td>Should work: Plainwire recognises the request records and puts them in the collection whose file sits in the same folder or a folder above. We have not tested it on a real v4 folder yet, so <a href="support.html">tell us</a> if it does not</td></tr>
+          <tr><td><code>backup/</code>, <code>_db-backup/</code></td><td>Backup copies. Plainwire skips them so requests are not imported twice</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Request bodies saved as an array of lines (as Thunder Client 2.39 does) are joined back into one body. History is imported as one <code>Thunder Client history</code> <code>.http</code> file, newest first, with duplicates (same method, URL and body) removed and at most 500 entries.</p>
+    <p>How the fields map to <code>.http</code> syntax (auth, bodies, tests, environments) is covered in <a href="import-thunder-client-to-http-files.html">Thunder Client collections to .http files</a>.</p>
+
+    <h2 id="faq">Questions</h2>
+    <details>
+      <summary>Do I need to log in to Thunder Client or export my collections first?</summary>
+      <p>No. Plainwire reads the files in the storage folder directly. Exports still work too, if you have them.</p>
+    </details>
+    <details>
+      <summary>Can I recover requests that Thunder Client no longer shows me?</summary>
+      <p>If the files are still in the folder, yes: Plainwire reads whatever is on disk, whether or not Thunder Client opens. To import a backup copy instead of the live data, choose the backup folder itself with <strong>Choose a folder&hellip;</strong> or <code>plainwire import &lt;folder&gt;</code>. Copy the whole folder somewhere safe first if you are unsure; Plainwire does not change it.</p>
+    </details>
+    <details>
+      <summary>Where is the <code>thunder-tests</code> folder?</summary>
+      <p>At the root of the workspace, when Thunder Client&rsquo;s Save to Workspace or Git Sync was used. Plainwire&rsquo;s import list includes it when it exists in the open folder.</p>
+    </details>
+    <details>
+      <summary>Does Plainwire send my collections anywhere?</summary>
+      <p>No. It reads local files and writes <code>.http</code> files into your workspace. The extension makes no network calls except the requests you send (<a href="privacy.html">privacy policy</a>).</p>
+    </details>
+    <details>
+      <summary>What does not carry over?</summary>
+      <p>Thunder Client&rsquo;s pre- and post-request scripts are not imported; common tests become <a href="api-tests-in-http-files.html"><code># @assert</code> lines</a>. Environment values, tokens included, are written to <code>http-client.env.json</code>, so move secrets to <code>http-client.private.env.json</code> before you commit (<a href="http-client-env-json-environments.html">how</a>).</p>
+    </details>
+
+    <h2 id="sources">Sources</h2>
+    <ul>
+      <li><a href="https://docs.thunderclient.com/">Thunder Client documentation</a>, &ldquo;Storage Location&rdquo;: the per-OS folders.</li>
+      <li><a href="https://docs.thunderclient.com/team">Thunder Client documentation, Team</a>: <code>collections</code> and <code>environments</code> folders, Save to Workspace and <code>thunder-tests</code>, database formats v3 and v4.</li>
+    </ul>
+    <p>Related: <a href="thunder-client-alternative.html">a free Thunder Client alternative without login</a>, and the <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>
