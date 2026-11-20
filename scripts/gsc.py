@@ -59,7 +59,7 @@ def main(cmd):
     elif cmd == "verify":
         s, r = call("POST", "https://www.googleapis.com/siteVerification/v1/webResource?verificationMethod=FILE",
                     {"site": {"type": "SITE", "identifier": SITE}}, at)
-        print("verify", s, r)
+        print("verify", s, "ok" if s == 200 else r)  # the 200 body lists owner accounts: do not print it
         s, r = call("PUT", f"https://www.googleapis.com/webmasters/v3/sites/{enc}", None, at)
         print("add site", s, r)
         s, r = call("PUT", f"https://www.googleapis.com/webmasters/v3/sites/{enc}/sitemaps/"
