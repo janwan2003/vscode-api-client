@@ -686,7 +686,9 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   2 guides updated. Evidence: unit 367 tests / 336 pass / 0 fail / 31 skipped (interpreters not installed), e2e 23/23, real-window checks
   (sidebar Send → "Connected · 2 sent, 3 received" + Stop; typed message → echo row, draft kept; GraphQL 200 sent as POST; OAuth token →
   Bearer header, 200; cURL paste → 201), CLI `GRAPHQL` against countries.trevorblades.com 2/2 checks, `.vsix` contents checked (headless
-  `--install-extension` hung this time, not verified by install); CI/Pages/release results in the Metrics entry below.
+  `--install-extension` hung this time, not verified by install). CI 44788761639 **failed** on the release commit (real defect: stale
+  generated `docs/convert.js`); rebuilt → CI 44789020493 success (Node 20 + 22), Pages 44789019834 success, Action smoke 44788783134
+  success, release `.vsix` byte-identical, live pages 200 with the new sections, live `websocket.png` identical.
 
 ## Metrics
 
