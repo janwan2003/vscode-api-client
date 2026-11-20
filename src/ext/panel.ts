@@ -26,6 +26,7 @@ type FromWebview =
   | { type: 'copyCode'; request: HttpRequest }
   | { type: 'openText' }
   | { type: 'selectEnv' }
+  | { type: 'acquireToken'; id: string }
   | { type: 'changed'; request: HttpRequest }
   | { type: 'openBody'; body: string; contentType: string }
   | { type: 'importCurl'; text: string };
@@ -101,6 +102,7 @@ export class RequestPanel {
       canSave: s.kind === 'file',
       env: this.deps.envs.selected ?? null,
       envNames: this.deps.envs.names(),
+      authIds: this.deps.runner.authIds(),
     };
   }
 
@@ -140,6 +142,9 @@ export class RequestPanel {
           break;
         case 'selectEnv':
           await this.deps.envs.pick();
+          break;
+        case 'acquireToken':
+          await vscode.commands.executeCommand('plainwire.acquireOAuthToken', m.id);
           break;
         case 'openBody': {
           const language = /json/i.test(m.contentType) ? 'json' : /html/i.test(m.contentType) ? 'html' : /xml/i.test(m.contentType) ? 'xml' : 'plaintext';

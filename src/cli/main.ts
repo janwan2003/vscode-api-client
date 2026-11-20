@@ -8,7 +8,10 @@ import { parseHttpFile } from '../core/httpFile.ts';
 import { attachEnvironments, collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
 import { importThunderWorkspace } from '../core/importers/thunder.ts';
 import type { ImportedCollection, ParsedRequest } from '../core/model.ts';
-import { describeNetworkError } from '../core/send.ts';
+import { OAuth2Manager } from '../core/oauth2.ts';
+import { describeNetworkError, sendRequest, type SendOptions } from '../core/send.ts';
+import type { HttpRequest } from '../core/model.ts';
+import { spawn } from 'node:child_process';
 import { mergeEnvironment, parseDotenv } from '../core/variables.ts';
 import { loadEnvironments } from './env.ts';
 import { findHttpFiles, walk } from './files.ts';
@@ -158,6 +161,27 @@ async function run(args: string[]): Promise<number> {
 
   const proxy = o.proxy || process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined;
   const noProxy = (process.env.NO_PROXY ?? process.env.no_proxy ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const sendOptions = (req: HttpRequest): SendOptions => ({
+    timeoutMs,
+    followRedirects: !o['no-redirect'] && req.meta?.['no-redirect'] === undefined,
+    rejectUnauthorized: !o.insecure && req.meta?.['insecure'] === undefined,
+    proxy,
+    noProxy,
+    userAgent: `plainwire/${VERSION}`,
+  });
+  // OAuth 2 ({{$auth.token("id")}}): tokens live for this run. Browser sign-ins print the URL (and open
+  // a browser when run in a terminal); in CI use Client Credentials or Password.
+  const oauth2 = new OAuth2Manager({
+    send: (req, signal) => sendRequest(req, { ...sendOptions(req), signal }),
+    openBrowser: (url) => {
+      process.stderr.write(`Open this URL to sign in:\n  ${url}\n`);
+      if (process.stderr.isTTY && !process.env.CI) openInBrowser(url);
+    },
+    showDeviceCode: ({ id, userCode, verificationUri }) => process.stderr.write(`Auth "${id}": enter the code ${userCode} at ${verificationUri}\n`),
+    log: (m) => {
+      if (o.verbose) process.stderr.write(col.dim(m) + '\n');
+    },
+  });
   const exec = new Executor({
     readHttpFile: async (file) => readFileSync(file, 'utf8'),
     resolveImport: (p, file) => (isAbsolute(p) ? p : resolve(dirname(file), p)),
@@ -170,14 +194,8 @@ async function run(args: string[]): Promise<number> {
     },
     environment: () => environment,
     cookieJar: o['no-cookie-jar'] ? undefined : new CookieJar(),
-    sendOptions: (req) => ({
-      timeoutMs,
-      followRedirects: !o['no-redirect'] && req.meta?.['no-redirect'] === undefined,
-      rejectUnauthorized: !o.insecure && req.meta?.['insecure'] === undefined,
-      proxy,
-      noProxy,
-      userAgent: `plainwire/${VERSION}`,
-    }),
+    sendOptions,
+    oauth2,
   });
 
   if (!o.quiet) {
@@ -332,4 +350,16 @@ function importThunderDir(dir: string): ImportedCollection[] {
   }
   if (!collections.length) throw new UsageError(`No Thunder Client collections found in ${relative(process.cwd(), dir) || dir}.`);
   return collections;
+}
+
+/** Best effort: open a URL in the default browser (the URL is printed too). */
+function openInBrowser(url: string): void {
+  const [cmd, args] = process.platform === 'darwin' ? ['open', [url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url.replace(/&/g, '^&')]] : ['xdg-open', [url]];
+  try {
+    const child = spawn(cmd, args as string[], { stdio: 'ignore', detached: true });
+    child.on('error', () => {});
+    child.unref();
+  } catch {
+    // printed above
+  }
 }

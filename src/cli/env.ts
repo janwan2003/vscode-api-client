@@ -1,21 +1,11 @@
 import { existsSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
+import { addEnvironments } from '../core/variables.ts';
 import { readJsonFile, walk } from './files.ts';
 
-export type Envs = Record<string, Record<string, string>>;
+export { addEnvironments };
 
-/** Merge `{ envName: { var: value } }` into `envs` (later wins per variable), as the extension does. */
-export function addEnvironments(envs: Envs, src: unknown): void {
-  if (!src || typeof src !== 'object') return;
-  for (const [env, vars] of Object.entries(src as Record<string, unknown>)) {
-    if (env === '$schema' || !vars || typeof vars !== 'object') continue;
-    envs[env] ??= {};
-    for (const [k, v] of Object.entries(vars as Record<string, unknown>)) {
-      if (v === null || v === undefined) continue;
-      envs[env][k] = typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v);
-    }
-  }
-}
+export type Envs = Record<string, Record<string, string>>;
 
 /**
  * Environments, in the extension's order (later wins per variable):

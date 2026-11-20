@@ -21,6 +21,11 @@ export interface VariableContext {
    * (used when copying a request as code without sending it).
    */
   unresolved?: Set<string>;
+  /**
+   * Values for `{{$auth.token("id")}}` / `{{$auth.idToken("id")}}`, keyed by the expression without
+   * braces (`$auth.token("id")`). The executor fetches the tokens before resolving (core/oauth2.ts).
+   */
+  auth?: Map<string, string>;
 }
 
 export class UnresolvedVariableError extends Error {
@@ -161,6 +166,12 @@ function localIso(d: Date): string {
 }
 
 function systemVariable(expr: string, ctx: VariableContext): string {
+  const auth = /^\$auth\.(token|idToken)\(\s*["']([^"']+)["']\s*\)$/.exec(expr);
+  if (auth) {
+    const v = ctx.auth?.get(authKey(auth[1] as 'token' | 'idToken', auth[2]));
+    if (v === undefined) throw new UnresolvedVariableError(expr);
+    return v;
+  }
   const parts = expr.match(/"[^"]*"|'[^']*'|\S+/g) ?? [expr];
   const name = parts[0];
   const args = parts.slice(1);
@@ -212,6 +223,11 @@ function resolveIndirect(arg: string | undefined, ctx: VariableContext): string 
   return arg;
 }
 
+/** Key of `VariableContext.auth` for `{{$auth.token("id")}}` / `{{$auth.idToken("id")}}`. */
+export function authKey(kind: 'token' | 'idToken', id: string): string {
+  return `${kind}:${id}`;
+}
+
 /** Resolve URL, header values and body of a request. */
 export function resolveRequest(req: HttpRequest, ctx: VariableContext): HttpRequest {
   return {
@@ -247,8 +263,63 @@ export function mergeEnvironment(all: Record<string, Record<string, string>>, se
   const shared = all['$shared'] ?? {};
   const env = selected ? all[selected] ?? {} : {};
   const merged: Record<string, string> = { ...shared, ...env };
+  // Object values (JetBrains "Security": { "Auth": ... }) merge key by key: $shared can hold a config
+  // that an environment completes.
+  for (const k of Object.keys(env)) {
+    if (k in shared) merged[k] = mergeJsonObjects(shared[k], env[k]);
+  }
   for (const [k, v] of Object.entries(merged)) {
     merged[k] = String(v).replace(/\{\{\s*\$shared\s+([\w.-]+)\s*\}\}/g, (_a, n: string) => shared[n] ?? '');
   }
   return merged;
+}
+
+/**
+ * Merge two values that are JSON objects (as the env loaders store object values) key by key,
+ * recursively; the second wins. Anything that is not two JSON objects: the second value.
+ */
+export function mergeJsonObjects(a: string, b: string): string {
+  const pa = asObject(a);
+  const pb = asObject(b);
+  if (!pa || !pb) return b;
+  return JSON.stringify(deepMerge(pa, pb));
+}
+
+function asObject(s: string): Record<string, unknown> | undefined {
+  if (typeof s !== 'string' || !s.startsWith('{')) return undefined;
+  try {
+    const v = JSON.parse(s) as unknown;
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function deepMerge(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...a };
+  for (const [k, v] of Object.entries(b)) {
+    const x = out[k];
+    out[k] = x && v && typeof x === 'object' && typeof v === 'object' && !Array.isArray(x) && !Array.isArray(v) ? deepMerge(x as Record<string, unknown>, v as Record<string, unknown>) : v;
+  }
+  return out;
+}
+
+/**
+ * Add `{ envName: { var: value } }` (one parsed env file or setting) to `envs`; later wins per
+ * variable. Non-string values are stored as JSON; object values (e.g. "Security") merge key by key
+ * with what is already there, so `http-client.private.env.json` can add a "Client Secret" to an auth
+ * configuration in `http-client.env.json`.
+ */
+export function addEnvironments(envs: Record<string, Record<string, string>>, src: unknown): void {
+  if (!src || typeof src !== 'object') return;
+  for (const [env, vars] of Object.entries(src as Record<string, unknown>)) {
+    if (env === '$schema' || !vars || typeof vars !== 'object') continue;
+    envs[env] ??= {};
+    for (const [k, v] of Object.entries(vars as Record<string, unknown>)) {
+      if (v === null || v === undefined) continue;
+      const value = typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      const prev = envs[env][k];
+      envs[env][k] = prev !== undefined && typeof v === 'object' ? mergeJsonObjects(prev, value) : value;
+    }
+  }
 }

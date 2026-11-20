@@ -7,6 +7,7 @@ import { RequestCodeLens } from './codelens.ts';
 import { ImportLinkProvider } from './links.ts';
 import { CodeCopier } from './copyCode.ts';
 import { CookieStore } from './cookies.ts';
+import { EnvEditorPanel } from './envEditor.ts';
 import { EnvironmentManager } from './environments.ts';
 import { History, type HistoryEntry } from './history.ts';
 import { importFromFiles, importFromUrl, importOpenApi, writeCollections } from './importer.ts';
@@ -25,10 +26,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const envs = new EnvironmentManager(context.workspaceState);
   const history = new History(context.workspaceState);
   const cookies = new CookieStore(context.workspaceState);
-  const runner = new Runner(envs, history, cookies);
+  const output = vscode.window.createOutputChannel('Plainwire');
+  const runner = new Runner(envs, history, cookies, (m) => output.appendLine(`[${new Date().toLocaleTimeString()}] ${m}`));
   const copier = new CodeCopier(runner, context.globalState);
   const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier };
-  const output = vscode.window.createOutputChannel('Plainwire');
   const collections = new CollectionsProvider();
   void envs.reload();
 
@@ -104,6 +105,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       await cookies.clear();
       void vscode.window.showInformationMessage(`Plainwire: ${n} cookie${n === 1 ? '' : 's'} cleared.`);
     })),
+    // Optional argument: the auth id (skips the picker).
+    vscode.commands.registerCommand('plainwire.acquireOAuthToken', guard(async (id?: string) => {
+      if (typeof id !== 'string') {
+        const ids = runner.authIds();
+        if (!ids.length) throw new Error(`No OAuth 2 configuration in ${envs.selected ? `environment "${envs.selected}"` : 'the shared environment (select an environment first)'}. Add "Security": { "Auth": { "my-api": { "Type": "OAuth2", ... } } } to http-client.env.json.`);
+        id = ids.length === 1 ? ids[0] : await vscode.window.showQuickPick(ids, { placeHolder: 'Acquire a new OAuth 2 token for' });
+        if (!id) return;
+      }
+      const authId = id;
+      const t = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Plainwire: signing in to "${authId}"…`, cancellable: true }, (_p, token) => runner.acquireToken(authId, token));
+      const mins = t.expiresAt ? Math.max(0, Math.round((t.expiresAt - Date.now()) / 60000)) : undefined;
+      void vscode.window.showInformationMessage(`Plainwire: token for "${authId}" acquired${mins !== undefined ? `, expires in ${mins} min` : ''}${t.hasRefresh ? ' (will refresh automatically)' : ''}. Use it as {{$auth.token("${authId}")}}.`);
+      return t;
+    })),
+    vscode.commands.registerCommand('plainwire.clearOAuthTokens', () => {
+      const n = runner.oauth2.size;
+      runner.oauth2.clear();
+      void vscode.window.showInformationMessage(`Plainwire: ${n} OAuth 2 token${n === 1 ? '' : 's'} cleared; the next request signs in again.`);
+    }),
     vscode.commands.registerCommand('plainwire.clearHistory', guard(async () => {
       const ok = await vscode.window.showWarningMessage('Clear Plainwire request history for this workspace?', { modal: true }, 'Clear');
       if (ok) await history.clear();
@@ -124,6 +144,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       return RunAllPanel.run(runner, files, `workspace (${files.length} files)`, (uri, index) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index }));
     })),
     vscode.commands.registerCommand('plainwire.selectEnvironment', guard(() => envs.pick())),
+    vscode.commands.registerCommand('plainwire.editEnvironments', guard(() => EnvEditorPanel.show(context.extensionUri, envs))),
     vscode.commands.registerCommand('plainwire.createEnvFile', guard(async () => {
       const root = vscode.workspace.workspaceFolders?.[0]?.uri;
       if (!root) throw new Error('Open a folder first.');
@@ -156,6 +177,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     importUrlForTest: (url: string) => importFromUrl(url, output),
     historyForTest: history,
     cookiesForTest: cookies,
+    oauth2ForTest: runner.oauth2,
+    envEditorForTest: () => EnvEditorPanel.current,
     parseHttpFileForTest: parseHttpFile,
     importTextForTest: (text: string, name: string, out: vscode.OutputChannel) => writeCollections(detectAndImport(text, name), out),
   };

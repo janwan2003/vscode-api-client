@@ -23,7 +23,7 @@
     resolved: null,
     error: null,
     sending: false,
-    meta: { sourceLabel: '', canSave: false, env: null, envNames: [] },
+    meta: { sourceLabel: '', canSave: false, env: null, envNames: [], authIds: [] },
     reqTab: 'params',
     resTab: 'body',
     raw: false,
@@ -134,6 +134,8 @@
     if (!a) return { type: 'none' };
     const m = /^(Bearer|Basic)\s+(.*)$/i.exec(a.value);
     if (!m) return { type: 'other', value: a.value };
+    const o = /^\{\{\s*\$auth\.(token|idToken)\(\s*["']([^"']+)["']\s*\)\s*\}\}$/.exec(m[2].trim());
+    if (m[1].toLowerCase() === 'bearer' && o) return { type: 'oauth2', id: o[2], kind: o[1] };
     if (m[1].toLowerCase() === 'bearer') return { type: 'bearer', token: m[2] };
     const v = m[2];
     if (v.includes(':')) return { type: 'basic', user: v.slice(0, v.indexOf(':')), pass: v.slice(v.indexOf(':') + 1) };
@@ -313,12 +315,25 @@
     } else if (S.reqTab === 'auth') {
       const a = authInfo();
       const set = (v) => { setHeader('Authorization', v); changed(); renderReqBody(); };
-      pane.append(h('div', { class: 'radio' }, ...[['none', 'None'], ['bearer', 'Bearer token'], ['basic', 'Basic'], ...(a.type === 'other' ? [['other', 'Other']] : [])].map(([id, label]) =>
+      pane.append(h('div', { class: 'radio' }, ...[['none', 'None'], ['bearer', 'Bearer token'], ['oauth2', 'OAuth 2'], ['basic', 'Basic'], ...(a.type === 'other' ? [['other', 'Other']] : [])].map(([id, label]) =>
         h('label', {}, h('input', { type: 'radio', name: 'auth', checked: a.type === id, onchange: () => {
-          if (id === 'none') set(null); else if (id === 'bearer') set('Bearer '); else if (id === 'basic') set('Basic user:password');
+          if (id === 'none') set(null); else if (id === 'bearer') set('Bearer '); else if (id === 'oauth2') set('Bearer {{$auth.token("' + ((S.meta.authIds || [])[0] || 'my-api') + '")}}'); else if (id === 'basic') set('Basic user:password');
         } }), label))));
       if (a.type === 'bearer') {
         pane.append(h('label', { class: 'field' }, 'Token', h('input', { value: a.token, spellcheck: 'false', placeholder: '{{token}}', oninput: (e) => { setHeader('Authorization', 'Bearer ' + e.target.value); changed(); } })));
+      } else if (a.type === 'oauth2') {
+        const ids = S.meta.authIds || [];
+        const opts = ids.includes(a.id) ? ids : [a.id, ...ids];
+        const sel = h('select', { onchange: (e) => set('Bearer {{$auth.' + a.kind + '("' + e.target.value + '")}}') }, ...opts.map((x) => h('option', { value: x, selected: x === a.id }, x)));
+        pane.append(h('label', { class: 'field' }, 'Configuration', sel));
+        if (!ids.includes(a.id)) {
+          pane.append(h('p', { class: 'hint' }, ids.length ? `"${a.id}" is not defined in the current environment.` : 'The current environment has no OAuth 2 configuration. Add one under "Security" → "Auth" in http-client.env.json (Client Credentials, Authorization Code + PKCE, Password or Device flow), then select that environment.'));
+        }
+        pane.append(
+          h('label', {}, h('input', { type: 'checkbox', checked: a.kind === 'idToken', onchange: (e) => set('Bearer {{$auth.' + (e.target.checked ? 'idToken' : 'token') + '("' + a.id + '")}}') }), ' Send the ID token instead of the access token'),
+          h('div', { class: 'row' }, h('button', { class: 'secondary', disabled: !ids.includes(a.id), onclick: () => vscode.postMessage({ type: 'acquireToken', id: a.id }) }, 'Acquire token now')),
+          h('p', { class: 'hint' }, 'Saved as "Authorization: Bearer {{$auth.token(\"' + a.id + '\")}}". The token is fetched before the request, cached and refreshed when it expires.'),
+        );
       } else if (a.type === 'basic') {
         const u = h('input', { value: a.user, spellcheck: 'false' });
         const p = h('input', { value: a.pass, spellcheck: 'false' });
@@ -571,14 +586,14 @@
     if (m.type === 'load') {
       S.request = m.request;
       S.request.headers = S.request.headers || [];
-      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames };
+      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [] };
       if (m.response) { S.response = m.response; S.error = null; S.assertions = []; S.lastAssertions = []; }
       S.dirty = false;
       S.sending = false;
       persist();
       render();
     } else if (m.type === 'env' || m.type === 'saved') {
-      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames };
+      S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [] };
       if (m.type === 'saved') S.dirty = false;
       persist();
       render();

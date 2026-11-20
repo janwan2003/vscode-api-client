@@ -75,7 +75,7 @@
         <tr><td>Path parameters</td><td><code>{{petId}}</code> in the URL, with the example value in <code>$shared</code></td></tr>
         <tr><td>Required query, header and cookie parameters</td><td>Written with their <code>example</code>, else <code>default</code>, else a value made from the schema; optional query parameters are listed in a comment</td></tr>
         <tr><td>Request bodies</td><td>The media type&rsquo;s example, else a body generated from the schema (<code>$ref</code>, <code>allOf</code>, first <code>oneOf</code>/<code>anyOf</code>, <code>readOnly</code> fields left out). JSON, form (<code>a[b]=</code> for nested fields), multipart with <code>&lt; ./file</code> parts</td></tr>
-        <tr><td>Security schemes</td><td>Bearer &rarr; <code>Authorization: Bearer {{token}}</code>; Basic; API keys in a header, query or cookie; OAuth 2 and OpenID Connect &rarr; <code>Bearer {{accessToken}}</code>. Empty values are created in <code>$shared</code> for you to fill in</td></tr>
+        <tr><td>Security schemes</td><td>Bearer &rarr; <code>Authorization: Bearer {{token}}</code>; Basic; API keys in a header, query or cookie; OAuth 2 and OpenID Connect &rarr; <code>Bearer {{accessToken}}</code> (to fetch it automatically, set up <a href="oauth2-http-file-vscode.html"><code>$auth.token</code></a>). Empty values are created in <code>$shared</code> for you to fill in</td></tr>
         <tr><td>Exactly one documented 2xx response</td><td><code># @assert status == 200</code> (or 201, 204&hellip;), so the run-all report and the CLI check every endpoint</td></tr>
         <tr><td><code>description</code>, <code>deprecated</code></td><td>A one-line comment above the request</td></tr>
       </tbody>

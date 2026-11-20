@@ -93,7 +93,7 @@ Content-Type: application/json
     <ul>
       <li><strong>Tests and scripts.</strong> Plainwire has no JavaScript scripting, so pre/post-request scripts are not imported. Since 0.2.0, the common Thunder Client tests (status, response time, body and header checks, JSON values, counts and types) are converted to <code># @assert</code> lines you can run with <strong>Run all</strong>; see <a href="api-tests-in-http-files.html">API tests in .http files</a>. Scripts are still not imported.</li>
       <li><strong>Request history.</strong> Your Thunder Client activity history stays in Thunder Client; Plainwire starts its own local history.</li>
-      <li><strong>WebSocket, gRPC and OAuth2 flows</strong> are not available in Plainwire yet. GraphQL requests are imported with their query and variables.</li>
+      <li><strong>OAuth 2</strong> (Client Credentials, Authorization Code with PKCE, Password, Device flow) works since 0.10: see <a href="oauth2-http-file-vscode.html">OAuth 2.0 tokens in .http files</a>. <strong>WebSocket and gRPC</strong> are not available in Plainwire yet. GraphQL requests are imported with their query and variables.</li>
     </ul>
 
     <h2>Why plain files</h2>

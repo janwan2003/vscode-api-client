@@ -49,7 +49,7 @@
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/432">#432</a> CLI runner for the same format</td><td>44</td><td class="yes">Yes</td><td><a href="run-http-files-in-ci.html"><code>plainwire run</code></a>: one file, no dependencies, JUnit/JSON/Markdown reports, plus a GitHub Action.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/627">#627</a> Compatibility with IntelliJ&rsquo;s HTTP client</td><td>41</td><td class="">Partly</td><td>Same <code>.http</code> syntax and <code>http-client.env.json</code> files; JetBrains <code>&gt; {% %}</code> response handlers are kept in the file but not run.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/444">#444</a> Send all requests in a file</td><td>36</td><td class="yes">Yes</td><td><strong>Run all</strong> on the file&rsquo;s CodeLens, the editor title or the sidebar.</td></tr>
-          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/302">#302</a> Handle OAuth interactive login</td><td>33</td><td class="no">No</td><td>Not yet: paste a token into an environment variable.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/302">#302</a> Handle OAuth interactive login</td><td>33</td><td class="yes">Yes</td><td>Browser sign-in (Authorization Code + PKCE), Client Credentials, Password and Device flow; <code>{{$auth.token("id")}}</code> is fetched, cached and refreshed. Since 0.10, <a href="oauth2-http-file-vscode.html">guide</a>.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/521">#521</a> JavaScript code evaluation</td><td>29</td><td class="no">No</td><td>No, by design: requests and checks never run code from the file.</td></tr>
         </tbody>
       </table>
@@ -74,13 +74,13 @@
 
     <h2>Switch in a minute</h2>
     <ol>
-      <li>Download <code>plainwire-0.9.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (works in VS Code, Cursor, Windsurf and VSCodium).</li>
+      <li>Download <code>plainwire-0.10.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (works in VS Code, Cursor, Windsurf and VSCodium).</li>
       <li>Open a folder with your <code>.http</code> files. Each request gets <em>Send | Open in Plainwire | Copy as Code&hellip;</em> above it, and the Plainwire sidebar lists every request in the workspace.</li>
       <li>Pick an environment in the status bar; your <code>rest-client.environmentVariables</code> are already there.</li>
     </ol>
 
     <h2>What Plainwire does not do (yet)</h2>
-    <p>Being honest about the gaps: no JavaScript scripting (by design), no WebSocket, no interactive OAuth login, no SOCKS proxies or client certificates. REST Client&rsquo;s Markdown-embedded requests and <code>rest-client.*</code> settings other than environments are not read. If you rely on one of these, REST Client may still be the better fit.</p>
+    <p>Being honest about the gaps: no JavaScript scripting (by design), no WebSocket, no SOCKS proxies or client certificates. REST Client&rsquo;s Markdown-embedded requests and <code>rest-client.*</code> settings other than environments are not read. If you rely on one of these, REST Client may still be the better fit.</p>
 
     <h2>FAQ</h2>
     <details><summary>Is REST Client abandoned?</summary><p>We cannot speak for its author. The facts: the last Marketplace release is 0.25.1 from 19 August 2022 and the repository has 528 open issues (both read on 20 November 2026). The extension still works for many people, and its 4.9-star rating is well earned.</p></details>

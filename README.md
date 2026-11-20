@@ -12,6 +12,7 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
 - **Response viewer**: status, time, size, collapsible JSON, headers, the exact request that was sent, image preview, open the body in an editor tab.
 - **Plain files**: requests live in `.http` / `.rest` files. *Send · Open in Plainwire · Copy as Code…* above every request; `Ctrl/Cmd+Alt+Enter` sends the request under the cursor.
 - **Variables and environments**: `@var = value`, `{{var}}`, environments from `http-client.env.json` + `http-client.private.env.json` or the `rest-client.environmentVariables` setting, system variables (`{{$guid}}`, `{{$timestamp}}`, `{{$randomInt 1 10}}`, `{{$datetime iso8601}}`, `{{$processEnv NAME}}`, `{{$dotenv NAME}}`), and request chaining (`{{login.response.body.$.token}}` sends `login` first if needed).
+- **OAuth 2.0** (new in 0.10): describe the provider once under `"Security": { "Auth": { "my-api": { … } } }` in `http-client.env.json` (the JetBrains HTTP Client format; secrets in `http-client.private.env.json`, merged key by key) and write `Authorization: Bearer {{$auth.token("my-api")}}`. The token is fetched before the request, cached, and refreshed when it expires. Client Credentials, Authorization Code with PKCE (browser sign-in, loopback redirect), Password, Device Authorization, Implicit and Mock; `{{$auth.idToken("my-api")}}`; *Plainwire: Acquire OAuth 2 Token…* / *Clear OAuth 2 Tokens*; completions for every key while editing the env file; the same in the CLI. [Guide](https://janwan2003.github.io/vscode-api-client/oauth2-http-file-vscode.html).
 - **Cookies and session logins** (new in 0.9): cookies a response sets are sent with later requests, redirects included, so a login works like in a browser. Cookies tab in the response view, *Plainwire: Manage Cookies…*, `# @assert cookie sid exists`, `# @no-cookie-jar`, and the same jar in the CLI (`--no-cookie-jar` to turn it off). [Guide](https://janwan2003.github.io/vscode-api-client/cookies-session-login-http-file.html).
 - **OpenAPI from a URL** (new in 0.8): *Plainwire: Import OpenAPI / Swagger…* → *From a URL…*, or `plainwire import https://…/openapi.json`. Relative server URLs (`/api/v3`) resolve against the definition's URL.
 - **Server-sent events** (new in 0.7): `text/event-stream` responses show event by event as they arrive, with Stop, `# @max-events 3`, `# @timeout 30s`, and checks such as `# @assert events[-1].data == "[DONE]"` or `events[0].data.text == Hi` (JSON data is parsed). The CLI prints the event count.
@@ -47,11 +48,22 @@ GET {{host}}/me
 Authorization: Bearer {{login.response.body.$.token}}
 ```
 
+## Environments
+
+**Plainwire: Edit Environments…** (also in the environment picker in the status bar and the Requests view's `…` menu)
+edits `http-client.env.json` as a form: one tab per environment plus *Shared (all environments)* (`$shared`), and per
+variable a name, a value and a **Secret** box. Secret values are written to `http-client.private.env.json` next to it
+(the JetBrains / REST Client convention), masked until you click *Show*; the editor offers to add that file to your
+`.gitignore`. Values that are not strings, such as an OAuth `Security` object, are shown read-only and written back
+unchanged, as are `$schema` and the order of your keys. With several env files in the workspace, pick the folder at the top.
+
+![The environment editor](docs/environments.png)
+
 ## Install
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.9.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.10.0.vsix`; same for `cursor` / `codium`).
 
 ## Run the same files in CI
 
@@ -63,7 +75,7 @@ node plainwire.mjs run api/ --env staging --junit results.xml
 ```yaml
 # .github/workflows/api-tests.yml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.9.0
+- uses: janwan2003/vscode-api-client@v0.10.0
   with:
     files: api/
     env: ci

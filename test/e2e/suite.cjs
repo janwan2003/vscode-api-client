@@ -39,9 +39,25 @@ exports.run = async function run() {
         res.statusCode = ok ? 200 : 401;
         return res.end(JSON.stringify({ ok, cookie: req.headers.cookie || null }));
       }
+      if (req.url === '/oauth/token') {
+        const p = new URLSearchParams(body);
+        const basic = 'Basic ' + Buffer.from('e2e-client:e2e-secret').toString('base64');
+        if (p.get('grant_type') !== 'client_credentials' || req.headers.authorization !== basic) {
+          res.statusCode = 401;
+          return res.end(JSON.stringify({ error: 'invalid_client' }));
+        }
+        oauthIssued++;
+        return res.end(JSON.stringify({ access_token: `e2e-at-${oauthIssued}`, token_type: 'Bearer', expires_in: 600 }));
+      }
+      if (req.url === '/oauth/me') {
+        const ok = /^Bearer e2e-at-\d+$/.test(req.headers.authorization || '');
+        res.statusCode = ok ? 200 : 401;
+        return res.end(JSON.stringify({ ok, auth: req.headers.authorization || null }));
+      }
       res.end(JSON.stringify({ ok: true, auth: req.headers.authorization || null }));
     });
   });
+  let oauthIssued = 0;
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
   const ws = vscode.workspace.workspaceFolders[0].uri;
@@ -265,6 +281,38 @@ exports.run = async function run() {
     assert.equal((await api.deps.runner.run(reqs[1], { uri: f })).response.status, 401);
   });
 
+  await check('OAuth 2: {{$auth.token("id")}} from Security.Auth (secret in the private env file), token reused; Acquire / Clear commands', async () => {
+    const all = await vscode.commands.getCommands(true);
+    for (const c of ['plainwire.acquireOAuthToken', 'plainwire.clearOAuthTokens']) assert.ok(all.includes(c), c);
+    const priv = path.join(ws.fsPath, 'http-client.private.env.json');
+    fs.writeFileSync(priv, JSON.stringify({ local: { Security: { Auth: { e2e: { 'Client Secret': 'e2e-secret' } } } } }));
+    const pub = path.join(ws.fsPath, 'http-client.env.json');
+    const envJson = JSON.parse(fs.readFileSync(pub, 'utf8'));
+    envJson.local.Security = { Auth: { e2e: { Type: 'OAuth2', 'Grant Type': 'Client Credentials', 'Token URL': '{{host}}/oauth/token', 'Client ID': 'e2e-client' } } };
+    fs.writeFileSync(pub, JSON.stringify(envJson));
+    await api.deps.envs.reload();
+    await api.deps.envs.select('local');
+    const f = vscode.Uri.joinPath(ws, 'oauth.http');
+    fs.writeFileSync(f.fsPath, '### Me\n# @assert status == 200\nGET {{host}}/oauth/me\nAuthorization: Bearer {{$auth.token("e2e")}}\n\n### Again\n# @assert $.ok == true\nGET {{host}}/oauth/me?again=1\nAuthorization: Bearer {{$auth.token("e2e")}}\n');
+    const summary = await vscode.commands.executeCommand('plainwire.runFile', f);
+    const { timeMs, ...rest } = summary;
+    assert.deepEqual(rest, { total: 2, passed: 2, failed: 0, errors: 0, skipped: 0 });
+    assert.equal(oauthIssued, 1, 'one token for both requests');
+    const t = await vscode.commands.executeCommand('plainwire.acquireOAuthToken', 'e2e');
+    assert.ok(t && t.expiresAt > Date.now(), JSON.stringify(t));
+    assert.equal(oauthIssued, 2, 'Acquire forces a new token');
+    assert.equal(api.oauth2ForTest.size, 1);
+    await vscode.commands.executeCommand('plainwire.clearOAuthTokens');
+    assert.equal(api.oauth2ForTest.size, 0);
+    const reqs = api.parseHttpFileForTest(fs.readFileSync(f.fsPath, 'utf8')).requests;
+    const r = await api.deps.runner.run(reqs[0], { uri: f });
+    assert.equal(r.response.status, 200);
+    assert.equal(oauthIssued, 3, 'signs in again after Clear');
+    // The env-file schema is contributed for both env files.
+    const jv = ext.packageJSON.contributes.jsonValidation;
+    assert.ok(jv.some((j) => j.fileMatch.includes('http-client.private.env.json')), JSON.stringify(jv));
+  });
+
   await check('CodeLens offers "Run all" on files with several requests', async () => {
     const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', file);
     assert.ok(lenses.some((l) => l.command && /Run all 2 requests \(2 checks\)/.test(l.command.title)), JSON.stringify(lenses.map((l) => l.command && l.command.title)));
@@ -295,6 +343,88 @@ exports.run = async function run() {
     // Direct call with a language id.
     const py = await vscode.commands.executeCommand('plainwire.copyAsCode', { uri: file, index: 0 }, 'python-requests');
     assert.ok(py.includes(`url = "http://127.0.0.1:${port}/login"`) && py.includes('requests.post(url'), py);
+  });
+
+  await check('Edit Environments: opens the editor, saves secrets to the private file, keeps Security objects, environments reload', async () => {
+    const until = async (what, fn, ms = 8000) => {
+      const end = Date.now() + ms;
+      while (!(await fn())) {
+        if (Date.now() > end) throw new Error('timed out waiting for ' + what);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    };
+    const all = await vscode.commands.getCommands(true);
+    assert.ok(all.includes('plainwire.editEnvironments'));
+    const pubPath = path.join(ws.fsPath, 'http-client.env.json');
+    const privPath = path.join(ws.fsPath, 'http-client.private.env.json');
+    const security = { Auth: { 'my-oauth': { Type: 'OAuth2', 'Grant Type': 'Client Credentials', 'Token URL': `http://127.0.0.1:${port}/token`, Scope: ['read', 'write'], PKCE: true } } };
+    const original = { $schema: 'https://example.com/env.schema.json', local: { host: `http://127.0.0.1:${port}`, envName: 'local', Security: security, retries: 3 } };
+    fs.writeFileSync(pubPath, JSON.stringify(original));
+    // Start without a private file (the OAuth check above leaves one with a Security block).
+    fs.rmSync(privPath, { force: true });
+    fs.writeFileSync(path.join(ws.fsPath, '.gitignore'), 'node_modules/');
+    await vscode.commands.executeCommand('plainwire.editEnvironments');
+    const panel = api.envEditorForTest();
+    assert.ok(panel, 'no editor panel');
+    const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs).map((t) => t.label);
+    assert.ok(tabs.includes('Environments'), JSON.stringify(tabs));
+    // The webview script ran (CSP + nonce + media paths are right) and asked for its data.
+    await until('webview ready', () => panel.readyCount > 0);
+    // Several folders have an http-client.env.json (root + the OpenAPI import); edit the root pair.
+    await panel.handle({ type: 'folder', value: ws.toString() });
+    const local = panel.model.envs.find((e) => e.name === 'local');
+    assert.deepEqual(local.vars.map((v) => `${v.name}:${v.readonly || 'string'}`), ['host:string', 'envName:string', 'Security:object', 'retries:number']);
+    // Saving without edits writes nothing.
+    assert.deepEqual(await panel.handle({ type: 'save', model: panel.model }), { wrote: [] });
+    assert.equal(fs.readFileSync(pubPath, 'utf8'), JSON.stringify(original));
+    // Edit like the form does: a secret in "local", a new environment, a shared variable.
+    const model = JSON.parse(JSON.stringify(panel.model));
+    model.envs.find((e) => e.name === 'local').vars.push({ name: 'apiKey', value: 'k-123', secret: true });
+    model.envs.push({ name: 'qa', vars: [{ name: 'host', value: 'https://qa.example.com', secret: false }] });
+    model.envs.unshift({ name: '$shared', vars: [{ name: 'tenant', value: 'acme', secret: false }] });
+    const changedBefore = new Promise((r) => { const d = api.deps.envs.onDidChange(() => { d.dispose(); r(); }); });
+    const r = await panel.handle({ type: 'save', model });
+    assert.deepEqual(r.wrote.sort(), ['http-client.env.json', 'http-client.private.env.json']);
+    const pubText = fs.readFileSync(pubPath, 'utf8');
+    assert.ok(pubText.endsWith('}\n') && pubText.includes('\n  "local": {\n    "host"'), pubText);
+    const pub = JSON.parse(pubText);
+    assert.deepEqual(Object.keys(pub), ['$schema', 'local', '$shared', 'qa']);
+    assert.deepEqual(pub.local, original.local);
+    assert.deepEqual(Object.keys(pub.local), ['host', 'envName', 'Security', 'retries']);
+    assert.deepEqual(JSON.parse(fs.readFileSync(privPath, 'utf8')), { local: { apiKey: 'k-123' } });
+    // The EnvironmentManager picks the change up through its file watcher (no explicit reload here).
+    await Promise.race([changedBefore, new Promise((_, j) => setTimeout(() => j(new Error('EnvironmentManager did not reload')), 8000))]);
+    await until('environments reloaded', () => api.deps.envs.names().includes('qa') && api.deps.envs.variables().apiKey === 'k-123');
+    assert.equal(api.deps.envs.selected, 'local');
+    assert.equal(api.deps.envs.variables().tenant, 'acme');
+    // The private file is not git-ignored yet: one click adds it.
+    await panel.handle({ type: 'addGitignore' });
+    assert.equal(fs.readFileSync(path.join(ws.fsPath, '.gitignore'), 'utf8').split('\n').filter((l) => l === 'http-client.private.env.json').length, 1);
+    // Changed on disk while there are unsaved edits: Save refuses (the webview shows Reload / Overwrite) until forced.
+    await panel.handle({ type: 'dirty', dirty: true });
+    const external = { ...pub, qa: { host: 'https://edited-elsewhere' } };
+    fs.writeFileSync(pubPath, JSON.stringify(external, null, 2) + '\n');
+    const blocked = await panel.handle({ type: 'save', model: panel.model });
+    assert.equal(blocked, undefined);
+    assert.deepEqual(JSON.parse(fs.readFileSync(pubPath, 'utf8')), external);
+    // Not dirty: an external change reloads the editor.
+    await panel.handle({ type: 'dirty', dirty: false });
+    await panel.handle({ type: 'reload' });
+    assert.equal(panel.model.envs.find((e) => e.name === 'qa').vars[0].value, 'https://edited-elsewhere');
+    fs.writeFileSync(pubPath, JSON.stringify({ ...external, qa: { host: 'https://third' } }, null, 2) + '\n');
+    await until('editor reloaded from disk', () => panel.model.envs.find((e) => e.name === 'qa').vars[0].value === 'https://third');
+    // The status-bar environment picker's last item opens the editor.
+    panel.dispose();
+    assert.equal(api.envEditorForTest(), undefined);
+    const envTabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => t.label === 'Environments').length;
+    await until('editor tab closed', () => envTabs() === 0);
+    const picking = vscode.commands.executeCommand('plainwire.selectEnvironment');
+    await new Promise((r) => setTimeout(r, 1000));
+    await vscode.commands.executeCommand('workbench.action.quickOpenSelectPrevious'); // wraps to the last item
+    await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+    await picking;
+    await until('editor opened from the picker', () => api.envEditorForTest());
+    assert.equal(api.deps.envs.selected, 'local');
   });
 
   if (tlsServer) tlsServer.close();

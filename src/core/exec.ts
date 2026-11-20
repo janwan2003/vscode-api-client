@@ -3,12 +3,13 @@ import type { CookieJar } from './cookies.ts';
 import { isGraphqlRequest, toGraphqlHttp } from './graphql.ts';
 import { parseHttpFile } from './httpFile.ts';
 import type { FileVariable, HttpFile, HttpRequest, HttpResponse, ParsedRequest } from './model.ts';
+import { authReferences, readAuthConfig, tokenValue, type OAuth2Manager } from './oauth2.ts';
 import { bodyFileRef, normalizeBasicAuth, toWireForm } from './preview.ts';
 import { ensureScheme, sendRequest, type SendOptions } from './send.ts';
 import type { SseEvent } from './sse.ts';
 
 export { bodyFileRef, normalizeBasicAuth } from './preview.ts';
-import { referencedRequestNames, resolveRequest, resolveText, type NamedExchange, type VariableContext } from './variables.ts';
+import { authKey, referencedRequestNames, resolveRequest, resolveText, type NamedExchange, type VariableContext } from './variables.ts';
 
 /**
  * Everything the executor needs from its surroundings. The VS Code extension implements it with
@@ -35,6 +36,11 @@ export interface ExecHost {
    * `# @no-cookie-jar` neither sends nor stores cookies. Without a jar, cookies are not remembered.
    */
   cookieJar?: CookieJar;
+  /**
+   * OAuth 2 tokens for `{{$auth.token("id")}}` (configured under "Security" → "Auth" in the
+   * environment). Without it, `$auth` variables are an error.
+   */
+  oauth2?: OAuth2Manager;
   /** Called after every exchange, including chained dependencies (history, logging). */
   onExchange?(e: { request: HttpRequest; file?: string; response?: HttpResponse; error?: string }): void | Promise<void>;
 }
@@ -96,6 +102,10 @@ export class Executor {
     return this.runIn(req, file, named, signal, 0, opts);
   }
 
+  private fetchAuthTokens(text: string, ctx: VariableContext, signal?: AbortSignal): Promise<void> {
+    return fillAuth(text, ctx, this.host.oauth2, { signal });
+  }
+
   /**
    * Run `req` from `file`, remembering named responses in `named`. A chained request found in an
    * imported file runs with that file's own variables, but its response is remembered in `named`
@@ -121,6 +131,7 @@ export class Executor {
       processEnv: process.env,
       dotenv: await this.host.dotenv(file),
     };
+    await this.fetchAuthTokens(text, ctx, signal);
     let resolved = resolveRequest(req, ctx);
     normalizeBasicAuth(resolved);
 
@@ -159,6 +170,44 @@ export class Executor {
   }
 }
 
+/** Text of every part of a request that may hold `{{variables}}`. */
+function requestText(req: HttpRequest): string {
+  return [req.url, ...req.headers.map((h) => `${h.name}: ${h.value}`), req.body ?? '', ...(req.asserts ?? [])].join('\n');
+}
+
+/**
+ * Put the tokens for the `$auth.token("id")` / `$auth.idToken("id")` references in `text` into
+ * `ctx.auth`. `cachedOnly`: do not send anything; tokens not cached stay unresolved.
+ */
+async function fillAuth(text: string, ctx: VariableContext, oauth2: OAuth2Manager | undefined, opts: { signal?: AbortSignal; cachedOnly?: boolean }): Promise<void> {
+  const ids = authReferences(text);
+  if (!ids.length) return;
+  ctx.auth ??= new Map();
+  for (const id of ids) {
+    if (!oauth2) {
+      if (opts.cachedOnly) continue;
+      throw new Error(`{{$auth.token("${id}")}}: OAuth 2 is not available here`);
+    }
+    let cfg;
+    try {
+      cfg = readAuthConfig(ctx.environment, id, (s) => resolveText(s, ctx));
+    } catch (e) {
+      if (opts.cachedOnly) continue;
+      throw e;
+    }
+    const t = opts.cachedOnly ? oauth2.cached(cfg) : await oauth2.token(cfg, { signal: opts.signal });
+    if (!t) continue;
+    for (const kind of ['token', 'idToken'] as const) {
+      try {
+        ctx.auth.set(authKey(kind, id), tokenValue(cfg, t, kind));
+      } catch (e) {
+        // Only an error if the request actually uses that kind.
+        if (!opts.cachedOnly && new RegExp(`\\$auth\\.${kind}\\(\\s*["']${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`).test(text)) throw e;
+      }
+    }
+  }
+}
+
 export interface PreviewResult {
   /** The request as it would go on the wire: variables resolved, Basic auth encoded, body normalised. */
   request: HttpRequest;
@@ -171,7 +220,7 @@ export interface PreviewResult {
  * Chained values come only from responses already received in this session; nothing else is sent.
  * A `< ./file` body stays a file reference; a `<@ ./file` body is read and resolved.
  */
-export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'readHttpFile' | 'resolveImport' | 'readBodyFile' | 'dotenv' | 'environment'>, file: string | undefined, named: Map<string, NamedExchange> = new Map()): Promise<PreviewResult> {
+export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'readHttpFile' | 'resolveImport' | 'readBodyFile' | 'dotenv' | 'environment' | 'oauth2'>, file: string | undefined, named: Map<string, NamedExchange> = new Map()): Promise<PreviewResult> {
   const loaded = await loadHttpFile(host, file);
   const unresolved = new Set<string>();
   const ctx: VariableContext = {
@@ -182,6 +231,7 @@ export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'rea
     dotenv: await host.dotenv(file),
     unresolved,
   };
+  await fillAuth(requestText(req), ctx, host.oauth2, { cachedOnly: true });
   let resolved = resolveRequest(req, ctx);
   normalizeBasicAuth(resolved);
   resolved.url = ensureScheme(resolved.url.trim());

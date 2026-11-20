@@ -1,0 +1,35 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+:root{--vscode-font-family:system-ui,-apple-system,"Segoe UI",sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;--vscode-editor-font-size:12.5px;
+--vscode-foreground:#cccccc;--vscode-editor-background:#1f1f1f;--vscode-descriptionForeground:#9d9d9d;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-button-hoverBackground:#026ec1;
+--vscode-button-secondaryBackground:#313131;--vscode-button-secondaryForeground:#ccc;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-input-border:#3c3c3c;--vscode-panel-border:#2b2b2b;
+--vscode-focusBorder:#0078d4;--vscode-textLink-foreground:#4daafc;--vscode-badge-background:#616161;--vscode-badge-foreground:#f8f8f8;--vscode-charts-green:#89d185;--vscode-charts-yellow:#cca700;--vscode-charts-blue:#3794ff;--vscode-charts-red:#f14c4c;
+--vscode-testing-iconPassed:#73c991;--vscode-panelTitle-activeBorder:#0078d4;--vscode-input-placeholderForeground:#989898;--vscode-editorWarning-foreground:#cca700;--vscode-inputValidation-warningBackground:#352a05;
+--vscode-list-activeSelectionBackground:#04395e;--vscode-list-activeSelectionForeground:#fff;--vscode-list-hoverBackground:#2a2d2e;--vscode-errorForeground:#f85149}
+</style>
+<link rel="stylesheet" href="../../media/panel.css"><link rel="stylesheet" href="../../media/envEditor.css"></head><body><div id="app"></div>
+<script>
+// The environment editor (rendered by the real media/envEditor.js) with a model as src/core/envFile.ts builds it.
+const row = (name, value, secret = false) => ({ name, value, secret, orig: { name, secret } });
+const ro = (name, readonly, preview, secret = false) => ({ name, readonly, preview, secret, orig: { name, secret } });
+const model = { envs: [
+  { name: 'dev', orig: 'dev', vars: [row('baseUrl', 'http://localhost:3000'), row('tenant', 'acme-dev'), ro('Security', 'object', '{"Auth":{"github":{"Type":"OAuth2","Grant Type":"Authorization Code","Client ID":"Iv1.8a61f9b3a7aba766",…'), ro('retries', 'number', '3'), row('apiKey', 'demo-test-key-0000', true), row('password', 'correct horse battery staple', true)] },
+  { name: '$shared', orig: '$shared', vars: [row('apiVersion', 'v2'), row('userAgent', 'acme-tests/1.0')] },
+  { name: 'staging', orig: 'staging', vars: [row('baseUrl', 'https://staging.acme.dev'), row('tenant', 'acme'), row('apiKey', 'demo-live-key-0000', true)] },
+  { name: 'prod', orig: 'prod', vars: [row('baseUrl', 'https://api.acme.com'), row('tenant', 'acme'), row('apiKey', 'demo-live-key-0000', true)] },
+] };
+window.acquireVsCodeApi = () => ({ getState: () => null, setState(){}, postMessage(m){
+  if (m.type==='ready') setTimeout(() => {
+    window.postMessage({type:'load',model,error:null,notice:null,folders:[{value:'a',label:'(workspace root)'},{value:'b',label:'services/billing'}],folder:'a',
+      files:{public:{label:'http-client.env.json',exists:true},private:{label:'http-client.private.env.json',exists:true}},gitignore:'missing',active:'dev'}, '*');
+    setTimeout(() => {
+      // Pick "dev", reveal the password, and edit a value so the dirty marker shows.
+      [...document.querySelectorAll('.ee-env-tab')].find((b) => b.textContent.startsWith('dev')).click();
+      setTimeout(() => {
+        [...document.querySelectorAll('button.icon')].filter((b) => b.textContent === 'Show')[1].click();
+        setTimeout(() => { const v = document.querySelectorAll('input.v')[1]; v.value = 'acme-dev-2'; v.dispatchEvent(new Event('input')); }, 20);
+      }, 20);
+    }, 30);
+  }, 10);
+}});
+</script><script src="../../media/envEditor.js"></script></body></html>

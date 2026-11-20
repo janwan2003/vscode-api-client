@@ -2,7 +2,7 @@
   "name": "plainwire",
   "displayName": "Plainwire — API Client (no login, plain .http files)",
   "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible), with GraphQL, tests, a collection runner, copy as code and a free CLI for CI. One-click import from Thunder Client, Postman and cURL.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -84,6 +84,12 @@
         "icon": "$(globe)"
       },
       {
+        "command": "plainwire.editEnvironments",
+        "title": "Edit Environments…",
+        "category": "Plainwire",
+        "icon": "$(edit)"
+      },
+      {
         "command": "plainwire.createEnvFile",
         "title": "Create Environment File (http-client.env.json)",
         "category": "Plainwire"
@@ -108,6 +114,17 @@
       {
         "command": "plainwire.clearCookies",
         "title": "Clear Cookies",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.acquireOAuthToken",
+        "title": "Acquire OAuth 2 Token…",
+        "category": "Plainwire",
+        "icon": "$(key)"
+      },
+      {
+        "command": "plainwire.clearOAuthTokens",
+        "title": "Clear OAuth 2 Tokens",
         "category": "Plainwire"
       },
       {
@@ -243,6 +260,11 @@
           "command": "plainwire.importCurl",
           "when": "view == plainwire.collections",
           "group": "import@4"
+        },
+        {
+          "command": "plainwire.editEnvironments",
+          "when": "view == plainwire.collections",
+          "group": "env@0"
         },
         {
           "command": "plainwire.createEnvFile",
@@ -424,7 +446,16 @@
           "description": "HTTP proxy for requests, e.g. http://user:pass@proxy:8080. Falls back to VS Code's http.proxy, then HTTPS_PROXY / HTTP_PROXY. Hosts in NO_PROXY and localhost are always sent directly."
         }
       }
-    }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": [
+          "http-client.env.json",
+          "http-client.private.env.json"
+        ],
+        "url": "./media/http-client.env.schema.json"
+      }
+    ]
   },
   "scripts": {
     "build": "esbuild src/ext/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",

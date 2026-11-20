@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OAuth 2.0 tokens in .http files: VS Code API client | Plainwire</title>
+<meta name="description" content="Get, cache and refresh OAuth 2.0 access tokens for .http files in VS Code, Cursor and CI: Client Credentials, Authorization Code with PKCE, Password, Device flow. JetBrains-compatible {{$auth.token()}}. Free, no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/oauth2-http-file-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="OAuth 2.0 tokens in .http files">
+<meta property="og:description" content="Describe the provider once in http-client.env.json and use {{$auth.token(&quot;my-api&quot;)}}: fetched, cached and refreshed, in VS Code and in CI.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/oauth2-http-file-vscode.html">
+<meta property="og:image" content="https://janwan2003.github.io/vscode-api-client/oauth2.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>OAuth 2.0 tokens in <code>.http</code> files (VS Code, Cursor, CI)</h1>
+    <p>Most APIs want an OAuth 2.0 access token: you sign in, get a token from the token endpoint, put it in <code>Authorization: Bearer …</code>, and do it all again when it expires an hour later. Since 0.10, Plainwire does this for you. Describe the provider once in <code>http-client.env.json</code>, write <code>{{$auth.token("my-api")}}</code> where the token goes, and the token is fetched before the request, cached, and refreshed when it expires. It uses the JetBrains HTTP Client's format, so the same files work in IntelliJ IDEA and WebStorm.</p>
+
+    <figure>
+      <img src="oauth2.png" width="1100" height="440" alt="Plainwire's request editor with the Auth tab set to OAuth 2: a Configuration dropdown showing orders-api, an option to send the ID token, an Acquire token now button, and the saved header Authorization: Bearer {{$auth.token(&quot;orders-api&quot;)}}.">
+      <figcaption class="small">The request editor&rsquo;s <strong>Auth</strong> tab: pick a configuration from the current environment, or acquire a token now.</figcaption>
+    </figure>
+
+    <h2>Quick start: Client Credentials</h2>
+    <p>Machine-to-machine APIs use the Client Credentials grant: a client ID and secret, no browser. In <code>http-client.env.json</code>:</p>
+<pre>{
+  "dev": {
+    "baseUrl": "https://api.example.com",
+    "Security": {
+      "Auth": {
+        "my-api": {
+          "Type": "OAuth2",
+          "Grant Type": "Client Credentials",
+          "Token URL": "https://login.example.com/oauth/token",
+          "Client ID": "my-client-id",
+          "Scope": "orders:read"
+        }
+      }
+    }
+  }
+}</pre>
+    <p>Put the secret in <code>http-client.private.env.json</code> (add it to <code>.gitignore</code>). Plainwire merges the two files key by key, so the private file only needs the part that is secret:</p>
+<pre>{
+  "dev": { "Security": { "Auth": { "my-api": { "Client Secret": "s3cr3t" } } } }
+}</pre>
+    <p>Then use the token in any request:</p>
+<pre>### My orders
+# @assert status == 200
+GET {{baseUrl}}/orders
+Authorization: Bearer {{$auth.token("my-api")}}</pre>
+    <p>Select the <code>dev</code> environment in the status bar and press <strong>Send</strong>. The first request fetches a token; later requests reuse it until it expires.</p>
+
+    <h2>Try it against a real server</h2>
+    <p>Duende's public IdentityServer demo has a test client. With the two files below, <code>plainwire run --env demo</code> gets a token and calls the demo's protected API:</p>
+<p class="small"><code>http-client.env.json</code></p>
+<pre>{ "demo": { "Security": { "Auth": { "duende": {
+  "Type": "OAuth2", "Grant Type": "Client Credentials",
+  "Token URL": "https://demo.duendesoftware.com/connect/token",
+  "Client ID": "m2m", "Scope": "api" } } } } }</pre>
+<p class="small"><code>http-client.private.env.json</code></p>
+<pre>{ "demo": { "Security": { "Auth": { "duende": { "Client Secret": "secret" } } } } }</pre>
+<p class="small"><code>api.http</code></p>
+<pre>### Demo API with a client-credentials token
+# @assert status == 200
+GET https://demo.duendesoftware.com/api/test
+Authorization: Bearer {{$auth.token("duende")}}</pre>
+<pre>$ plainwire run --env demo
+plainwire 0.10.0 · 1 request in 1 file · environment demo from http-client.env.json, http-client.private.env.json
+
+api.http
+  ✓ GET Demo API with a client-credentials token 200 · 456 ms · 1/1 checks
+
+1 passed, 0 failed (1 requests, 1049 ms)</pre>
+    <p>That is a real run (20 November 2026). Without the private file the secret is missing, and the run stops with the provider&rsquo;s answer instead of sending the request unauthenticated:</p>
+<pre>  ✗ GET Demo API with a client-credentials token
+      Auth "duende": token request failed: invalid_client (HTTP 400)
+      at api.http:3</pre>
+
+    <h2>Signing in with a browser: Authorization Code + PKCE</h2>
+    <p>For APIs that act for a user, use the Authorization Code grant. Plainwire opens the provider's sign-in page in your browser and listens on a loopback address for the redirect (RFC 8252, the way desktop apps do it), then exchanges the code for tokens:</p>
+<pre>"my-app": {
+  "Type": "OAuth2",
+  "Grant Type": "Authorization Code",
+  "Auth URL": "https://login.example.com/authorize",
+  "Token URL": "https://login.example.com/oauth/token",
+  "Redirect URL": "http://127.0.0.1:8765/callback",
+  "Client ID": "my-public-client",
+  "Scope": "openid profile offline_access",
+  "PKCE": true
+}</pre>
+    <ul>
+      <li><strong>Redirect URL</strong> must be <code>http://localhost:&lt;port&gt;/…</code> or <code>http://127.0.0.1:&lt;port&gt;/…</code>; register the same URL with the provider. Leave it out and Plainwire uses a free port on <code>http://127.0.0.1:&lt;port&gt;/callback</code>, which works with providers that accept any loopback port.</li>
+      <li><strong>PKCE</strong>: <code>true</code> uses SHA-256 with a generated verifier; <code>{"Code Challenge Method": "Plain", "Code Verifier": "…"}</code> is also accepted.</li>
+      <li>With <code>offline_access</code> (or whatever your provider calls it) you get a refresh token, and an expired token is refreshed without opening the browser again.</li>
+      <li><code>{{$auth.idToken("my-app")}}</code> gives the OpenID Connect ID token instead of the access token; <code>"Use ID Token": true</code> makes <code>$auth.token</code> return it too.</li>
+    </ul>
+    <p>We tested this end to end against Duende's demo (client <code>interactive.public.short</code>, PKCE): sign-in in a real browser, the redirect back to Plainwire, a token the demo API accepted, and after the 75-second token expired, a refresh that the API accepted too.</p>
+
+    <h2>All grant types and settings</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Grant Type</th><th scope="col">Needs</th><th scope="col">Use it for</th></tr></thead>
+        <tbody>
+          <tr><td><code>Client Credentials</code></td><td>Token URL, Client ID, Client Secret</td><td>Service-to-service APIs and CI.</td></tr>
+          <tr><td><code>Password</code></td><td>Token URL, Client ID, Username, Password</td><td>Older APIs and test users (deprecated by OAuth 2.1, still common).</td></tr>
+          <tr><td><code>Authorization Code</code></td><td>Auth URL, Token URL, Client ID; PKCE recommended</td><td>Signing in as a user in the browser.</td></tr>
+          <tr><td><code>Device Authorization</code></td><td>Device Auth URL, Token URL, Client ID</td><td>Providers that show a code to enter on another device; Plainwire shows the code, copies it, opens the page and polls.</td></tr>
+          <tr><td><code>Implicit</code></td><td>Auth URL, Client ID</td><td>Legacy single-page-app clients (no refresh).</td></tr>
+          <tr><td><code>"Type": "Mock"</code></td><td><code>"Token"</code> (and optional <code>"ID Token"</code>)</td><td>A fixed token for local development and tests.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Other keys: <code>"Client Credentials"</code> = <code>"basic"</code> (default, HTTP Basic), <code>"in body"</code> or <code>"none"</code> for public clients; <code>"Custom Request Parameters"</code> and <code>"Custom Request Headers"</code> such as <code>{"audience": {"Value": "https://api", "Use": "In Token Request"}}</code> (<code>Use</code>: <code>Everywhere</code>, <code>In Auth Request</code>, <code>In Token Request</code>); <code>"Acquire Automatically": false</code> to sign in only when you run <strong>Plainwire: Acquire OAuth 2 Token…</strong>; <code>"Open Complete URI": true</code> for device codes. Any value can use <code>{{variables}}</code>, for example <code>"Password": "{{password}}"</code> from the private file. The extension gives completions and checks for all of these keys while you edit <code>http-client.env.json</code>.</p>
+
+    <h2>In the editor and in CI</h2>
+    <ul>
+      <li>In the request editor, the <strong>Auth</strong> tab&rsquo;s <strong>OAuth 2</strong> option writes the <code>Authorization: Bearer {{$auth.token("…")}}</code> header for you, with a dropdown of the configurations in the selected environment.</li>
+      <li><strong>Plainwire: Acquire OAuth 2 Token…</strong> gets a fresh token now (it skips the cache); <strong>Plainwire: Clear OAuth 2 Tokens</strong> forgets them, so the next request signs in again. Tokens are kept in memory for the window and are never written to disk or history.</li>
+      <li><strong>Copy as cURL / Code</strong> inserts the cached token if there is one; it never starts a sign-in.</li>
+      <li>The <a href="run-http-files-in-ci.html">CLI and GitHub Action</a> run the same files: one token per <code>plainwire run</code>. In CI use Client Credentials or Password, with secrets from <code>--env-file</code>, <code>{{$processEnv CLIENT_SECRET}}</code> or <code>{{$dotenv CLIENT_SECRET}}</code>. In a terminal, browser grants print the sign-in URL and open your browser.</li>
+    </ul>
+
+    <h2>Compared with other clients</h2>
+    <p>REST Client has no OAuth 2 support; fetching a token by hand with a chained login request is the usual workaround (its most-reacted OAuth issue, #302, is open). The JetBrains HTTP Client defines this format, and Plainwire reads the same keys (all except <code>Start Polling After Browser</code>), so a team can mix IntelliJ and VS Code. Postman and Thunder Client have OAuth 2 in a GUI form; their settings live in the app or its cloud, while here they are a JSON file in your repository, with the secret in a git-ignored file next to it.</p>
+
+    <h2>FAQ</h2>
+    <details><summary>Where are my tokens stored?</summary><p>In memory only, for the VS Code window or the CLI run. Nothing is written to disk, history, or anywhere else, and Plainwire has no telemetry. Source: <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a> (MIT).</p></details>
+    <details><summary>My provider only allows https redirect URLs.</summary><p>Plainwire can only receive a sign-in on a loopback http address. Most providers allow <code>http://localhost</code> or <code>http://127.0.0.1</code> for native and development clients; register one of those. Otherwise use the Device Authorization grant if the provider supports it.</p></details>
+    <details><summary>Does it work in Cursor, Windsurf and VSCodium?</summary><p>Yes, it is the same extension. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a>; see <a href="api-client-for-cursor-vscodium.html">installing in Cursor and VSCodium</a>.</p></details>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

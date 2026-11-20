@@ -3,7 +3,9 @@ import type { HttpRequest } from '../core/model.ts';
 import type { SseEvent } from '../core/sse.ts';
 import { Executor, type ExecResult, type PreviewResult } from '../core/exec.ts';
 import type { SendOptions } from '../core/send.ts';
-import { parseDotenv } from '../core/variables.ts';
+import { authConfigs, OAuth2Manager, readAuthConfig } from '../core/oauth2.ts';
+import { sendRequest } from '../core/send.ts';
+import { parseDotenv, resolveText } from '../core/variables.ts';
 import type { CookieStore } from './cookies.ts';
 import type { EnvironmentManager } from './environments.ts';
 import type { History } from './history.ts';
@@ -18,9 +20,25 @@ export type RunResult = ExecResult;
 /** Sends requests with the shared core Executor, reading files through the VS Code workspace and recording history. */
 export class Runner {
   private readonly exec: Executor;
+  /** OAuth 2 tokens for `{{$auth.token("id")}}`, kept in memory for this window. */
+  readonly oauth2: OAuth2Manager;
 
-  constructor(envs: EnvironmentManager, history: History, cookies?: CookieStore) {
+  constructor(private readonly envs: EnvironmentManager, history: History, cookies?: CookieStore, log?: (m: string) => void) {
+    this.oauth2 = new OAuth2Manager({
+      send: (req, signal) => sendRequest(req, { ...vscodeSendOptions(req), signal }),
+      openBrowser: async (url) => {
+        const ok = await vscode.env.openExternal(vscode.Uri.parse(url));
+        if (!ok) throw new Error('The browser could not be opened for the OAuth 2 sign-in');
+        vscode.window.setStatusBarMessage('$(sync~spin) Plainwire: waiting for the OAuth 2 sign-in in your browser…', 15000);
+      },
+      showDeviceCode: ({ id, userCode, verificationUri }) => {
+        void vscode.env.clipboard.writeText(userCode);
+        void vscode.window.showInformationMessage(`Plainwire: to sign in to "${id}", enter the code ${userCode} at ${verificationUri} (copied to the clipboard).`);
+      },
+      log,
+    });
     this.exec = new Executor({
+      oauth2: this.oauth2,
       readHttpFile: (file) => readText(vscode.Uri.parse(file)),
       resolveImport: (p, file) => resolveBodyPath(p, vscode.Uri.parse(file)).toString(),
       readBodyFile: async (p, file) => vscode.workspace.fs.readFile(resolveBodyPath(p, file ? vscode.Uri.parse(file) : undefined)),
@@ -45,6 +63,26 @@ export class Runner {
   /** The request as it would be sent (variables resolved), without sending it or its chained requests. */
   preview(req: HttpRequest, source: RunSource): Promise<PreviewResult> {
     return this.exec.preview(req, source.uri?.toString());
+  }
+
+  /** Auth configuration ids of the active environment ("Security" → "Auth"). */
+  authIds(): string[] {
+    return Object.keys(authConfigs(this.envs.variables()));
+  }
+
+  /** Acquire a token for an auth id now, skipping the cache (Acquire OAuth 2 Token). */
+  async acquireToken(id: string, token?: vscode.CancellationToken): Promise<{ expiresAt?: number; hasRefresh: boolean; hasIdToken: boolean }> {
+    const env = this.envs.variables();
+    const ctx = { fileVariables: [], environment: env, named: new Map(), processEnv: process.env, dotenv: {} };
+    const cfg = readAuthConfig(env, id, (s) => resolveText(s, ctx));
+    const abort = new AbortController();
+    const sub = token?.onCancellationRequested(() => abort.abort(new Error('Cancelled')));
+    try {
+      const t = await this.oauth2.token(cfg, { force: true, signal: abort.signal });
+      return { expiresAt: t.expiresAt, hasRefresh: !!t.refreshToken, hasIdToken: !!t.idToken };
+    } finally {
+      sub?.dispose();
+    }
   }
 
   async run(req: HttpRequest, source: RunSource, token?: vscode.CancellationToken, onEvent?: (e: SseEvent) => void): Promise<RunResult> {

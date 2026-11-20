@@ -28,6 +28,10 @@
       <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
     </nav>
   </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
     <h1>Cookies and session logins in <code>.http</code> files</h1>
     <p>Many web apps and APIs log you in with a cookie, not a token: <code>POST /login</code> answers with <code>Set-Cookie: session=…</code>, often with a redirect, and every later request has to send that cookie back. Browsers do it without asking. Since 0.9, Plainwire does too: it keeps a <strong>cookie jar</strong>, so you send the login request once and the requests after it are logged in. Django, Rails, Laravel, Express sessions and CSRF cookies all work this way.</p>
 

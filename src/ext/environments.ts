@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { mergeEnvironment } from '../core/variables.ts';
+import { addEnvironments, mergeEnvironment } from '../core/variables.ts';
 
 type Envs = Record<string, Record<string, string>>;
 
@@ -39,17 +39,7 @@ export class EnvironmentManager implements vscode.Disposable {
 
   async reload(): Promise<void> {
     const envs: Envs = {};
-    const add = (src: unknown) => {
-      if (!src || typeof src !== 'object') return;
-      for (const [env, vars] of Object.entries(src as Record<string, unknown>)) {
-        if (env === '$schema' || !vars || typeof vars !== 'object') continue;
-        envs[env] ??= {};
-        for (const [k, v] of Object.entries(vars as Record<string, unknown>)) {
-          if (v === null || v === undefined) continue;
-          envs[env][k] = typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v);
-        }
-      }
-    };
+    const add = (src: unknown) => addEnvironments(envs, src);
     add(vscode.workspace.getConfiguration('rest-client').get('environmentVariables'));
     add(vscode.workspace.getConfiguration('plainwire').get('environmentVariables'));
     const files = await vscode.workspace.findFiles('**/http-client{.env,.private.env}.json', '**/node_modules/**', 50);
@@ -102,9 +92,11 @@ export class EnvironmentManager implements vscode.Disposable {
       ...names.map((n) => ({ label: n, env: n, description: n === this.selected ? 'current' : `${Object.keys(this.envs[n]).length} variables` })),
     ];
     if (!names.length) items.push({ label: '$(add) Create http-client.env.json…', env: '__create__' });
+    items.push({ label: '$(edit) Edit environments…', env: '__edit__' });
     const choice = await vscode.window.showQuickPick(items, { placeHolder: 'Environment for {{variables}}' });
     if (!choice) return;
     if (choice.env === '__create__') return void vscode.commands.executeCommand('plainwire.createEnvFile');
+    if (choice.env === '__edit__') return void vscode.commands.executeCommand('plainwire.editEnvironments');
     await this.select(choice.env);
   }
 

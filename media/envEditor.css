@@ -1,0 +1,50 @@
+/* Environment editor; loaded after panel.css (shared buttons, inputs, hints). */
+#app { display: block; height: auto; min-height: 100vh; padding: 12px 16px 24px; }
+.ee { max-width: 1100px; }
+.ee-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ee-head h1 { font-size: 1.25em; font-weight: 600; margin: 0 6px 0 0; }
+.ee-head .spacer, .ee-env-head .spacer { flex: 1; }
+.ee-folder { display: inline-flex; gap: 6px; align-items: center; color: var(--vscode-descriptionForeground); }
+.ee-files { margin: 8px 0 4px; }
+.ee-files button.link { padding: 0 2px; font-family: var(--mono); font-size: .95em; }
+.muted { color: var(--vscode-descriptionForeground); }
+code { font-family: var(--mono); font-size: .95em; }
+.ee-git.ok::first-letter { color: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); }
+.ee-banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 10px; margin: 8px 0; border-left: 3px solid var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow)); background: var(--vscode-inputValidation-warningBackground, transparent); }
+.ee-banner > span { flex: 1; min-width: 200px; }
+.ee-notice { color: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); }
+.ee-body { display: grid; grid-template-columns: minmax(170px, 220px) 1fr; gap: 18px; margin-top: 12px; align-items: start; }
+.ee-envs { display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--vscode-panel-border); padding-right: 10px; }
+.ee-env-tab { display: flex; gap: 6px; align-items: center; text-align: left; background: none; color: var(--vscode-foreground); border-radius: 3px; padding: 5px 8px; }
+.ee-env-tab:hover { background: var(--vscode-list-hoverBackground); }
+.ee-env-tab.active { background: var(--vscode-list-activeSelectionBackground, var(--vscode-button-secondaryBackground)); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
+.ee-env-tab.shared .ee-env-name { font-style: italic; }
+.ee-env-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ee-env-tab .badge { margin-left: 0; }
+.ee-count { color: var(--vscode-descriptionForeground); font-size: .85em; font-variant-numeric: tabular-nums; }
+.ee-add-env { text-align: left; margin-top: 6px; }
+.ee-pick { font-size: .85em; margin-top: 10px; }
+.ee-env { min-width: 0; align-items: flex-start; }
+.ee-env > table, .ee-env > .ee-env-head { align-self: stretch; }
+.ee-sep { margin: 0 10px; }
+input[type=checkbox] { accent-color: var(--vscode-button-background); }
+.ee-env-head { display: flex; gap: 10px; align-items: center; margin-bottom: 2px; }
+.ee-env-head h2 { font-size: 1.1em; font-weight: 600; margin: 3px 0; }
+.ee-env-input { font-size: 1.1em; font-weight: 600; min-width: 220px; }
+button.link.danger { color: var(--vscode-errorForeground); }
+table.ee-vars { border-collapse: collapse; width: 100%; margin: 6px 0 6px; table-layout: fixed; }
+table.ee-vars th { text-align: left; font-weight: 600; color: var(--vscode-descriptionForeground); padding: 4px 6px; border-bottom: 1px solid var(--vscode-panel-border); }
+table.ee-vars th:nth-child(1) { width: 32%; } table.ee-vars th:nth-child(3) { width: 58px; } table.ee-vars th:nth-child(4) { width: 34px; }
+table.ee-vars td { padding: 3px 6px 3px 0; vertical-align: top; }
+table.ee-vars .c { text-align: center; vertical-align: middle; }
+table.ee-vars input.k, table.ee-vars input.v { width: 100%; font-family: var(--mono); }
+.ee-val { display: flex; gap: 4px; align-items: center; }
+.ee-val button.icon { font-size: .9em; color: var(--vscode-textLink-foreground); }
+tr.overridden input.v { opacity: .6; }
+.hint.small { font-size: .82em; margin: 2px 0 0; }
+tr.ro td { vertical-align: middle; }
+.ee-name-ro { font-family: var(--mono); padding: 4px 7px; display: inline-block; }
+.ee-ro { display: flex; gap: 8px; align-items: center; min-width: 0; padding: 3px 0; }
+.ee-kind { white-space: nowrap; color: var(--vscode-descriptionForeground); font-style: italic; }
+.ee-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); }
+@media (max-width: 640px) { .ee-body { grid-template-columns: 1fr; } .ee-envs { border-right: 0; padding-right: 0; } }
