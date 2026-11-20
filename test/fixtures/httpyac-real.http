@@ -1,0 +1,99 @@
+/*
+# Shop API smoke tests (httpYac)
+
+Patterns taken from public httpYac files on GitHub, anonymised.
+### a heading inside a block comment is not a separator
+*/
+
+@baseUrl={{BASE_URL}}
+@xpath_ns d = DAV:
+@lazyToken := {{login.token}}
+
+{{
+  // global script: `??` here is JavaScript, not a test
+  exports.region = process.env.REGION ?? 'eu';
+}}
+
+# @name health
+GET {{baseUrl}}/health
+Accept: application/json
+
+?? status == 200
+?? header content-type includes application/json
+?? duration < 999
+?? body status == UP
+
+POST {{baseUrl}}/api/keys
+Content-Type: application/json
+
+{
+  "key": "key-1"
+}
+
+?? status == 201
+?? body key == key-1
+?? body tags isArray
+?? body tags !contains tag-1
+
+/// No delay
+# @name random
+GET {{baseUrl}}/random
+No-Delay: please
+
+?? status == 200
+?? js response.parsedBody.items[0]?.name == Salt
+?? js response.statusCode == 404 || response.statusCode == 405
+?? status 200
+
+###
+# @name report
+GET {{baseUrl}}/api/data/v9.2
+  /reports(42)
+  ?$top=5
+Authorization: Bearer {{lazyToken}}
+
+?? js response.parsedBody["@odata.count"] == 5
+?? body value[0].name == First report
+
+{{@response
+  const ok = response.parsedBody?.value ?? [];
+  exports.firstId = ok[0]?.id;
+}}
+
+###
+< {%
+  request.variables.set('stamp', Date.now() ?? 0);
+%}
+POST {{baseUrl}}/upload
+Content-Type: multipart/form-data; boundary=WebKitFormBoundary
+
+--WebKitFormBoundary
+Content-Disposition: form-data; name="note"
+
+POST /this-is-text-in-a-form-field
+--WebKitFormBoundary--
+
+> {%
+  client.global.set('token', response.body?.accessToken ?? response.body?.jwt);
+  ?? not a test, this is JavaScript
+%}
+>> ./out/upload.json
+
+###
+POST {{baseUrl}}/session
+Content-Type: application/x-www-form-urlencoded
+
+USERNAME={{user}}&PASSWORD={{pass}}
+
+# keep the session id for the next requests
+@session = {{createSession.id}}
+
+### Restore from the trash bin
+MOVE {{baseUrl}}{{$xpath:trash //d:response[2]/d:href}}
+Destination: {{baseUrl}}/files/a.txt
+
+# Then the status should be 201
+?? status == 201
+?? xpath //d:status == 201
+
+<> ./previous/restore.json

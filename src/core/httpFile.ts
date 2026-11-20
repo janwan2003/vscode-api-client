@@ -19,22 +19,88 @@ import type { FileVariable, Header, HttpFile, HttpRequest, ParsedRequest } from 
  *
  * `??` lines are kept verbatim in `asserts` (see core/assert.ts) and written back after the
  * headers / body. REST Client has no such syntax; httpYac recognises them by the `??` prefix alone.
+ *
+ * httpYac / JetBrains extras, checked against httpYac 6.16's own parser on 83 real files: a request
+ * line (upper-case method + URL) after a request starts the next request even without `###`;
+ * `/path` lines continue the URL; `@name := value` and `@name value` are variables; `{{ }}` scripts,
+ * `< {% %}` / `> {% %}` handlers, `>> file` redirects and `/* *\/` comments are kept verbatim in
+ * `rawBefore` / `rawAfter` and never run (nor sent as body).
  */
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'TRACE', 'CONNECT'];
+/** Methods that start a new request even without a `###` line (httpYac's HTTP method list; upper case only). */
+const SPLIT_METHODS = [
+  ...METHODS, 'PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK', 'CHECKOUT', 'CHECKIN', 'REPORT', 'MERGE',
+  'MKACTIVITY', 'MKWORKSPACE', 'VERSION-CONTROL', 'BASELINE-CONTROL', 'MKCALENDAR', 'ACL', 'SEARCH',
+];
 
 const SEPARATOR = /^###(.*)$/;
 const COMMENT = /^\s*(#|\/\/)(.*)$/;
 const META = /^\s*(?:#|\/\/)\s*@([\w-]+)\s*(.*?)\s*$/;
-const FILE_VAR = /^\s*@([\w.-]+)\s*=\s*(.*?)\s*$/;
+/** `@name = value`; httpYac also accepts `@name := value` (lazy) and `@name value`. */
+const FILE_VAR = /^\s*@([\w.-]+)(?:\s*:?=\s*|\s+(?=\S))(.*?)\s*$/;
+/** A variable line after a body: only the `=` / `:=` forms (a body line like `@team hello` stays body). */
+const TRAILING_VAR = /^\s*@([\w.-]+)\s*:?=\s*(.*?)\s*$/;
 const REQUEST_LINE = new RegExp(`^\\s*(?:(${METHODS.join('|')})\\s+)?(\\S.*?)(?:\\s+(HTTP\\/[\\d.]+))?\\s*$`, 'i');
 /** Non-standard methods (PURGE, PROPFIND, LINK...) must be upper case and followed by a URL-like target. */
-const CUSTOM_METHOD_LINE = /^\s*([A-Z][A-Z-]*)\s+((?:[a-z][a-z0-9+.-]*:\/\/|\{\{|\/)\S*?)(?:\s+(HTTP\/[\d.]+))?\s*$/;
+// A URL is one word, except that `{{ ... }}` may contain spaces (`{{$xpath:x //a/b}}`, `{{ id }}`).
+const URL_TAIL = String.raw`(?:\{\{.*?\}\}|\S)*?`;
+const CUSTOM_METHOD_LINE = new RegExp(String.raw`^\s*([A-Z][A-Z-]*)\s+((?:[a-z][a-z0-9+.-]*:\/\/|\{\{|\/)${URL_TAIL})(?:\s+(HTTP\/[\d.]+))?\s*$`);
+/**
+ * A request line after another request in the same block (no `###` between them). httpYac starts a
+ * new request there; the target must look like a URL so that body text ("DELETE everything") never does.
+ */
+const NEXT_REQUEST_LINE = new RegExp(
+  String.raw`^\s*(?:${SPLIT_METHODS.join('|')})\s+(?:[a-z][a-z0-9+.-]*:\/\/|\{\{|\/|[\w-]+(?:\.[\w-]+)+(?::\d+)?(?=[/?#\s]|$)|[\w-]+:\d+(?=[/?#\s]|$))` +
+    String.raw`${URL_TAIL}(?:\s+HTTP\/[\d.]+)?\s*$`,
+);
 const HEADER = /^\s*([^\s:][^:]*?)\s*:\s?(.*)$/;
 const DISABLED_HEADER = /^\s*(?:#|\/\/)\s*([A-Za-z0-9!#$%&'*+.^_`|~-]+):\s?(.*)$/;
+/** URL continuation lines after the request line: `?a=1`, `&b=2` (not `??` tests) and httpYac's `/more/path`. */
+const URL_CONTINUATION = /^\s*(?:[?&](?!\?)|\/(?![/*]))\S*\s*$/;
+
+// Blocks that Plainwire keeps verbatim but never runs (see HttpRequest.rawBefore / rawAfter).
+/** httpYac script: `{{` (optionally `{{@response`, `{{+after`, `{{@js request`...) up to a `}}` line. */
+const SCRIPT_START = /^\s*\{\{(?:@js\s+)?(?:\+|@)?(?:request|streaming|response|after|responseLogging)?\s*$/i;
+const SCRIPT_END = /^\s*\}\}\s*$/;
+/** JetBrains / httpYac handler scripts: `> {% ... %}` (response), `< {% ... %}` (pre-request), or a script file. */
+const HANDLER_START = /^\s*([<>])\s+\{%\s*$/;
+const HANDLER_END = /^\s*%\}\s*$/;
+const HANDLER_LINE = /^\s*([<>])\s+(?:\{%.*%\}|[^\s{%}]+)\s*$/;
+/** httpYac output redirection: `>> file` / `>>! file` (write the response body to a file). */
+const OUTPUT_REDIRECT = /^\s*>>!?\s+\S/;
+/** JetBrains / httpYac response reference: `<> previous-response.json`. */
+const RESPONSE_REF = /^\s*<>\s+\S/;
+const BLOCK_COMMENT_START = /^\s*\/\*/;
 
 export function splitLines(text: string): string[] {
   return text.split(/\r?\n/);
+}
+
+/**
+ * If a kept-verbatim block starts at line `i`, the index just after it; otherwise `i`.
+ * `before` = above the request line (`<` handlers allowed); otherwise after it (where `< file` is
+ * the body and `>>` redirects the output). Unterminated blocks are not blocks.
+ */
+function rawBlockEnd(lines: string[], i: number, end: number, before: boolean): number {
+  const line = lines[i];
+  const until = (re: RegExp): number => {
+    for (let j = i + 1; j < end; j++) if (re.test(lines[j])) return j + 1;
+    return i;
+  };
+  if (SCRIPT_START.test(line)) return until(SCRIPT_END);
+  const h = HANDLER_START.exec(line);
+  if (h && (before || h[1] === '>')) return until(HANDLER_END);
+  const hl = HANDLER_LINE.exec(line);
+  if (hl && (before || hl[1] === '>')) return i + 1;
+  if (!before && (OUTPUT_REDIRECT.test(line) || RESPONSE_REF.test(line))) return i + 1;
+  // Block comments: any `/*` above the request line; after it only a line that is exactly `/*`
+  // (httpYac's own rule), so that a CSS or JavaScript body is never cut.
+  if (before ? BLOCK_COMMENT_START.test(line) : /^\s*\/\*\s*$/.test(line)) {
+    if (/\*\/\s*$/.test(line.replace(/^\s*\/\*/, ''))) return i + 1;
+    return until(/\*\/\s*$/);
+  }
+  return i;
 }
 
 export function parseHttpFile(text: string): HttpFile {
@@ -42,11 +108,16 @@ export function parseHttpFile(text: string): HttpFile {
   const variables: FileVariable[] = [];
   const requests: ParsedRequest[] = [];
 
-  // Split into blocks at ### lines.
+  // Split into blocks at ### lines (a ### inside a multi-line script or comment block does not count).
   const blocks: { start: number; end: number; title?: string }[] = [];
   let start = 0;
   let title: string | undefined;
   for (let i = 0; i < lines.length; i++) {
+    const skip = Math.max(rawBlockEnd(lines, i, lines.length, true), rawBlockEnd(lines, i, lines.length, false));
+    if (skip > i + 1) {
+      i = skip - 1;
+      continue;
+    }
     const m = SEPARATOR.exec(lines[i]);
     if (m) {
       blocks.push({ start, end: i, title });
@@ -57,8 +128,15 @@ export function parseHttpFile(text: string): HttpFile {
   blocks.push({ start, end: lines.length, title });
 
   for (const block of blocks) {
-    const req = parseBlock(lines, block.start, block.end, block.title, variables);
-    if (req) requests.push(req);
+    // A block can hold several requests when they are not separated by ### (httpYac allows that).
+    let from = block.start;
+    let blockTitle = block.title;
+    while (from < block.end) {
+      const { req, next } = parseBlock(lines, from, block.end, blockTitle, variables);
+      if (req) requests.push(req);
+      from = next;
+      blockTitle = undefined;
+    }
   }
   return { variables, requests };
 }
@@ -69,19 +147,27 @@ function parseBlock(
   end: number,
   title: string | undefined,
   variables: FileVariable[],
-): ParsedRequest | undefined {
+): { req?: ParsedRequest; next: number } {
   let i = start;
   if (i < end && SEPARATOR.test(lines[i])) i++;
 
   const meta: Record<string, string> = {};
   const comments: string[] = [];
   const asserts: string[] = [];
+  const rawBefore: string[] = [];
+  const rawAfter: string[] = [];
   let name: string | undefined;
 
-  // Preamble: blank lines, comments, metadata, file variables.
+  // Preamble: blank lines, comments, metadata, file variables, scripts.
   for (; i < end; i++) {
     const line = lines[i];
     if (line.trim() === '') continue;
+    const raw = rawBlockEnd(lines, i, end, true);
+    if (raw > i) {
+      rawBefore.push(...lines.slice(i, raw));
+      i = raw - 1;
+      continue;
+    }
     if (isHttpYacAssert(line)) {
       asserts.push(line);
       continue;
@@ -106,25 +192,63 @@ function parseBlock(
     }
     break;
   }
-  if (i >= end) return undefined;
+  if (i >= end) return { next: end };
 
   const rl = CUSTOM_METHOD_LINE.exec(lines[i]) ?? REQUEST_LINE.exec(lines[i]);
-  if (!rl) return undefined;
+  if (!rl) return { next: end };
   const requestLine = i;
   let url = rl[2];
   const method = (rl[1] ?? 'GET').toUpperCase();
   const httpVersion = rl[3];
   i++;
 
-  // Query continuation lines: lines starting with ? or & directly after the request line.
-  for (; i < end; i++) {
-    const t = lines[i].trim();
-    if ((t.startsWith('?') || t.startsWith('&')) && !isHttpYacAssert(t)) url += t;
-    else break;
-  }
+  // Query continuation lines (`?a=1`, `&b=2`) and httpYac path continuations (`/more`) directly after the request line.
+  for (; i < end && URL_CONTINUATION.test(lines[i]); i++) url += lines[i].trim();
+
+  // Where the next request starts when it follows without ###: its request line, moved up over the
+  // comment and metadata lines written directly above it (they belong to it, not to this request).
+  const nextRequestAt = (at: number, taken: string[]): number => {
+    let k = at;
+    while (k > requestLine + 1 && COMMENT.test(lines[k - 1]) && !SEPARATOR.test(lines[k - 1])) k--;
+    taken.splice(taken.length - (at - k), at - k);
+    return k;
+  };
+  const finish = (endLine: number, headers: Header[], bodyLines: string[]): { req: ParsedRequest; next: number } => {
+    while (bodyLines.length && bodyLines[bodyLines.length - 1].trim() === '') bodyLines.pop();
+    // Comment and `@name = value` lines at the end, after a blank line (or with no body text before
+    // them), are notes and variables, not body: httpYac reads them so, and sending them is never meant.
+    const notes: string[] = [];
+    for (;;) {
+      let k = bodyLines.length;
+      while (k > 0 && (COMMENT.test(bodyLines[k - 1]) || TRAILING_VAR.test(bodyLines[k - 1]))) k--;
+      let p = k;
+      while (p > 0 && bodyLines[p - 1].trim() === '') p--;
+      if (k === bodyLines.length || (p === k && p > 0)) break;
+      notes.unshift(...bodyLines.splice(p).slice(k - p));
+    }
+    for (const line of notes) {
+      const v = TRAILING_VAR.exec(line);
+      if (v) variables.push({ name: v[1], value: v[2] });
+    }
+    rawAfter.push(...notes);
+    while (bodyLines.length && bodyLines[0].trim() === '') bodyLines.shift();
+    const body = bodyLines.length ? bodyLines.join('\n') : undefined;
+    const req: ParsedRequest = { method, url, headers, startLine: start, endLine, requestLine };
+    if (name) req.name = name;
+    if (title) req.title = title;
+    if (httpVersion) req.httpVersion = httpVersion;
+    if (body !== undefined) req.body = body;
+    if (Object.keys(meta).length) req.meta = meta;
+    if (asserts.length) req.asserts = asserts;
+    if (comments.length) req.comments = comments;
+    if (rawBefore.length) req.rawBefore = rawBefore;
+    if (rawAfter.length) req.rawAfter = rawAfter;
+    return { req, next: endLine };
+  };
 
   // Headers until a blank line.
   const headers: Header[] = [];
+  const headerComments: string[] = [];
   for (; i < end; i++) {
     const line = lines[i];
     if (line.trim() === '') {
@@ -135,12 +259,16 @@ function parseBlock(
       asserts.push(line);
       continue;
     }
+    if (NEXT_REQUEST_LINE.test(line)) return finish(nextRequestAt(i, headerComments), headers, []);
     const dh = DISABLED_HEADER.exec(line);
     if (dh) {
       headers.push({ name: dh[1], value: dh[2], disabled: true });
       continue;
     }
-    if (COMMENT.test(line)) continue;
+    if (COMMENT.test(line)) {
+      headerComments.push(line);
+      continue;
+    }
     const h = HEADER.exec(line);
     if (h) headers.push({ name: h[1], value: h[2] });
     else {
@@ -149,24 +277,31 @@ function parseBlock(
     }
   }
 
-  // Body: everything until the end of the block, minus `??` test lines and trailing blank lines.
+  // A multipart body runs to its closing boundary before a request line can start a new request.
+  const ct = headers.find((h) => !h.disabled && h.name.toLowerCase() === 'content-type')?.value ?? '';
+  const boundary = /^\s*multipart\//i.test(ct) ? /boundary="?([^";\s]+)"?/i.exec(ct)?.[1] : undefined;
+  let inMultipart = boundary !== undefined;
+
+  // Body: everything until the end of the block, minus `??` test lines, scripts and output
+  // redirects, up to a request line that starts the next request.
   const bodyLines: string[] = [];
   for (; i < end; i++) {
-    if (isHttpYacAssert(lines[i])) asserts.push(lines[i]);
-    else bodyLines.push(lines[i]);
+    const line = lines[i];
+    if (isHttpYacAssert(line)) {
+      asserts.push(line);
+      continue;
+    }
+    const raw = rawBlockEnd(lines, i, end, false);
+    if (raw > i) {
+      rawAfter.push(...lines.slice(i, raw));
+      i = raw - 1;
+      continue;
+    }
+    if (inMultipart && line.includes(`--${boundary}--`)) inMultipart = false;
+    if (!inMultipart && NEXT_REQUEST_LINE.test(line)) return finish(nextRequestAt(i, bodyLines), headers, bodyLines);
+    bodyLines.push(line);
   }
-  while (bodyLines.length && bodyLines[bodyLines.length - 1].trim() === '') bodyLines.pop();
-  const body = bodyLines.length ? bodyLines.join('\n') : undefined;
-
-  const req: ParsedRequest = { method, url, headers, startLine: start, endLine: end, requestLine };
-  if (name) req.name = name;
-  if (title) req.title = title;
-  if (httpVersion) req.httpVersion = httpVersion;
-  if (body !== undefined) req.body = body;
-  if (Object.keys(meta).length) req.meta = meta;
-  if (asserts.length) req.asserts = asserts;
-  if (comments.length) req.comments = comments;
-  return req;
+  return finish(end, headers, bodyLines);
 }
 
 /** Serialize one request as a block, starting with its `###` separator line. */
@@ -178,6 +313,7 @@ export function serializeRequest(req: HttpRequest): string {
   for (const [k, v] of Object.entries(req.meta ?? {})) out.push(`# @${k}${v ? ' ' + v : ''}`);
   const yac = (req.asserts ?? []).filter(isHttpYacAssert);
   for (const a of req.asserts ?? []) if (a.trim() && !isHttpYacAssert(a)) out.push(`# @assert ${a.trim()}`);
+  out.push(...(req.rawBefore ?? []));
   out.push(`${req.method.toUpperCase()} ${req.url}${req.httpVersion ? ' ' + req.httpVersion : ''}`);
   for (const h of req.headers) {
     if (!h.name.trim()) continue;
@@ -193,6 +329,11 @@ export function serializeRequest(req: HttpRequest): string {
   if (yac.length) {
     if (hasBody) out.push('');
     out.push(...yac);
+  }
+  // Scripts and output redirects after the request, after a blank line (never read back as headers).
+  if (req.rawAfter?.length) {
+    out.push('');
+    out.push(...req.rawAfter);
   }
   return out.join('\n');
 }

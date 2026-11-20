@@ -116,7 +116,6 @@ test('httpYac ?? lines that are not translated fail with "unsupported httpYac as
   const lines = [
     '?? js response.parsedBody.tags.map(t => t.toUpperCase()).includes("X") isTrue',
     '?? js JSON.stringify(response.parsedBody) includes Ada',
-    '?? js response.parsedBody?.name == Ada',
     '?? js response.parsedBody.name.toLowerCase() == ada',
     '?? js process.exit(1)',
     '?? js',
@@ -136,11 +135,90 @@ test('httpYac ?? lines that are not translated fail with "unsupported httpYac as
     assert.ok(x.message.startsWith(`unsupported httpYac assertion "${lines[i].trim()}": `), x.message);
   }
   assert.match(r[0].message, /JavaScript is never evaluated/);
-  assert.match(r[6].message, /xpath is not supported/);
-  assert.match(r[9].message, /Unknown operator "bogus"/);
+  assert.match(r[5].message, /xpath is not supported/);
+  assert.match(r[8].message, /Unknown operator "bogus"/);
   assert.throws(() => parseAssertion('?? xpath //a exists'), /unsupported httpYac assertion/);
   // `??x` is not an httpYac line; it goes through the normal parser.
   assert.match(runAssertions(['??x'], res)[0].message, /Unknown assertion subject/);
+});
+
+test('httpYac ?? body property paths and the other forms seen in real httpYac files', () => {
+  // httpYac reads `?? body <value>` as (response.parsedBody || response.body).<value>: a property path.
+  const subjects: [string, unknown][] = [
+    ['?? body name == Ada', { kind: 'json', path: '$.name' }],
+    ['?? body nested.ok isTrue', { kind: 'json', path: '$.nested.ok' }],
+    ['?? body tags[1] == y', { kind: 'json', path: '$.tags[1]' }],
+    ["?? body nested['ok'] exists", { kind: 'json', path: "$.nested['ok']" }],
+    ['?? body data?.items?.[0]?.id isNumber', { kind: 'json', path: '$.data.items[0].id' }],
+    ['?? js response.parsedBody?.name == Ada', { kind: 'json', path: '$.name' }],
+    ['?? js response.parsedBody.items[3]?.nameDe == Salt', { kind: 'json', path: '$.items[3].nameDe' }],
+    ['?? body contains Ada', { kind: 'body' }],
+    ['?? body == {}', { kind: 'body' }],
+    ['?? duration total < 500', { kind: 'time' }],
+    ['?? body matches == x', { kind: 'json', path: '$.matches' }],
+  ];
+  for (const [line, subject] of subjects) assert.deepEqual(parseAssertion(line).subject, subject, line);
+  for (const l of [
+    '?? body name == Ada', '?? body id isNumber', '?? body tags isArray', '?? body tags isarray', '?? body nested.ok isTrue',
+    '?? body tags contains x', '?? body tags includes y', '?? body email endsWith .com', '?? body name equals Ada',
+    '?? body name not equals Bob', '?? body id === 42', '?? body id !== 41', '?? status ==201', '?? js response.parsedBody?.name == Ada',
+    '?? body tags !contains z', '?? body empty isEmpty', '?? duration total < 500',
+  ]) {
+    const [r] = runAssertions([l], res);
+    assert.equal(r.passed, true, `${l}: ${r.message}`);
+  }
+  for (const l of ['?? body name == Bob', '?? body missing exists', '?? body tags !contains x']) assert.equal(passes(l), false, l);
+  // Unary predicates ignore trailing text, as in httpYac.
+  assert.equal(parseAssertion('?? body id isNumber yes').expected, undefined);
+  // `not equals` after a value (httpYac's greedy split would read `name not` + `equals`).
+  assert.equal(parseAssertion('?? status not equals 200').op, '!=');
+  assert.deepEqual(parseAssertion('?? body name not equals Bob').subject, { kind: 'json', path: '$.name' });
+});
+
+test('httpYac ?? lines are split as httpYac splits them: the last predicate wins', () => {
+  // The value before the last predicate is JavaScript here, so it is never translated.
+  for (const l of [
+    '?? js response.statusCode == 404 || response.statusCode == 405',
+    '?? js response.parsedBody.starts_on === today == true',
+    '?? body name == a > b',
+  ]) {
+    const [r] = runAssertions([l], res);
+    assert.equal(r.passed, false, l);
+    assert.match(r.message, /^unsupported httpYac assertion/, l);
+  }
+  // No later predicate: the expected text keeps its spaces and symbols.
+  assert.equal(parseAssertion('?? js response.parsedBody.exchangeType == USD => EUR').expected, 'USD => EUR');
+  assert.equal(parseAssertion('?? body description == Plain text, with commas').expected, 'Plain text, with commas');
+});
+
+test('httpYac ?? lines httpYac itself ignores, and duration phases, fail with a clear reason', () => {
+  for (const l of ['?? status 200', '?? header Content-Type ~= application/json', '?? status in [401, 403, 404]', '?? body type ping']) {
+    const [r] = runAssertions([l], res);
+    assert.equal(r.passed, false, l);
+    assert.match(r.message, /^unsupported httpYac assertion .*httpYac itself does not read this line as a test/, l);
+  }
+  assert.match(runAssertions(['?? duration firstByte < 100'], res)[0].message, /firstByte timing phase is not measured/);
+  assert.match(runAssertions(['?? status foo == 200'], res)[0].message, /unexpected "foo" after "status"/);
+});
+
+test('the ?? lines of a real httpYac layout run against responses: pass, fail, or unsupported', async () => {
+  const { readFileSync } = await import('node:fs');
+  const reqs = parseHttpFile(readFileSync(new URL('./fixtures/httpyac-real.http', import.meta.url), 'utf8')).requests;
+  const reply = (status: number, body: unknown): HttpResponse => ({
+    ...res, status, headers: [['Content-Type', 'application/json']], body: JSON.stringify(body), timeMs: 40,
+  });
+  const run = (i: number, r: HttpResponse) => runAssertions(reqs[i].asserts ?? [], r).map((x) => x.passed);
+  assert.deepEqual(run(0, reply(200, { status: 'UP' })), [true, true, true, true]);
+  assert.deepEqual(run(0, reply(503, { status: 'DOWN' })), [false, true, true, false]);
+  assert.deepEqual(run(1, reply(201, { key: 'key-1', tags: ['tag-2'] })), [true, true, true, true]);
+  assert.deepEqual(run(1, reply(201, { key: 'key-1', tags: ['tag-1'] })), [true, true, true, false]);
+  // JavaScript with `||` and a line httpYac itself does not read as a test: failed, never passed.
+  const random = runAssertions(reqs[2].asserts ?? [], reply(200, { items: [{ name: 'Salt' }] }));
+  assert.deepEqual(random.map((x) => x.passed), [true, true, false, false]);
+  assert.match(random[2].message, /^unsupported httpYac assertion/);
+  assert.match(random[3].message, /httpYac itself does not read this line as a test/);
+  assert.deepEqual(run(3, reply(200, { '@odata.count': 5, value: [{ name: 'First report' }] })), [true, true]);
+  assert.deepEqual(run(6, reply(201, {})), [true, false]); // the xpath line is unsupported
 });
 
 test('.http files: @assert lines parse in order and round-trip', () => {

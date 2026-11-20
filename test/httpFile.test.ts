@@ -214,3 +214,83 @@ test('httpYac ?? lines round-trip: serialize keeps them verbatim, replaceRequest
   assert.match(out2, /\n\{"name":"Bob"\}\n\n\?\? status == 201\n\?\? js response\.parsedBody\['a b'\]  ==  "x y"\n\n### After the body, no blank line/);
   assert.equal(parseHttpFile(out2).requests[2].body, '{"name":"Bob"}');
 });
+
+// Anonymised from public httpYac files (GitHub code search) and checked against httpYac 6.16's own
+// parser: same requests, methods and URLs. One deliberate difference: httpYac would start a request
+// at the `POST /...` text inside the multipart field; Plainwire keeps a multipart body whole.
+const realYac = readFileSync(new URL('./fixtures/httpyac-real.http', import.meta.url), 'utf8');
+
+test('real httpYac layouts: requests without ###, scripts, handlers, block comments, URL continuation', () => {
+  const f = parseHttpFile(realYac);
+  assert.deepEqual(
+    f.requests.map((r) => `${r.method} ${r.url}`),
+    [
+      'GET {{baseUrl}}/health',
+      'POST {{baseUrl}}/api/keys',
+      'GET {{baseUrl}}/random',
+      'GET {{baseUrl}}/api/data/v9.2/reports(42)?$top=5',
+      'POST {{baseUrl}}/upload',
+      'POST {{baseUrl}}/session',
+      'MOVE {{baseUrl}}{{$xpath:trash //d:response[2]/d:href}}',
+    ],
+  );
+  assert.deepEqual(f.variables, [
+    { name: 'baseUrl', value: '{{BASE_URL}}' },
+    { name: 'xpath_ns', value: 'd = DAV:' },
+    { name: 'lazyToken', value: '{{login.token}}' },
+    { name: 'session', value: '{{createSession.id}}' },
+  ]);
+  const [health, keys, random, report, upload, session, move] = f.requests;
+  // The block comment (with a ### inside) and the global script are kept, never sent or split on.
+  assert.equal(health.rawBefore?.[0], '/*');
+  assert.ok(health.rawBefore?.includes('}}'));
+  assert.equal(health.name, 'health');
+  assert.equal(health.asserts?.length, 4);
+  assert.equal(health.body, undefined);
+  // A request line after a body starts the next request; its comment and @name lines go with it.
+  assert.equal(keys.body, '{\n  "key": "key-1"\n}');
+  assert.equal(keys.asserts?.length, 4);
+  assert.equal(random.name, 'random');
+  assert.deepEqual(random.comments, ['/ No delay']);
+  assert.equal(random.body, undefined);
+  // `{{@response ... }}` after the request is a script, not a body; `??` inside it is JavaScript.
+  assert.equal(report.body, undefined);
+  assert.deepEqual(report.asserts, ['?? js response.parsedBody["@odata.count"] == 5', '?? body value[0].name == First report']);
+  assert.equal(report.rawAfter?.[0], '{{@response');
+  // `< {% %}` before and `> {% %}` / `>>` after: kept verbatim; the multipart body stays whole.
+  assert.equal(upload.rawBefore?.[0], '< {%');
+  assert.equal(upload.body, '--WebKitFormBoundary\nContent-Disposition: form-data; name="note"\n\nPOST /this-is-text-in-a-form-field\n--WebKitFormBoundary--');
+  assert.equal(upload.asserts, undefined);
+  assert.deepEqual(upload.rawAfter?.slice(-2), ['%}', '>> ./out/upload.json']);
+  // Notes and variables after a blank line are not sent as body.
+  assert.equal(session.body, 'USERNAME={{user}}&PASSWORD={{pass}}');
+  assert.deepEqual(session.rawAfter, ['# keep the session id for the next requests', '@session = {{createSession.id}}']);
+  assert.equal(move.body, undefined);
+  assert.deepEqual(move.headers, [{ name: 'Destination', value: '{{baseUrl}}/files/a.txt' }]);
+  assert.deepEqual(move.rawAfter?.slice().sort(), ['# Then the status should be 201', '<> ./previous/restore.json']);
+});
+
+test('real httpYac layouts survive a GUI edit of any request', () => {
+  const f = parseHttpFile(realYac);
+  const strip = (r: object) => {
+    const { startLine, endLine, requestLine, rawAfter, ...rest } = r as Record<string, unknown>;
+    return { ...rest, rawAfter: (rawAfter as string[] | undefined)?.slice().sort() };
+  };
+  for (let i = 0; i < f.requests.length; i++) {
+    const out = replaceRequest(realYac, i, f.requests[i]);
+    const g = parseHttpFile(out);
+    assert.deepEqual(g.requests.map(strip), f.requests.map(strip), `edit of request ${i}`);
+    assert.deepEqual(g.variables, f.variables, `edit of request ${i}`);
+  }
+});
+
+test('a request line only splits when it looks like one; comments directly after body text stay body', () => {
+  const text = 'POST http://x.test/notes\nContent-Type: text/plain\n\nDELETE everything\nGET is a verb\n# not a comment here\n';
+  const [r, ...more] = parseHttpFile(text).requests;
+  assert.equal(more.length, 0);
+  assert.equal(r.body, 'DELETE everything\nGET is a verb\n# not a comment here');
+  const two = parseHttpFile('GET http://x.test/a\n\nGET example.com/b\n\nDELETE localhost:8080/c HTTP/1.1\n').requests;
+  assert.deepEqual(two.map((x) => `${x.method} ${x.url}`), ['GET http://x.test/a', 'GET example.com/b', 'DELETE localhost:8080/c']);
+  // An unterminated script or block comment is not one.
+  assert.equal(parseHttpFile('POST http://x.test/a\n\n{{\n"a": 1\n').requests[0].body, '{{\n"a": 1');
+});
