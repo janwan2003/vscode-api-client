@@ -101,17 +101,36 @@ Complaints and paywall:
   config, so files move between IntelliJ and VS Code; all five grants incl. Authorization Code + PKCE via a loopback redirect, cached and
   refreshed, in the extension and the CLI. REST Client has none (#302). Plus a form **environment editor** with secrets kept in the
   git-ignored private file (what Thunder Client switchers expect).
+- **Folders and drag and drop over plain files** (session 11, 0.11.0): the sidebar mirrors the workspace's folders → `.http` files →
+  requests, with drag to reorder/move, rename, duplicate, move to file, delete. Thunder Client's tree UX, but every edit is a minimal
+  text edit that leaves the rest of the file byte for byte (small git diffs), which neither REST Client (no tree) nor Thunder (JSON
+  storage) offers.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.10.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.11.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 108 KB `.vsix`, 141 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 115 KB `.vsix`, 142 KB CLI file):
+- 0.11.0 (2026-11-20, session 11): **Requests view with folders** (`src/ext/tree.ts`: `FolderNodeItem` → `FileNode` → `RequestNode`,
+  `getParent` for `reveal`, one root per workspace folder when multi-root; `src/core/folders.ts`: `buildFolderTree` with compact
+  single-child folders, setting `plainwire.collections.compactFolders`, `parentFolder`, `invalidName`). **Organising**
+  (`src/core/organize.ts`, pure: `requestBlock`, `deleteRequest`, `insertBlock`, `moveRequest`, `moveRequests` (multi-select, several
+  files), `duplicateRequest` (title "(copy)", free `@name` like `create2`), `renameRequest` (only the `###` line), `chainedNames`; file
+  variables/imports stay in their file; CRLF kept). `src/ext/organize.ts` `Organizer`: TreeDragAndDropController (requests onto a
+  request = place there, after it when dragging down in the same file; onto a file = append; files/folders onto a folder =
+  WorkspaceEdit rename; `text/uri-list` so files drop into editors), commands New Request / New .http File… / New Folder… / Rename… (F2)
+  / Duplicate / Delete (modal, trash) / Move Up/Down (Alt+↑/↓) / Move to File… / Run All Requests in Folder; edits via WorkspaceEdit +
+  save; warning naming the `# @import` to add when a moved `@name` request is still chained from its old file.
+  `RequestPanel.relocate`/`renamed` re-point open request tabs. **Import:** Postman/Thunder nested folders → subdirectories
+  (`ImportedCollection.folders[].path`; `collectionToFiles` de-duplicates per directory); converter `docs/convert.js` rebuilt. New page
+  `organize-api-requests-folders-vscode.html` with `docs/collections.png`, a **real VS Code screenshot** (`scripts/shot/sidebar.mjs`:
+  headless VS Code + `--remote-debugging-port`, driver `sidebar-driver.cjs`, CDP sash drag + `Page.captureScreenshot`); 3 import pages'
+  folder rows updated; landing "v0.11" card + guide card; sitemap 23 URLs.
 - 0.10.0 (2026-11-20, session 10): **OAuth 2.0** (`src/core/oauth2.ts`): `readAuthConfig` reads JetBrains `"Security": {"Auth": {id:
   {...}}}` (keys from jetbrains.com/help/idea/oauth-2-0-authorization.html: Type OAuth2/Mock, Grant Type ×5, Auth/Token/Redirect/Device
   Auth URL, Client ID/Secret, Client Credentials basic|in body|none, Scope, Username/Password, PKCE true|{Code Challenge Method, Code
@@ -205,14 +224,30 @@ What exists (TypeScript, no runtime dependencies, 108 KB `.vsix`, 141 KB CLI fil
   (file vars, environments with `$shared`, `$guid`/`$timestamp`/`$randomInt`/`$datetime`/`$processEnv`/`$dotenv`,
   request chaining with a JSONPath subset) (`variables.ts`), sender on `node:http`/`https` since 0.2.0 (`send.ts`), cURL parse/emit (`curl.ts`),
   Thunder Client (export JSON + legacy `thunder-tests/` layout) and Postman v2.0/v2.1 + environment importers.
-- `src/ext/`: webview request editor/response viewer (`panel.ts` + `media/panel.js`), sidebar (Requests from all
+- `src/ext/`: webview request editor/response viewer (`panel.ts` + `media/panel.js`), sidebar (Requests: folders → files → requests since 0.11.0; before, all
   `.http` files, History in workspaceState), CodeLens (Send / Open in Plainwire / Copy as cURL), environments from
   `http-client(.private).env.json` + `rest-client.environmentVariables` + `plainwire.environmentVariables`, status-bar
   env picker, import commands, `.http` TextMate grammar.
-- `docs/`: GitHub Pages site, 21 pages in the sitemap (session 9 added `cookies-session-login-http-file.html`; session 8 added `import-http-file-shared-variables.html`,
+- `docs/`: GitHub Pages site, 23 URLs in the sitemap (session 11 added `organize-api-requests-folders-vscode.html`; session 9 added `cookies-session-login-http-file.html`; session 8 added `import-http-file-shared-variables.html`,
   `server-sent-events-vscode.html` with `sse.png`; session 7 added `openapi-to-http-file.html`, `rest-client-alternative.html`; earlier: landing, privacy, support, 2 converter tools, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
   `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (16 URLs).
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (0.11.0, session 11) how:
+- `tsc --noEmit` clean; local `node scripts/test.mjs` **336 tests: 305 pass, 0 fail, 31 skip** (snippet interpreters not installed).
+  New `test/organize.test.ts` (14), incl. a property test: on `sample.http` and `httpyac-real.http` every move (each request to each
+  position), delete and duplicate leaves every other request's parsed content and the file's variable names unchanged. 2 new import tests.
+- e2e **20/20 twice** in headless VS Code (snap, `/snap/code/current/usr/share/code/code`), on the final minified build. New check: tree
+  shows `shop` folder → `admin` + `orders.http`, drag "Create order" onto another file (exact file text asserted on both sides), drag a
+  request down onto the next one (lands after it), Duplicate and Move Up via the commands, drag `loose.http` onto a folder (moved on disk).
+- CI **44772687521** (2698ada, Node 20 + 22): 336 tests, **335 pass, 0 fail, 1 skip** each. Pages build 44772686438 success.
+  Release v0.11.0: **Action smoke 44773031598 success**; 3 assets downloaded back, sha256 identical to local builds. CLI
+  `plainwire import test/fixtures/postman-v21.json` → `http/Pet Store API/Pets/Admin.http` (nested). Live: `/` (shows v0.11), new page,
+  `collections.png`, `sitemap.xml` (23 locs), converter page + `convert.js` → 200. GSC sitemap resubmitted (204), still pending.
+- NOT verified: a real mouse drag in the UI (e2e calls the controller's `handleDrag`/`handleDrop` directly, which is what VS Code calls);
+  the InputBox/modal paths (Rename, New File/Folder, Delete confirm) and the F2/Delete/Alt+↑↓ keybindings were not driven; the
+  open-tab re-pointing (`RequestPanel.relocate`) has no automated check; multi-root workspaces not run; not tried in Cursor/VSCodium
+  this session.
 
 Verified 2026-11-20 (0.10.0, session 10) how:
 - `corepack pnpm@9.15.0 typecheck` clean; local `node scripts/test.mjs` **321 tests: 290 pass, 0 fail, 31 skip** (snippet interpreters).
@@ -408,18 +443,20 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.10.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.11.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
-   especially the 3 converter pages, `rest-client-alternative.html` and the 3 newest feature pages (cookies, SSE, import).
-3. Thunder Client switchers' next likely miss: **folders inside a collection** in the sidebar (sub-folders of requests, drag to
-   reorder). Then OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded
-   JWT claims), and `plainwire run --cookie-jar <file>`. Hand-test the env editor and Auth tab in a real window (not yet done).
-4. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
+   especially the 3 converter pages, `rest-client-alternative.html`, and the newest feature pages (folders, cookies, SSE, import).
+3. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
+   handlers with injected answers), a check that an open request tab follows a moved request, and one multi-root run.
+4. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
+   `plainwire run --cookie-jar <file>`. Hand-test the env editor and Auth tab in a real window (still not done; the CDP technique in
+   `scripts/shot/sidebar.mjs` can now drive a real headless VS Code window for that).
+5. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
    of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
-5. JetBrains `run #name` execution (parsed since 0.6.0, not run); WebSocket; Copy as cURL adds `-N` for streams.
-6. Converters: test in Firefox; drag-and-drop.
-7. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
-8. After the store listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
+6. JetBrains `run #name` execution (parsed since 0.6.0, not run); WebSocket; Copy as cURL adds `-N` for streams.
+7. Converters: test in Firefox; drag-and-drop.
+8. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
+9. After the store listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
 
 ## Monetization plan
 
@@ -481,8 +518,18 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   format (all grants, PKCE, refresh; extension, Auth tab and CLI) and, from a worktree subagent, a form environment editor with secrets in
   the private file; fixed the cookies guide's broken markup. Evidence: CI 44768846427 320/0/1, e2e 19/19 ×2, live Duende demo runs
   (client credentials + browser Authorization Code with PKCE and refresh), Action smoke 44769242830, assets byte-identical, GSC 204.
+- 2026-11-20 builder (session 11): stores still blocked (no `VSCE_PAT`/`OVSX_PAT` in `.env`). Shipped **0.11.0**: the Requests view
+  shows folders → files → requests with drag and drop, rename, duplicate, move up/down/to file, delete, new file/folder, run folder;
+  byte-preserving block edits in `core/organize.ts`; nested Postman/Thunder folders import as subdirectories; guide page + a real
+  VS Code screenshot via CDP. Evidence: CI 44772687521 335/0/1, e2e 20/20 ×2, Action smoke 44773031598, assets byte-identical, GSC 204.
 
 ## Metrics
+
+- 2026-11-20 (session 11, 17:26): GitHub release downloads v0.11.0 all 0 (published minutes earlier; our download-back not counted
+  yet); v0.10.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3; v0.9.0 and v0.8.0 the same 2/2/3 (our own checks and Action smoke runs account for
+  most); repo 0 stars, 0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`,
+  `/traffic/views`, `/traffic/clones`). Search Console: sitemap pending, 0 errors, analytics empty 2026-10-23..11-20
+  (`scripts/gsc.py status`); resubmitted with 23 URLs (204).
 
 - 2026-11-20 (session 10, 17:10): GitHub release downloads v0.9.0 `.vsix` 1, tgz 1, `plainwire.mjs` 2; v0.8.0 2/2/3; v0.4.0–v0.7.0
   2/1–2/3 each (our own checks and Action smoke runs account for most); v0.10.0 just published; repo 0 stars, 0 forks, 0 watchers;
