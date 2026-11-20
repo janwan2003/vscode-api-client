@@ -1,0 +1,47 @@
+{
+  "info": {
+    "_postman_id": "00000000-0000-0000-0000-000000000000",
+    "name": "Notes API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "oauth2",
+    "oauth2": [
+      { "key": "tokenName", "value": "Full Access", "type": "string" },
+      { "key": "accessTokenUrl", "value": "https://{{host}}/token", "type": "string" },
+      { "key": "grant_type", "value": "authorization_code", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+            "pm.test(\"json\", () => pm.response.to.be.json);",
+            "pm.test('allowed codes', function () {",
+            "  pm.expect([200, 201, 403]).to.include(pm.response.code);",
+            "});",
+            "pm.test('no script tag', function () { pm.expect(pm.response.text()).to.not.include('<script>'); });",
+            "const body = pm.response.json();",
+            "pm.test('two checks', function () { pm.expect(body.items.length).to.be.above(1); pm.expect(body.total).to.eql(2); });",
+            "pm.test('conditional', function () { if (body.items.length) { pm.expect(body.items[0].kind).to.eql('note'); } });",
+            "pm.environment.set('token', body.token);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "raw", "raw": "{\"user\": \"{{$randomUserName}}\", \"id\": \"{{$guid}}\"}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "https://{{host}}/login", "protocol": "https", "host": ["{{host}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Me",
+          "request": { "method": "GET", "header": [], "url": { "raw": "https://{{host}}/me", "protocol": "https", "host": ["{{host}}"], "path": ["me"] } }
+        }
+      ]
+    }
+  ]
+}

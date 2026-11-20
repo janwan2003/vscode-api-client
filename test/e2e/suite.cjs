@@ -31,7 +31,7 @@ exports.run = async function run() {
   const ws = vscode.workspace.workspaceFolders[0].uri;
   fs.writeFileSync(path.join(ws.fsPath, 'http-client.env.json'), JSON.stringify({ local: { host: `http://127.0.0.1:${port}`, envName: 'local' } }));
 
-  const ext = vscode.extensions.getExtension('plainwire.plainwire');
+  const ext = vscode.extensions.getExtension('plainbyte.plainwire');
   await check('extension activates', async () => {
     assert.ok(ext, 'extension not found');
     await ext.activate();

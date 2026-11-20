@@ -143,3 +143,51 @@ test('every request round-trips through serializeHttpFile/parseHttpFile', () => 
     }
   }
 });
+
+// Shapes below were checked against real Thunder Client files on GitHub (fixtures are trimmed
+// and anonymised copies): the split thunder-tests/collections/tc_col_*.json layout, collection
+// settings.options.baseUrl with relative request URLs, collection/folder settings.headers, quoted
+// res-body values and {{#...}} dynamic variables.
+test('split layout tc_col_*.json: baseUrl, inherited headers, auth none, quoted test value, dynamic variables', () => {
+  const shop = importThunder(load('thunder-split/tc_col_shop.json'));
+  assert.equal(shop.name, 'Shop');
+  const login = find(shop, '/auth/login');
+  assert.equal(login.url, 'https://api.example.com/v1/auth/login');
+  // Request header first, then the collection's (disabled ones dropped); auth "none" adds nothing.
+  assert.deepEqual(login.headers, [
+    { name: 'X-Request-Id', value: '{{$guid}}' },
+    { name: 'X-API-Key', value: '{{apiKey}}' },
+    { name: 'Content-Type', value: 'application/json' },
+  ]);
+  // Thunder matches the quotes literally, so they must survive as part of the expected value.
+  assert.deepEqual(login.asserts, ['status == 200', 'body contains "\\"LOGIN_SUCCESS\\""']);
+  assert.ok(shop.warnings.some((w) => w.startsWith('"Auth / /auth/login": dynamic variable(s) {{#email}}')));
+
+  const users = find(shop, 'List users');
+  assert.equal(users.url, 'https://api.example.com/v1/users?limit=20');
+  // Own header wins over the folder's; folder X-API-Key wins over the collection's; then bearer.
+  assert.deepEqual(users.headers, [
+    { name: 'X-Admin', value: '2' },
+    { name: 'X-API-Key', value: '{{adminKey}}' },
+    { name: 'Authorization', value: 'Bearer {{token}}' },
+  ]);
+  assert.equal(find(shop, 'Health').url, 'https://status.example.com/health');
+  assert.equal(find(shop, 'Local').url, 'localhost:3000/ping');
+  assert.equal(find(shop, 'Other host').url, '{{otherHost}}/status');
+});
+
+test('inherited auth that cannot be converted is reported once, not per request', () => {
+  const erp = importThunder(load('thunder-split/tc_col_oauth.json'));
+  assert.deepEqual(erp.folders[0].requests.map((r) => r.url), ['https://erp.example.com/{{tenant}}/api/customers', 'https://erp.example.com/{{tenant}}/api/items']);
+  assert.deepEqual(erp.warnings, ['Collection auth: OAuth 2.0 auth has no stored access token; not imported.']);
+});
+
+test('legacy workspace: a leftover request without colId or URL does not create an extra collection', () => {
+  const cols = importThunderWorkspace({
+    collections: [{ _id: 'c1', colName: 'Api', folders: [] }],
+    requests: [{ _id: 'r1', colId: 'c1', name: 'Ping', url: 'https://api.example.com/ping', method: 'GET' }, { _id: 'r2', colId: null, name: '', url: '' }],
+    environments: [{ name: 'Dev', data: [{ name: 'host', value: 'http://localhost' }] }],
+  });
+  assert.deepEqual(cols.map((c) => c.name), ['Api']);
+  assert.ok(cols[0].warnings.includes('1 request(s) did not belong to a known collection.'));
+});

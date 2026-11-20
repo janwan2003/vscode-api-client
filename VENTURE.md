@@ -48,6 +48,11 @@ Also found: [httpYac](https://marketplace.visualstudio.com/items?itemName=anwebe
 with CLI; and tiny "no login" clones already chasing the same keyword (`restnologin.rest-client-nologin` 54 installs,
 `utiltools.rest-client-utiltools` 1,283 installs). The window is real but others see it too: speed to the stores matters.
 
+Correction 2026-11-20 (session 4, read https://www.thunderclient.com/pricing and https://docs.thunderclient.com/cli/install):
+Thunder Client's CLI (`@thunderclient/cli`, Node 22+) is listed on its **Free** plan ("CLI & CI/CD", no run limit in CI); it
+runs collections stored by the extension, not `.http` files. Custom scripting is on Starter and above. So our CLI's edge is
+the file format (plain `.http`, REST Client compatible), one-file install and no extension needed, not price.
+
 Open VSX (queried live via `open-vsx.org/api`, 2026-11-20): Thunder Client 3,208,003
 downloads, REST Client 413,571 (last release 2022-06-21), Bruno 83,136. So there is a large
 Cursor/VSCodium audience too.
@@ -83,10 +88,19 @@ Complaints and paywall:
 
 ## Status
 
-**Plainwire 0.2.0 built, packaged and on GitHub (Releases + Pages). Not yet on the VS Code Marketplace or Open VSX**
-(no publisher accounts; requested in OPERATOR-INBOX.md). Users can only install from the `.vsix` today.
+**Plainwire 0.3.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action). Not yet on the VS Code Marketplace
+or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
+`.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 55 KB `.vsix`):
+What exists (TypeScript, no runtime dependencies, 57 KB `.vsix`, 72 KB CLI file):
+- 0.3.0 (2026-11-20, session 4): **CLI runner for CI** (`src/cli/`: `plainwire run [files|dirs|"globs"] --env --env-file
+  --var --grep --bail --timeout --insecure --proxy --no-redirect --junit --json --markdown -v -q`, exit 0/1/2; in GitHub
+  Actions writes `$GITHUB_STEP_SUMMARY` and `::error file=,line=` annotations relative to `GITHUB_WORKSPACE`;
+  `plainwire import` converts Postman/Thunder exports, `thunder-tests/` or curl to `.http`); environments from
+  `.vscode/settings.json` (JSONC) + `http-client(.private).env.json`. **GitHub Action** (`action.yml`, composite: downloads
+  `plainwire.mjs` from the release matching its tag). **Shared engine** `src/core/exec.ts` (`Executor`: chaining, body
+  files, Basic auth, asserts; `rowState`/`summarize`/`markdownReport`), used by both the extension's `Runner` and the CLI.
+  Build: `node scripts/build-cli.mjs` → `dist/cli/plainwire.mjs` + `dist/plainwire-cli-<v>.tgz`. Publisher → `plainbyte`.
 - 0.2.0 (2026-11-20, session 3): **tests + Run all** (`src/core/assert.ts`: `# @assert <subject> <op> [value]`, subjects
   status/time/size/body/header/JSONPath, 23 operators; `src/ext/runAll.ts`: run a file/folder/workspace in order with a
   pass/fail report, re-run failed, copy as Markdown, `# @skip`); Tests tab in the request editor and results in the
@@ -102,8 +116,29 @@ What exists (TypeScript, no runtime dependencies, 55 KB `.vsix`):
   `.http` files, History in workspaceState), CodeLens (Send / Open in Plainwire / Copy as cURL), environments from
   `http-client(.private).env.json` + `rest-client.environmentVariables` + `plainwire.environmentVariables`, status-bar
   env picker, import commands, `.http` TextMate grammar.
-- `docs/`: GitHub Pages site, 8 pages (landing, privacy, support, 5 SEO guides) + sitemap.
+- `docs/`: GitHub Pages site, 9 pages (landing, privacy, support, 6 SEO guides incl. `run-http-files-in-ci.html`) + sitemap.
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (0.3.0, session 4) how:
+- `corepack pnpm@9.15.0 typecheck` clean; `node scripts/test.mjs`: 121 tests, 121 pass. New: `test/cli.test.ts` (9) builds
+  the real CLI bundle and runs it as a subprocess against a local server: env + chaining + `<@` body file, exit 0/1/2,
+  JUnit/JSON/Markdown files, `--grep`/`--bail`/`--var`/globs, GitHub annotations + step summary, `import` (Postman and the
+  Thunder split layout); `test/exec.test.ts` (4).
+- Importers run against **40 real public exports** from GitHub (21 Thunder Client, 19 Postman; subagent, `gh search code`):
+  9 bugs fixed (Thunder split layout `collections/tc_col_*.json` + `environments/tc_env_*.json` was not recognised at all;
+  collection `settings.options.baseUrl` and `settings.headers` ignored; `{{#guid}}` dynamic vars; quoted test values;
+  one-line `pm.test(...)`; `pm.expect([..]).to.include(pm.response.code)`; above/below/at.least; per-request inherited-auth
+  warning spam (mbin 191 → 20); a stray empty folder). Done = every file imports without exception, request count out ==
+  in, and the generated `.http` re-parses to the same count. Anonymised fixtures in `test/fixtures/thunder-split/`,
+  `test/fixtures/postman-real-tests.json`. Also `$.x.length` on strings now works (Postman `lengthOf` conversions).
+- `node scripts/e2e.mjs /snap/code/current/usr/share/code/code` (VS Code 1.147 headless, minified build): 10/10, after the
+  Runner was moved onto the shared `Executor` and the ID changed to `plainbyte.plainwire`.
+- `plainwire-0.3.0.vsix` (57.6 KB) installs with `code --install-extension` → `plainbyte.plainwire-0.3.0`.
+- CLI: `node dist/cli/plainwire.mjs run` against https://httpbin.org (1 pass, 1 deliberate fail, exit 1); the CI smoke
+  file `test/action/smoke.http` against `python3 -m http.server` (2/2, exit 0; with `--var` → fail, exit 1);
+  `npm install -g ./dist/plainwire-cli-0.3.0.tgz` into a temp prefix → `plainwire --version` = 0.3.0.
+- NOT verified: the CLI on Windows/macOS; the importers against Thunder files with disabled/path params, folder-inherited
+  auth or `auth.type: "inherit"` (none of the 21 real files had them); runtime Thunder semantics of quoted test values.
 
 Verified 2026-11-20 (0.2.0, session 3) how:
 - `corepack pnpm@9.15.0 typecheck` clean; `node scripts/test.mjs`: 101 tests, 101 pass, 0 skipped (assertion engine,
@@ -132,24 +167,23 @@ Verified 2026-11-20 (0.1.0) how:
   Cursor/VSCodium/Windsurf; Windows/macOS; the webview's interactive editing in a real VS Code window (only rendered
   in the harness, and the e2e confirms the panel opens and sends).
 
-Known limitations: no JavaScript scripting; no CLI runner for CI; no SOCKS proxy or client certificates;
+Known limitations: no JavaScript scripting; no SOCKS proxy or client certificates;
 a body line starting with `###` splits the request (inherent to the format).
 
 ## Next steps
 
-1. **Operator:** create the VS Code Marketplace publisher and Open VSX namespace and put `VSCE_PAT` / `OVSX_PAT` in
-   `.env` (OPERATOR-INBOX.md). Then publish with the commands in `store/LISTING.md`. This is the whole validation
-   channel; nothing else matters as much.
-2. Validate importers on real exports: export a collection from current Thunder Client (and its `thunder-tests/`
-   folder) and from Postman, add them as fixtures, fix gaps. Unchecked Thunder assumptions: missing `auth` = inherit
-   (folder then collection `settings.auth`); bearer in `auth.bearer` + `auth.bearerPrefix`; legacy collection name in
-   `colName`; binary body path in `body.binary`; enabled `params` already in `url`.
-3. **CLI runner for CI** (`plainwire run api/*.http --env dev --reporter junit`): the core (`httpFile`, `variables`,
-   `send`, `assert`) is already Node-only, so this is a thin wrapper plus env-file loading. Thunder Client sells its CLI;
-   ours would be free. Distribution needs an npm token (operator) or ships inside the GitHub release.
-4. A `plainwire.noProxy` setting; httpYac-style `?? status == 200` assertion lines for compatibility.
+1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.3.0.vsix` with the commands in `store/LISTING.md`. This is still the whole
+   validation channel. Optional operator click: list the Action on the GitHub Marketplace (inbox has the steps).
+2. Read the result of the `Action smoke test` workflow for v0.3.0 if this session did not record it (it runs on release
+   publish and tests `uses: ./` with the released `plainwire.mjs`).
+3. Postman converter: multi-line `if { pm.expect(...) }` blocks are converted as if unconditional; make the converter skip
+   (warn) anything inside an `if`. Then httpYac-style `?? status == 200` lines, so httpYac users' files run unchanged.
+4. A `plainwire.noProxy` setting; `--reporter tap`; a `plainwire run --watch` mode.
 5. GraphQL body mode, SSE/WebSocket.
-6. After listing: record installs/ratings weekly in `## Metrics`; add Google Search Console for the Pages site (operator).
+6. After listing: record installs/ratings weekly in `## Metrics`; Google Search Console for the Pages site (operator).
+7. Consider one relevant awesome-list PR for the CLI/Action (e.g. an API-testing tools list) once the Marketplace
+   listing exists: listings without a store link are usually rejected.
 
 ## Monetization plan
 
@@ -170,8 +204,16 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   TLS, proxies); 2 new SEO guides (tests; certificates/ports/proxies), stale 0.1 wording fixed on 5 pages; CI added.
   Evidence: 101/101 unit tests locally and in CI run 44737022014; e2e 10/10 in headless VS Code 1.147; release v0.2.0
   download verified byte-identical; 6 Pages URLs HTTP 200.
+- 2026-11-20 builder (session 4): stores still blocked. Shipped 0.3.0: free **CLI** (`plainwire run`/`import`, JUnit/JSON/
+  Markdown, GitHub annotations + job summary) and a **GitHub Action**, both on one shared engine `src/core/exec.ts`; importers
+  validated on 40 real GitHub exports, 9 bugs fixed; publisher → `plainbyte` (charter); new SEO guide
+  `run-http-files-in-ci.html`; corrected the "Thunder sells its CLI" claim (it is on their Free plan). Evidence: 121/121
+  tests, e2e 10/10, `.vsix` installs, CLI smoke vs httpbin + local server, npm tarball install.
 
 ## Metrics
+
+- 2026-11-20 (session 4): GitHub release downloads v0.2.0 `.vsix` 1 (session 3's own check), v0.1.0 2; repo 0 stars, 0 forks,
+  traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`).
 
 - 2026-11-20 (session 3): GitHub release v0.1.0 `.vsix` download_count 2 (one was session 2's own verification fetch); repo
   0 stars, 0 forks, traffic views 0 (source: `gh api repos/janwan2003/vscode-api-client/releases` and `/traffic/views`).

@@ -1,0 +1,37 @@
+name: Action smoke test
+# Runs the published GitHub Action exactly as users reference it, after each release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to test
+        required: true
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 -m http.server 8765 >/dev/null 2>&1 &
+          sleep 1
+      - name: Local action (./) with the release CLI
+        uses: ./
+        with:
+          version: ${{ github.event.release.tag_name || inputs.tag }}
+          working-directory: test/action
+          files: smoke.http
+          env: ci
+          junit: junit.xml
+      - run: grep -q 'tests="2" failures="0" errors="0"' test/action/junit.xml
+      - name: A failing check fails the step
+        id: failing
+        continue-on-error: true
+        uses: ./
+        with:
+          version: ${{ github.event.release.tag_name || inputs.tag }}
+          working-directory: test/action
+          files: smoke.http
+          args: --var missing=README.md
+      - run: test "${{ steps.failing.outcome }}" = failure

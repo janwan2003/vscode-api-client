@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run .http files in CI: a free CLI and GitHub Action for API tests | Plainwire</title>
+<meta name="description" content="Run REST Client / JetBrains .http files from the command line and in GitHub Actions, GitLab CI or Jenkins. # @assert checks, JUnit XML, exit codes, environments. Free, one file, no account, no run limits.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/run-http-files-in-ci.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Run .http files in CI">
+<meta property="og:description" content="A free command-line runner and GitHub Action for .http API tests: assertions, JUnit XML, PR annotations. No account.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/run-http-files-in-ci.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Run .http files in CI</h1>
+    <p>The <code>.http</code> files you send from VS Code can also run as API tests in your pipeline. <strong>plainwire</strong> is a free command-line runner for the REST Client / JetBrains HTTP format. It sends every request in order, checks the <code># @assert</code> lines, prints a pass/fail report and exits with code 1 when anything fails. It is one JavaScript file that needs only Node.js 18 or newer, with no account, no login and no run limits.</p>
+    <p class="small">The CLI shipped with Plainwire 0.3.0. It shares its request engine with the <a href="./">Plainwire VS Code extension</a>, so a file that passes in the editor passes in CI. You can use the CLI without the extension.</p>
+
+    <nav class="toc" aria-label="On this page">
+      <ul>
+        <li><a href="#quick">Try it in ten seconds</a></li>
+        <li><a href="#file">A test file</a></li>
+        <li><a href="#github">GitHub Actions</a></li>
+        <li><a href="#gitlab">GitLab CI, Jenkins and others</a></li>
+        <li><a href="#env">Environments and secrets</a></li>
+        <li><a href="#options">Options</a></li>
+        <li><a href="#import">Converting Postman and Thunder Client collections</a></li>
+        <li><a href="#compare">How it compares</a></li>
+        <li><a href="#faq">Questions</a></li>
+      </ul>
+    </nav>
+
+    <h2 id="quick">Try it in ten seconds</h2>
+<pre>curl -fsSLO https://github.com/janwan2003/vscode-api-client/releases/latest/download/plainwire.mjs
+node plainwire.mjs run              <span class="c"># every .http / .rest file under the current folder</span>
+node plainwire.mjs run api/ --env staging --junit results.xml</pre>
+    <p>To get a <code>plainwire</code> command on your PATH, install the release tarball with npm (no registry account involved):</p>
+<pre>npm install -g https://github.com/janwan2003/vscode-api-client/releases/download/v0.3.0/plainwire-cli-0.3.0.tgz</pre>
+    <p>The output looks like this:</p>
+<pre>plainwire 0.3.0 · 3 requests in 1 file · environment staging from http-client.env.json
+
+api/users.http
+  ✓ POST Log in 200 · 84 ms · 2/2 checks
+  ✓ GET Current user 200 · 31 ms · 3/3 checks
+  ✗ DELETE Remove a user 403 · 29 ms · 0/1 checks
+      status == 204: expected 204, got 403
+      at api/users.http:21
+
+2 passed, 1 failed (3 requests, 151 ms)</pre>
+
+    <h2 id="file">A test file</h2>
+    <p>A test is an ordinary request with <code># @assert</code> comment lines above it. Other clients ignore those lines, so the file still works in REST Client and in JetBrains IDEs. The full assertion grammar (status, time, size, headers, body and JSONPath subjects, with 23 operators) is on the <a href="api-tests-in-http-files.html">API tests guide</a>.</p>
+<pre><span class="c"># api/users.http</span>
+<span class="k">###</span> Log in
+<span class="c"># @name login</span>
+<span class="c"># @assert status == 200</span>
+<span class="c"># @assert $.token isString</span>
+POST <span class="v">{{baseUrl}}</span>/auth/login
+Content-Type: application/json
+
+{ "email": "ci@example.com", "password": "<span class="v">{{$processEnv API_PASSWORD}}</span>" }
+
+<span class="k">###</span> Current user
+<span class="c"># @assert status == 200</span>
+<span class="c"># @assert $.roles contains "admin"</span>
+<span class="c"># @assert time &lt; 500</span>
+GET <span class="v">{{baseUrl}}</span>/me
+Authorization: Bearer <span class="v">{{login.response.body.$.token}}</span>
+
+<span class="k">###</span> Remove a user
+<span class="c"># @assert status == 204</span>
+DELETE <span class="v">{{baseUrl}}</span>/users/42
+Authorization: Bearer <span class="v">{{login.response.body.$.token}}</span></pre>
+    <p>The rules are simple. A request passes when all its checks pass. A request <em>without</em> checks passes when its status is below 400, so a plain collection works as a smoke test straight away. <code># @skip</code> leaves a request out. When a request uses <code>{{login.response...}}</code>, the <code>login</code> request is sent first if it has not run yet.</p>
+
+    <h2 id="github">GitHub Actions</h2>
+    <p>The repository is also a GitHub Action. It downloads the CLI from the matching release and runs it:</p>
+<pre><span class="c"># .github/workflows/api-tests.yml</span>
+name: API tests
+on: [push, pull_request]
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      <span class="c"># start your API here, e.g. docker compose up -d</span>
+      - uses: janwan2003/vscode-api-client@v0.3.0
+        with:
+          files: api/
+          env: ci
+          junit: api-results.xml
+          args: --var token=${{ secrets.API_TOKEN }}
+        env:
+          API_PASSWORD: ${{ secrets.API_PASSWORD }}</pre>
+    <p>Inside GitHub Actions the runner also:</p>
+    <ul>
+      <li>writes a pass/fail table to the <strong>job summary</strong>, and</li>
+      <li>prints <code>::error</code> annotations, so every failed request is flagged on its line in the pull request diff.</li>
+    </ul>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Input</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>files</code></td><td>Files, folders or quoted globs, space-separated. Default: every <code>.http</code> / <code>.rest</code> file.</td></tr>
+        <tr><td><code>env</code></td><td>Environment name from <code>http-client.env.json</code>.</td></tr>
+        <tr><td><code>junit</code></td><td>Path for a JUnit XML report (for test-report actions).</td></tr>
+        <tr><td><code>args</code></td><td>Any other options, e.g. <code>--bail --insecure</code>.</td></tr>
+        <tr><td><code>working-directory</code></td><td>Where to run. Default: the repository root.</td></tr>
+        <tr><td><code>version</code></td><td>CLI release to use. Default: the tag in <code>uses:</code>.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 id="gitlab">GitLab CI, Jenkins and others</h2>
+    <p>Any runner with Node.js works the same way. GitLab picks up the JUnit file as a test report:</p>
+<pre><span class="c"># .gitlab-ci.yml</span>
+api-tests:
+  image: node:22-alpine
+  script:
+    - wget -q https://github.com/janwan2003/vscode-api-client/releases/download/v0.3.0/plainwire.mjs
+    - node plainwire.mjs run api/ --env ci --junit api-results.xml
+  artifacts:
+    when: always
+    reports:
+      junit: api-results.xml</pre>
+    <p>In Jenkins, Azure Pipelines or CircleCI, run the same two commands and point their JUnit publisher at the XML file. Exit codes are <code>0</code> when everything passed, <code>1</code> when a request failed or could not be sent, and <code>2</code> for a usage error such as an unknown environment.</p>
+
+    <h2 id="env">Environments and secrets</h2>
+    <p>The CLI reads environments from the same places as the extension, later sources winning:</p>
+    <ol>
+      <li><code>rest-client.environmentVariables</code> and <code>plainwire.environmentVariables</code> in <code>.vscode/settings.json</code>,</li>
+      <li>every <code>http-client.env.json</code> under the working directory,</li>
+      <li>every <code>http-client.private.env.json</code> (keep it out of git),</li>
+      <li>files given with <code>--env-file</code>, then single values from <code>--var name=value</code>.</li>
+    </ol>
+    <p>Keep secrets in your CI's secret store and pass them in as environment variables. Read them in the file with <code>{{$processEnv NAME}}</code>, or from a <code>.env</code> file with <code>{{$dotenv NAME}}</code>. The <code>$shared</code> environment is merged into the selected one, as in REST Client.</p>
+
+    <h2 id="options">Options</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Option</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>-e, --env &lt;name&gt;</code></td><td>Select an environment.</td></tr>
+        <tr><td><code>--env-file &lt;file&gt;</code></td><td>Extra environment file in <code>http-client.env.json</code> format (repeatable).</td></tr>
+        <tr><td><code>--var name=value</code></td><td>Set a variable; wins over the environment (repeatable).</td></tr>
+        <tr><td><code>-g, --grep &lt;regex&gt;</code></td><td>Only requests whose title, <code>@name</code> or URL matches.</td></tr>
+        <tr><td><code>--bail</code></td><td>Stop after the first failed request.</td></tr>
+        <tr><td><code>--timeout &lt;ms&gt;</code></td><td>Per-request timeout (default 60000).</td></tr>
+        <tr><td><code>-k, --insecure</code></td><td>Accept self-signed or invalid TLS certificates (or put <code># @insecure</code> above one request).</td></tr>
+        <tr><td><code>--proxy &lt;url&gt;</code></td><td>HTTP proxy. Default: <code>HTTPS_PROXY</code> / <code>HTTP_PROXY</code>; <code>NO_PROXY</code> is honoured.</td></tr>
+        <tr><td><code>--no-redirect</code></td><td>Do not follow redirects (or <code># @no-redirect</code> per request).</td></tr>
+        <tr><td><code>--junit</code>, <code>--json</code>, <code>--markdown &lt;file&gt;</code></td><td>Write a report.</td></tr>
+        <tr><td><code>-v, --verbose</code></td><td>Print the response body of failed requests.</td></tr>
+        <tr><td><code>-q, --quiet</code></td><td>Print only failures and the summary.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 id="import">Converting Postman and Thunder Client collections</h2>
+    <p>If your requests still live in a Postman or Thunder Client export, convert them first. Common test snippets become <code># @assert</code> lines:</p>
+<pre>node plainwire.mjs import postman_collection.json --out api/
+node plainwire.mjs import thunder-tests/ --out api/
+node plainwire.mjs run api/</pre>
+    <p>The field mappings are described in the <a href="postman-collection-to-http-file.html">Postman guide</a> and the <a href="import-thunder-client-to-http-files.html">Thunder Client guide</a>.</p>
+
+    <h2 id="compare">How it compares</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>plainwire</th><th>httpYac CLI</th><th>Thunder Client CLI</th><th>Postman (Newman)</th></tr></thead>
+      <tbody>
+        <tr><td>Runs</td><td><code>.http</code> files</td><td><code>.http</code> files</td><td>Collections stored by the Thunder Client extension</td><td>Postman collection JSON</td></tr>
+        <tr><td>Price</td><td>Free</td><td>Free</td><td>Listed on the Free plan</td><td>Free</td></tr>
+        <tr><td>Checks</td><td><code># @assert</code> lines</td><td><code>??</code> lines and JS</td><td>Tests set up in the extension</td><td>JS <code>pm.test</code></td></tr>
+        <tr><td>Install</td><td>One file, Node 18+</td><td>npm package</td><td>npm package, Node 22+, plus the extension</td><td>npm package</td></tr>
+        <tr><td>JavaScript scripting</td><td>No</td><td>Yes</td><td>Paid plans</td><td>Yes</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Based on each project&rsquo;s public documentation and pricing pages, read November 2026. If you need JavaScript in your tests, httpYac or Newman will suit you better. If you want plain files, readable checks and a single download, try plainwire.</p>
+
+    <h2 id="faq">Questions</h2>
+    <details>
+      <summary>Is it free? Are there run limits?</summary>
+      <p>Free and MIT-licensed, with no account and no limit on requests or runs. The CLI makes no network calls except the requests in your files, plus the one download of the CLI itself in the GitHub Action.</p>
+    </details>
+    <details>
+      <summary>Do I need VS Code?</summary>
+      <p>No. The CLI only needs Node.js 18 or newer. The VS Code extension is the comfortable way to write and debug the files.</p>
+    </details>
+    <details>
+      <summary>Will my REST Client files work?</summary>
+      <p>Yes. The CLI reads the REST Client format: <code>###</code> separators, <code>@var = value</code>, <code>{{var}}</code>, system variables, <code># @name</code> chaining, <code>&lt; ./file</code> bodies and <code>rest-client.environmentVariables</code>. REST Client has no assertions, so add <code># @assert</code> lines where you want checks. Without them, a request passes on any status below 400.</p>
+    </details>
+    <details>
+      <summary>How do I test against a local server with a self-signed certificate?</summary>
+      <p>Pass <code>--insecure</code>, or put <code># @insecure</code> above the requests that need it. See <a href="self-signed-certificate-localhost-api-client.html">certificates, ports and proxies</a>.</p>
+    </details>
+    <p>The rest of the format is on the <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

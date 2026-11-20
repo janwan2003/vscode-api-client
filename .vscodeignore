@@ -12,3 +12,7 @@ media/icon.svg
 pnpm-lock.yaml
 .gitignore
 .github/**
+action.yml
+cli/**
+dist/cli/**
+dist/*.tgz

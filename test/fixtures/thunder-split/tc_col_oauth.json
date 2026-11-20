@@ -1,0 +1,15 @@
+{
+  "_id": "col-2",
+  "colName": "Erp",
+  "created": "2024-01-01T00:00:00.000Z",
+  "sortNum": 20000,
+  "folders": [],
+  "requests": [
+    { "_id": "e1", "colId": "col-2", "containerId": "", "name": "Customers", "url": "api/customers", "method": "GET", "sortNum": 10000, "created": "2024-01-01T00:00:00.000Z", "modified": "2024-01-01T00:00:00.000Z", "headers": [] },
+    { "_id": "e2", "colId": "col-2", "containerId": "", "name": "Items", "url": "api/items", "method": "GET", "sortNum": 20000, "created": "2024-01-01T00:00:00.000Z", "modified": "2024-01-01T00:00:00.000Z", "headers": [] }
+  ],
+  "settings": {
+    "auth": { "type": "oauth2", "oauth2": { "grantType": "client_credentials", "tokenUrl": "https://login.example.com/{{tenant}}/token", "clientId": "{{clientId}}", "clientSecret": "{{clientSecret}}", "clientAuth": "in-header", "scope": "https://erp.example.com/.default" } },
+    "options": { "baseUrl": "https://erp.example.com/{{tenant}}" }
+  }
+}

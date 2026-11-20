@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
+import { attachEnvironments, collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
 import { importThunderWorkspace } from '../core/importers/thunder.ts';
 import type { ImportedCollection } from '../core/model.ts';
 
@@ -17,7 +17,8 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 }
 
 /** Write imported collections as .http files under `<workspace>/<plainwire.importFolder>/`. */
-export async function writeCollections(collections: ImportedCollection[], output: vscode.OutputChannel): Promise<void> {
+export async function writeCollections(imported: ImportedCollection[], output: vscode.OutputChannel): Promise<void> {
+  const collections = attachEnvironments(imported);
   const root = vscode.workspace.workspaceFolders?.[0]?.uri;
   if (!root) throw new Error('Open a folder first: imported requests are saved as .http files in your workspace.');
   const folder = vscode.workspace.getConfiguration('plainwire').get<string>('importFolder', 'http');

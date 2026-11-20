@@ -102,10 +102,9 @@ test('graphql body becomes JSON', () => {
 
 test('one warning per request with scripts; empty collection script ignored', () => {
   const scriptWarnings = col.warnings.filter((w) => /script/.test(w));
-  assert.deepEqual(scriptWarnings, [
-    '"Pets / List pets": test script skipped.',
-    '"Auth / Login": pre-request script and test script skipped.',
-  ]);
+  // List pets' one-line `pm.test('200', () => pm.response.to.have.status(200));` now converts fully.
+  assert.deepEqual(scriptWarnings, ['"Auth / Login": pre-request script and test script skipped.']);
+  assert.deepEqual(find(col, 'List pets').asserts, ['status == 200']);
 });
 
 test('v2.0 object-style auth, header string, unsupported auth warning', () => {
@@ -153,4 +152,24 @@ test('every request round-trips through serializeHttpFile/parseHttpFile', () => 
       assert.equal(p.body, r.body);
     });
   }
+});
+
+// Fixture shapes taken from real public collections (trimmed and anonymised): whole tests on one
+// line, `pm.expect([..]).to.include(pm.response.code)`, collection OAuth 2.0 without a stored token.
+test('one-line pm.test wrappers, status lists, negated text include, above; oauth2 warned once', () => {
+  const c = importPostman(load('postman-real-tests.json'));
+  const login = find(c, 'Login');
+  assert.deepEqual(login.asserts, [
+    'status == 200',
+    'body isJson',
+    'status matches /^(200|201|403)$/',
+    'body !contains "<script>"',
+    '$.items.length > 1',
+    '$.total == 2',
+  ]);
+  // The if-block and pm.environment.set are not converted (an @assert has no condition).
+  assert.ok(c.warnings.includes('"Auth / Login": test script converted to 6 # @assert check(s); not converted: 2 script statement(s).'));
+  assert.ok(c.warnings.includes('"Auth / Login": dynamic variable(s) {{$randomUserName}} have no Plainwire equivalent; define them as variables or replace them.'));
+  assert.equal(c.warnings.filter((w) => w.includes('OAuth 2.0')).length, 1);
+  assert.ok(c.warnings.includes('Collection auth: OAuth 2.0 auth has no stored access token; not imported.'));
 });

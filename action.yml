@@ -1,0 +1,63 @@
+name: Plainwire - run .http API tests
+description: Run the requests in .http / .rest files (REST Client format) and check their # @assert lines. No account, no login.
+author: Plainwire
+branding:
+  icon: zap
+  color: blue
+inputs:
+  files:
+    description: Files, folders or quoted globs to run, space-separated (default - every .http/.rest file in the repository)
+    required: false
+    default: ''
+  env:
+    description: Environment name from http-client.env.json / http-client.private.env.json
+    required: false
+    default: ''
+  junit:
+    description: Write a JUnit XML report to this path
+    required: false
+    default: ''
+  args:
+    description: Extra plainwire run options, e.g. "--bail --insecure --var token=abc"
+    required: false
+    default: ''
+  version:
+    description: CLI release tag to download (default - the tag this action is used at, else the latest release)
+    required: false
+    default: ''
+  working-directory:
+    description: Directory to run in
+    required: false
+    default: '.'
+runs:
+  using: composite
+  steps:
+    - name: Run Plainwire
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PW_FILES: ${{ inputs.files }}
+        PW_ENV: ${{ inputs.env }}
+        PW_JUNIT: ${{ inputs.junit }}
+        PW_ARGS: ${{ inputs.args }}
+        PW_VERSION: ${{ inputs.version }}
+        PW_ACTION_REF: ${{ github.action_ref }}
+      run: |
+        set -euo pipefail
+        set -f # pass globs through to plainwire instead of expanding them in bash
+        ver="$PW_VERSION"
+        if [ -z "$ver" ] && [[ "$PW_ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then ver="$PW_ACTION_REF"; fi
+        if [ -n "$ver" ]; then
+          url="https://github.com/janwan2003/vscode-api-client/releases/download/$ver/plainwire.mjs"
+        else
+          url="https://github.com/janwan2003/vscode-api-client/releases/latest/download/plainwire.mjs"
+        fi
+        curl -fsSL --retry 3 "$url" -o "$RUNNER_TEMP/plainwire.mjs"
+        cmd=(node "$RUNNER_TEMP/plainwire.mjs" run)
+        # shellcheck disable=SC2206
+        [ -n "$PW_FILES" ] && cmd+=($PW_FILES)
+        [ -n "$PW_ENV" ] && cmd+=(--env "$PW_ENV")
+        [ -n "$PW_JUNIT" ] && cmd+=(--junit "$PW_JUNIT")
+        # shellcheck disable=SC2206
+        [ -n "$PW_ARGS" ] && cmd+=($PW_ARGS)
+        "${cmd[@]}"

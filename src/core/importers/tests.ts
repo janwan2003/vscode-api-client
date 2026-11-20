@@ -32,6 +32,7 @@ const THUNDER_OPS: Record<string, string> = {
   regex: 'matches', matches: 'matches',
   startswith: 'startsWith', endswith: 'endsWith',
 };
+const TEXT_OPS = new Set(['contains', '!contains', 'startsWith', 'endsWith']);
 const THUNDER_TYPES: Record<string, string> = {
   number: 'isNumber', string: 'isString', boolean: 'isBoolean', array: 'isArray', object: 'isObject', null: 'isNull',
 };
@@ -101,7 +102,12 @@ export function convertThunderTests(tests: unknown): ConvertedTests {
       out.skipped.push(`"${describe}"`);
       continue;
     }
-    out.asserts.push(`${subject} ${op} ${op === 'matches' && !/^\/.*\/[a-z]*$/.test(value) ? `/${value}/` : value}`);
+    let expected = value;
+    if (op === 'matches' && !/^\/.*\/[a-z]*$/.test(value)) expected = `/${value}/`;
+    // Thunder compares text literally: `contains "OK"` looks for the quotes too. An @assert value
+    // in quotes is read as a JSON string (quotes dropped), so quote it once more to keep them.
+    else if (TEXT_OPS.has(op) && /^".*"$/.test(value)) expected = JSON.stringify(value);
+    out.asserts.push(`${subject} ${op} ${expected}`);
   }
   return out;
 }
@@ -124,6 +130,55 @@ function jsJsonPath(expr: string, jsonVars: Set<string>): string | undefined {
   return '$' + m[2].replace(/\[(['"])([^'"]*)\1\]/g, "['$2']");
 }
 
+/** Split on `;` outside strings and brackets. */
+function splitTopLevel(line: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let quote = '';
+  let start = 0;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = '';
+    } else if (c === '"' || c === "'" || c === '`') quote = c;
+    else if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    else if (c === ';' && depth <= 0) {
+      out.push(line.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(line.slice(start));
+  return out;
+}
+
+const PM_TEST_OPEN = /^pm\.test\(\s*(['"`])(?:\\.|(?!\1).)*\1\s*,\s*(?:(?:async\s+)?function\s*\w*\s*\(\s*\)|(?:async\s+)?\(\s*\)\s*=>)\s*/;
+
+/**
+ * A test script as a list of statements. `pm.test(...)` wrappers are unwrapped, also when the
+ * whole test is on one line (`pm.test("ok", () => pm.response.to.have.status(200));` or
+ * `pm.test("ok", function () { a; b; });`), and `;`-separated statements on a line are split.
+ */
+function postmanStatements(code: string): string[] {
+  const out: string[] = [];
+  for (const raw of code.split(/\r?\n/)) {
+    let line = raw.trim();
+    if (!line || line.startsWith('//')) continue;
+    const m = PM_TEST_OPEN.exec(line);
+    if (m) {
+      const rest = line.slice(m[0].length);
+      if (rest.startsWith('{')) line = rest.slice(1).replace(/\}\s*\)\s*;?\s*$/, '');
+      else line = rest.replace(/\)\s*;?\s*$/, ''); // expression arrow: drop pm.test's own ")"
+    }
+    for (const st of splitTopLevel(line)) {
+      const t = st.trim();
+      if (t && !t.startsWith('//')) out.push(t);
+    }
+  }
+  return out;
+}
+
 /**
  * Convert the common Postman test snippets (the ones Postman's own "Snippets" sidebar inserts)
  * into @assert lines. Anything else in the script is counted as skipped.
@@ -133,9 +188,8 @@ export function convertPostmanTests(code: string): ConvertedTests {
   const jsonVars = new Set<string>();
   for (const m of code.matchAll(/(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*pm\.response\.json\(\)/g)) jsonVars.add(m[1]);
   let unhandled = 0;
-  for (const raw of code.split(/\r?\n/)) {
-    const line = raw.trim().replace(/;$/, '');
-    if (!line || line.startsWith('//') || /^pm\.test\(.*function\s*\(\)\s*\{$|^pm\.test\(.*=>\s*\{$/.test(line) || /^\}\)?\)?$/.test(line)) continue;
+  for (const line of postmanStatements(code)) {
+    if (/^\}\)?\)?$/.test(line)) continue;
     if (/^(?:var|let|const)\s+[A-Za-z_$][\w$]*\s*=\s*pm\.response\.json\(\)$/.test(line)) continue;
     let m: RegExpExecArray | null;
     const push = (a: string) => out.asserts.push(a);
@@ -145,13 +199,17 @@ export function convertPostmanTests(code: string): ConvertedTests {
     } else if ((m = /^pm\.expect\(pm\.response\.code\)\.to\.(?:eql|equal|be\.equal|eq)\((\d{3})\)$/.exec(line))) push(`status == ${m[1]}`);
     else if ((m = /^pm\.expect\(pm\.response\.code\)\.to\.be\.oneOf\(\[([\d,\s]+)\]\)$/.exec(line))) {
       push(`status matches /^(${m[1].split(',').map((x) => x.trim()).join('|')})$/`);
+    } else if ((m = /^pm\.expect\(\[([\d,\s]+)\]\)\.to\.(?:include|contain)\(pm\.response\.code\)$/.exec(line))) {
+      push(`status matches /^(${m[1].split(',').map((x) => x.trim()).join('|')})$/`);
     } else if ((m = /^pm\.expect\(pm\.response\.responseTime\)\.to\.be\.(below|lessThan|above|greaterThan)\((\d+)\)$/.exec(line))) {
       push(`time ${/below|less/i.test(m[1]) ? '<' : '>'} ${m[2]}`);
     } else if ((m = /^pm\.response\.to\.have\.header\((['"])([^'"]+)\1\)$/.exec(line))) push(`header ${m[2]} exists`);
     else if ((m = /^pm\.response\.to\.have\.header\((['"])([^'"]+)\1,\s*(.+)\)$/.exec(line)) && jsLiteral(m[3])) push(`header ${m[2]} == ${jsLiteral(m[3])}`);
     else if ((m = /^pm\.expect\(pm\.response\.headers\.get\((['"])([^'"]+)\1\)\)\.to\.(include|contain|eql|equal)\((.+)\)$/.exec(line)) && jsLiteral(m[4])) {
       push(`header ${m[2]} ${/include|contain/.test(m[3]) ? 'contains' : '=='} ${jsLiteral(m[4])}`);
-    } else if ((m = /^pm\.expect\(pm\.response\.text\(\)\)\.to\.(include|contain)\((.+)\)$/.exec(line)) && jsLiteral(m[2])) push(`body contains ${jsLiteral(m[2])}`);
+    } else if ((m = /^pm\.expect\(pm\.response\.text\(\)\)\.to\.(not\.)?(?:include|contain)\((.+)\)$/.exec(line)) && jsLiteral(m[2])) {
+      push(`body ${m[1] ? '!contains' : 'contains'} ${jsLiteral(m[2])}`);
+    }
     else if ((m = /^pm\.response\.to\.have\.body\((.+)\)$/.exec(line)) && jsLiteral(m[1])) push(`body == ${jsLiteral(m[1])}`);
     else if (/^pm\.response\.to\.be\.(ok|success)$/.test(line)) push('status < 300');
     else if (/^pm\.response\.to\.be\.json$/.test(line) || /^pm\.response\.to\.have\.jsonBody\(\)$/.test(line)) push('body isJson');
@@ -165,8 +223,11 @@ export function convertPostmanTests(code: string): ConvertedTests {
       push(`${jsJsonPath(m[1], jsonVars)} ${THUNDER_TYPES[m[3]]}`);
     } else if ((m = /^pm\.expect\((.+?)\)\.to\.(?:have\.lengthOf|have\.length)\((\d+)\)$/.exec(line)) && jsJsonPath(m[1], jsonVars)) {
       push(`${jsJsonPath(m[1], jsonVars)}.length == ${m[2]}`);
+    } else if ((m = /^pm\.expect\((.+?)\)\.to\.be\.(above|greaterThan|below|lessThan|at\.least|at\.most)\((-?\d+(?:\.\d+)?)\)$/.exec(line)) && jsJsonPath(m[1], jsonVars)) {
+      const op = { above: '>', greaterThan: '>', below: '<', lessThan: '<', 'at.least': '>=', 'at.most': '<=' }[m[2]];
+      push(`${jsJsonPath(m[1], jsonVars)} ${op} ${m[3]}`);
     } else unhandled++;
   }
-  if (unhandled) out.skipped.push(`${unhandled} script line(s)`);
+  if (unhandled) out.skipped.push(`${unhandled} script statement(s)`);
   return out;
 }

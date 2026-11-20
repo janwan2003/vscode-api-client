@@ -44,6 +44,7 @@
         <li><a href="#editor">Checks in the request editor</a></li>
         <li><a href="#thunder">Coming from Thunder Client tests</a></li>
         <li><a href="#postman">Postman test snippets</a></li>
+        <li><a href="run-http-files-in-ci.html">Running the checks in CI</a></li>
         <li><a href="#faq">Questions</a></li>
       </ul>
     </nav>
@@ -179,6 +180,8 @@ pm.expect(jsonData.items).to.have.lengthOf(3)    <span class="c">&rarr; $.items.
     <div class="note">
       <p><strong>Not there yet:</strong> there is no JavaScript scripting, so pre-request scripts, test scripts with loops or custom logic, and setting variables from code are not supported. Checks cover the response of a single request; chaining covers passing values between requests.</p>
     </div>
+
+    <p>The same checks run outside VS Code with the free <code>plainwire</code> command-line runner and GitHub Action, which exit non-zero on failure and write JUnit XML: see <a href="run-http-files-in-ci.html">Run .http files in CI</a>.</p>
 
     <h2 id="faq">Questions</h2>
     <details>

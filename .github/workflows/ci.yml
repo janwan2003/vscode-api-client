@@ -18,3 +18,10 @@ jobs:
       - run: corepack pnpm@9.15.0 typecheck
       - run: node scripts/test.mjs
       - run: corepack pnpm@9.15.0 package
+      - run: node scripts/build-cli.mjs
+      - name: CLI smoke test against a local server
+        run: |
+          python3 -m http.server 8765 >/dev/null 2>&1 &
+          sleep 1
+          cd test/action && node ../../dist/cli/plainwire.mjs run smoke.http --env ci --junit ../../junit.xml
+          grep -q 'tests="2" failures="0" errors="0"' ../../junit.xml

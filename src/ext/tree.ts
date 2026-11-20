@@ -4,9 +4,8 @@ import type { HttpRequest } from '../core/model.ts';
 import type { History, HistoryEntry } from './history.ts';
 import { readText } from './runner.ts';
 
-export function requestLabel(r: HttpRequest): string {
-  return r.title || r.name || r.url.replace(/^\{\{[^}]+\}\}/, '').replace(/^https?:\/\/[^/]+/, '') || r.url;
-}
+export { requestLabel } from '../core/exec.ts';
+import { requestLabel } from '../core/exec.ts';
 
 export class FileNode {
   constructor(readonly uri: vscode.Uri) {}

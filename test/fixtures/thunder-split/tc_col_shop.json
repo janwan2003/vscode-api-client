@@ -1,0 +1,66 @@
+{
+  "_id": "col-1",
+  "colName": "Shop",
+  "created": "2023-01-01T00:00:00.000Z",
+  "sortNum": 10000,
+  "folders": [
+    {
+      "_id": "fld-admin",
+      "name": "Admin",
+      "containerId": "",
+      "created": "2023-01-01T00:00:00.000Z",
+      "sortNum": 10000,
+      "settings": { "headers": [{ "name": "X-API-Key", "value": "{{adminKey}}" }, { "name": "X-Admin", "value": "1" }], "tests": [] }
+    },
+    { "_id": "fld-auth", "name": "Auth", "containerId": "", "created": "2023-01-01T00:00:00.000Z", "sortNum": 20000, "settings": null }
+  ],
+  "requests": [
+    {
+      "_id": "r1", "colId": "col-1", "containerId": "fld-auth", "name": "/auth/login",
+      "url": "auth/login", "method": "POST", "sortNum": 10000,
+      "created": "2023-01-01T00:00:00.000Z", "modified": "2023-01-01T00:00:00.000Z",
+      "headers": [{ "name": "X-Request-Id", "value": "{{#guid}}" }],
+      "params": [],
+      "auth": { "type": "none" },
+      "body": { "type": "json", "raw": "{\n  \"email\": \"{{#email}}\",\n  \"password\": \"{{password}}\"\n}", "form": [] },
+      "tests": [
+        { "type": "res-code", "custom": "", "action": "equal", "value": "200" },
+        { "type": "res-body", "custom": "", "action": "contains", "value": "\"LOGIN_SUCCESS\"" },
+        { "type": "set-env-var", "custom": "json.token", "action": "setto", "value": "{{token}}" }
+      ]
+    },
+    {
+      "_id": "r2", "colId": "col-1", "containerId": "fld-admin", "name": "List users",
+      "url": "/users?limit=20", "method": "GET", "sortNum": 20000,
+      "created": "2023-01-01T00:00:00.000Z", "modified": "2023-01-01T00:00:00.000Z",
+      "headers": [{ "name": "X-Admin", "value": "2" }],
+      "params": [{ "name": "limit", "value": "20", "isPath": false }],
+      "tests": []
+    },
+    {
+      "_id": "r3", "colId": "col-1", "containerId": "", "name": "Health",
+      "url": "https://status.example.com/health", "method": "GET", "sortNum": 30000,
+      "created": "2023-01-01T00:00:00.000Z", "modified": "2023-01-01T00:00:00.000Z",
+      "headers": [], "params": [], "tests": []
+    },
+    {
+      "_id": "r4", "colId": "col-1", "containerId": "", "name": "Local",
+      "url": "localhost:3000/ping", "method": "GET", "sortNum": 40000,
+      "created": "2023-01-01T00:00:00.000Z", "modified": "2023-01-01T00:00:00.000Z",
+      "headers": [], "params": [], "tests": []
+    },
+    {
+      "_id": "r5", "colId": "col-1", "containerId": "", "name": "Other host",
+      "url": "{{otherHost}}/status", "method": "GET", "sortNum": 50000,
+      "created": "2023-01-01T00:00:00.000Z", "modified": "2023-01-01T00:00:00.000Z",
+      "headers": [], "params": [], "tests": []
+    }
+  ],
+  "settings": {
+    "headers": [{ "name": "X-API-Key", "value": "{{apiKey}}" }, { "name": "X-Off", "value": "x", "isDisabled": true }],
+    "auth": { "type": "bearer", "bearer": "{{token}}" },
+    "tests": [],
+    "options": { "baseUrl": "https://api.example.com/v1/" },
+    "envId": "env-1"
+  }
+}

@@ -82,3 +82,9 @@ test('mergeEnvironment applies $shared', () => {
 test('parseDotenv', () => {
   assert.deepEqual(parseDotenv('# c\nA=1\nexport B="x y"\nC=\'z\' \nD=v # comment\n'), { A: '1', B: 'x y', C: 'z', D: 'v' });
 });
+
+test('jsonPath .length on strings and arrays', () => {
+  assert.equal(jsonPath({ id: 'abcde', items: [1, 2] }, '$.id.length'), 5);
+  assert.equal(jsonPath({ id: 'abcde', items: [1, 2] }, '$.items.length'), 2);
+  assert.equal(jsonPath({ id: 'abcde' }, '$.id.foo'), undefined);
+});

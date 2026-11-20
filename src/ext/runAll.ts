@@ -1,47 +1,16 @@
 import * as vscode from 'vscode';
-import type { AssertionResult } from '../core/assert.ts';
+import { markdownReport, rowState, summarize, type RunRow as CoreRunRow, type RunSummary } from '../core/exec.ts';
 import { parseHttpFile } from '../core/httpFile.ts';
 import type { ParsedRequest } from '../core/model.ts';
 import { readText, type Runner } from './runner.ts';
 import { requestLabel } from './tree.ts';
 
-/** One row in the run report. */
-export interface RunRow {
-  file: string;
+/** One row in the run report; `uri` lets the report open the request. */
+export interface RunRow extends CoreRunRow {
   uri: string;
-  index: number;
-  method: string;
-  label: string;
-  state: 'pending' | 'running' | 'pass' | 'fail' | 'error' | 'skipped';
-  status?: number;
-  timeMs?: number;
-  error?: string;
-  assertions: AssertionResult[];
 }
 
-export interface RunSummary {
-  total: number;
-  passed: number;
-  failed: number;
-  errors: number;
-  skipped: number;
-  timeMs: number;
-}
-
-/**
- * A request passes when it got a response and all its `# @assert` checks pass. A request with no
- * checks passes on any status below 400 (add `# @assert status == 404` to expect an error status).
- * `# @skip` skips a request in runs.
- */
-export function rowState(status: number, assertions: AssertionResult[]): 'pass' | 'fail' {
-  if (assertions.length) return assertions.every((a) => a.passed) ? 'pass' : 'fail';
-  return status < 400 ? 'pass' : 'fail';
-}
-
-export function summarize(rows: RunRow[], timeMs: number): RunSummary {
-  const n = (s: RunRow['state']) => rows.filter((r) => r.state === s).length;
-  return { total: rows.length, passed: n('pass'), failed: n('fail'), errors: n('error'), skipped: n('skipped'), timeMs };
-}
+export { rowState, summarize, type RunSummary } from '../core/exec.ts';
 
 /** Collect the .http/.rest files to run from whatever the command was invoked on. */
 export async function filesFor(target: unknown): Promise<vscode.Uri[]> {
@@ -176,20 +145,7 @@ export class RunAllPanel {
 
   /** Markdown report for pasting into a PR or issue. */
   markdown(): string {
-    const s = summarize(this.rows, this.elapsed);
-    const icon = { pass: '✅', fail: '❌', error: '⚠️', skipped: '⏭️', pending: '…', running: '…' } as const;
-    const lines = [
-      `**Plainwire run: ${this.title}**: ${s.passed} passed, ${s.failed} failed, ${s.errors} errors, ${s.skipped} skipped (${s.timeMs} ms)`,
-      '',
-      '| | Request | Status | Time | Checks |',
-      '|---|---|---|---|---|',
-      ...this.rows.map((r) => {
-        const checks = r.assertions.length ? `${r.assertions.filter((a) => a.passed).length}/${r.assertions.length}` : '';
-        const fails = r.assertions.filter((a) => !a.passed).map((a) => `<br>✗ \`${a.source}\`: ${a.message}`).join('');
-        return `| ${icon[r.state]} | ${r.method} ${r.label} (${r.file})${r.error ? `<br>${r.error}` : ''}${fails} | ${r.status ?? ''} | ${r.timeMs ?? ''} | ${checks} |`;
-      }),
-    ];
-    return lines.join('\n');
+    return markdownReport(this.title, this.rows, summarize(this.rows, this.elapsed));
   }
 
   private html(): string {

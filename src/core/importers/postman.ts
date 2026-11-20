@@ -26,6 +26,22 @@ export function arr(x: unknown): unknown[] {
 
 const VAR_NAME = /^[\w.-]+$/;
 
+/** `{{$...}}` names Plainwire resolves (see core/variables.ts systemVariable). */
+const SYSTEM_VARIABLES = new Set([
+  '$guid', '$uuid', '$random.uuid', '$timestamp', '$isoTimestamp', '$randomInt', '$random.integer',
+  '$datetime', '$localDatetime', '$processEnv', '$dotenv',
+]);
+
+/** Dynamic variables (`{{$randomEmail}}`, Thunder's `{{#email}}`) that will not resolve when sent. */
+function unsupportedDynamicVariables(req: HttpRequest): string[] {
+  const text = [req.url, ...req.headers.map((h) => h.value), req.body ?? ''].join('\n');
+  const out = new Set<string>();
+  for (const m of text.matchAll(/\{\{\s*([$#][^{}\s,]*)[^{}]*\}\}/g)) {
+    if (!SYSTEM_VARIABLES.has(m[1])) out.add(`{{${m[1]}}}`);
+  }
+  return [...out];
+}
+
 /** Normalize an imported request so it survives serialization to `.http`; returns undefined
  *  (with a warning) when it cannot be represented at all. */
 export function cleanImportedRequest(req: HttpRequest, label: string, warnings: string[]): HttpRequest | undefined {
@@ -60,6 +76,10 @@ export function cleanImportedRequest(req: HttpRequest, label: string, warnings: 
     if (/^###/m.test(out.body)) {
       warnings.push(`${label}: body contains a line starting with ###, which .http files treat as a request separator.`);
     }
+  }
+  const dynamic = unsupportedDynamicVariables(out);
+  if (dynamic.length) {
+    warnings.push(`${label}: dynamic variable(s) ${dynamic.join(', ')} have no Plainwire equivalent; define them as variables or replace them.`);
   }
   return out;
 }
@@ -338,7 +358,13 @@ function applyBody(body: unknown, req: HttpRequest, label: string, warnings: str
   }
 }
 
-function walk(items: unknown, path: string[], inheritedAuth: Obj | undefined, ctx: Ctx): void {
+/** Auth set on the collection or a folder, with a label naming where it was set. */
+interface InheritedAuth {
+  auth: Obj;
+  where: string;
+}
+
+function walk(items: unknown, path: string[], inheritedAuth: InheritedAuth | undefined, ctx: Ctx): void {
   for (const item of arr(items)) {
     if (!isObj(item)) continue;
     const name = str(item.name) || 'Untitled';
@@ -347,7 +373,7 @@ function walk(items: unknown, path: string[], inheritedAuth: Obj | undefined, ct
       const folderPath = [...path, name];
       const kinds = scriptKinds(item.event);
       if (kinds.length) ctx.warnings.push(`Folder "${folderPath.join(' / ')}": ${kinds.join(' and ')} skipped.`);
-      const auth = isObj(item.auth) && str(item.auth.type) !== 'inherit' ? item.auth : inheritedAuth;
+      const auth = isObj(item.auth) && str(item.auth.type) !== 'inherit' ? { auth: item.auth, where: `Folder "${folderPath.join(' / ')}" auth` } : inheritedAuth;
       walk(item.item, folderPath, auth, ctx);
       continue;
     }
@@ -355,16 +381,22 @@ function walk(items: unknown, path: string[], inheritedAuth: Obj | undefined, ct
     const label = `"${[...path, name].join(' / ')}"`;
     const r = item.request;
     let req: HttpRequest;
-    let auth = inheritedAuth;
+    let auth: InheritedAuth | undefined = inheritedAuth;
     if (typeof r === 'string') {
       req = { method: 'GET', url: r, headers: [] };
     } else if (isObj(r)) {
       req = { method: str(r.method) || 'GET', url: buildUrl(r.url), headers: headersOf(r.header) };
       applyBody(r.body, req, label, ctx.warnings);
-      if (isObj(r.auth) && str(r.auth.type) !== 'inherit') auth = r.auth;
+      if (isObj(r.auth) && str(r.auth.type) !== 'inherit') auth = { auth: r.auth, where: label };
     } else continue;
     req.title = name;
-    applyAuth(auth, req, label, ctx.warnings);
+    if (auth?.where === label) applyAuth(auth.auth, req, label, ctx.warnings);
+    else if (auth) {
+      // Inherited auth that cannot be converted is reported once, where it is set, not per request.
+      const w: string[] = [];
+      applyAuth(auth.auth, req, auth.where, w);
+      for (const x of w) if (!ctx.warnings.includes(x)) ctx.warnings.push(x);
+    }
     let kinds = scriptKinds(item.event);
     const code = testScript(item.event);
     if (code.trim()) {
@@ -401,7 +433,7 @@ export function importPostman(json: unknown): ImportedCollection {
   const name = str(json.info.name) || 'Postman collection';
   const kinds = scriptKinds(json.event);
   if (kinds.length) ctx.warnings.push(`Collection: ${kinds.join(' and ')} skipped.`);
-  const rootAuth = isObj(json.auth) ? json.auth : undefined;
+  const rootAuth = isObj(json.auth) ? { auth: json.auth, where: 'Collection auth' } : undefined;
   walk(json.item, [], rootAuth, ctx);
 
   const vars: { name: string; value: string }[] = [];

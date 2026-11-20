@@ -5,11 +5,16 @@ import { convertThunderTests } from './tests.ts';
 import { arr, cleanImportedRequest, graphqlBody, hasHeader, isObj, str } from './postman.ts';
 
 /**
- * Thunder Client importer. Two layouts are supported:
- *  - a collection export: { clientName, collectionName, folders, requests, settings }
+ * Thunder Client importer. Three layouts are supported (all checked against real files):
+ *  - a collection export: { client | clientName, collectionName, folders, requests, settings? }
  *  - the legacy workspace files in `thunder-tests/`: thunderCollection.json (array of
  *    { _id, colName, folders, settings }), thunderclient.json (array of requests with colId) and
  *    thunderEnvironment.json (array of { name, data: [{ name, value }] }).
+ *  - the split workspace layout: thunder-tests/collections/tc_col_*.json, one
+ *    { _id, colName, folders, requests, settings } per file, and
+ *    thunder-tests/environments/tc_env_*.json, one { name, data } per file.
+ * Collection `settings.options.baseUrl` is prefixed to relative request URLs, and collection and
+ * folder `settings.headers` are added to every request that does not set the same header.
  * Unknown fields are ignored and missing ones defaulted; only input that is clearly not Thunder
  * Client data throws.
  */
@@ -21,6 +26,14 @@ interface Folder {
   name: string;
   parent: string;
   auth?: Obj;
+  headers: unknown[];
+}
+
+/** Collection-wide settings that apply to every request. */
+interface CollectionSettings {
+  auth?: Obj;
+  headers: unknown[];
+  baseUrl: string;
 }
 
 const BODY_TYPES: Record<string, string> = {
@@ -48,6 +61,7 @@ function folderMap(list: unknown): Map<string, Folder> {
       name: str(f.name) || 'Untitled folder',
       parent: str(f.containerId),
       auth: settings && isObj(settings.auth) ? settings.auth : undefined,
+      headers: settings ? arr(settings.headers) : [],
     });
   }
   return m;
@@ -173,10 +187,26 @@ function applyBody(body: unknown, req: HttpRequest, label: string, warnings: str
   }
 }
 
+/** Thunder's `{{#name}}` dynamic variables that have a Plainwire `{{$name}}` equivalent. Others
+ *  (#string, #email, #name, #date with a format...) are left as written and reported. */
+const DYNAMIC: Record<string, string> = { '#guid': '$guid', '#uuid': '$guid', '#timestamp': '$timestamp', '#dateISO': '$isoTimestamp', '#number': '$randomInt' };
+
+function mapDynamic(text: string): string {
+  return text.replace(/\{\{\s*(#\w+)\s*\}\}/g, (all, name: string) => (DYNAMIC[name] ? `{{${DYNAMIC[name]}}}` : all));
+}
+
+/** `baseUrl` + a relative request URL (`auth/login` or `/auth/login`); absolute URLs, scheme-less
+ *  `host:port/...` URLs and URLs that start with a {{variable}} are left alone. */
+function withBaseUrl(url: string, baseUrl: string): string {
+  const u = url.trim();
+  if (!baseUrl.trim() || !u || /^[a-z][a-z\d+.-]*:\/\//i.test(u) || /^[\w.-]+:\d+(\/|$)/.test(u) || u.startsWith('{{')) return url;
+  return baseUrl.trim().replace(/\/+$/, '') + '/' + u.replace(/^\/+/, '');
+}
+
 function convertRequest(
   r: Obj,
   folders: Map<string, Folder>,
-  collectionAuth: Obj | undefined,
+  coll: CollectionSettings,
   warnings: string[],
 ): { folder: string; req: HttpRequest } | undefined {
   const name = str(r.name) || 'Untitled';
@@ -184,23 +214,46 @@ function convertRequest(
   const folder = parents.map((f) => f.name).join(' / ');
   const label = `"${folder ? folder + ' / ' : ''}${name}"`;
 
-  const req: HttpRequest = { method: str(r.method) || 'GET', url: str(r.url), headers: [], title: name };
+  const req: HttpRequest = { method: str(r.method) || 'GET', url: withBaseUrl(str(r.url), coll.baseUrl), headers: [], title: name };
   for (const h of arr(r.headers)) {
     if (!isObj(h)) continue;
     const hn = str(h.name);
     if (!hn) continue;
     req.headers.push(h.isDisabled === true ? { name: hn, value: str(h.value), disabled: true } : { name: hn, value: str(h.value) });
   }
+  // Inherited headers: innermost folder first, then the collection; the request's own win.
+  for (const list of [...parents.map((p) => p.headers).reverse(), coll.headers]) {
+    for (const h of list) {
+      if (!isObj(h) || h.isDisabled === true) continue;
+      const hn = str(h.name);
+      if (hn && !hasHeader(req.headers, hn)) req.headers.push({ name: hn, value: str(h.value) });
+    }
+  }
   applyBody(r.body, req, label, warnings);
 
   // Auth: an explicit type wins; missing or 'inherit' walks up folders to the collection.
   let auth = isObj(r.auth) ? r.auth : undefined;
+  let where = label;
   if (!isAuthSet(auth)) {
     auth = undefined;
-    for (let i = parents.length - 1; i >= 0 && !auth; i--) if (isAuthSet(parents[i].auth)) auth = parents[i].auth;
-    if (!auth && isAuthSet(collectionAuth)) auth = collectionAuth;
+    for (let i = parents.length - 1; i >= 0 && !auth; i--) {
+      if (isAuthSet(parents[i].auth)) {
+        auth = parents[i].auth;
+        where = `Folder "${parents.slice(0, i + 1).map((f) => f.name).join(' / ')}" auth`;
+      }
+    }
+    if (!auth && isAuthSet(coll.auth)) {
+      auth = coll.auth;
+      where = 'Collection auth';
+    }
   }
-  applyAuth(auth, req, label, warnings);
+  if (where === label) applyAuth(auth, req, label, warnings);
+  else {
+    // Inherited auth that cannot be converted is reported once, where it is set, not per request.
+    const w: string[] = [];
+    applyAuth(auth, req, where, w);
+    for (const x of w) if (!warnings.includes(x)) warnings.push(x);
+  }
 
   const pathParams = arr(r.params)
     .filter((p): p is Obj => isObj(p) && p.isPath === true)
@@ -221,6 +274,9 @@ function convertRequest(
   if (hasContent(r.scripts) || hasContent(r.script)) skipped.push('scripts');
   if (skipped.length) warnings.push(`${label}: ${skipped.join(', ')} skipped.`);
 
+  req.url = mapDynamic(req.url);
+  for (const h of req.headers) h.value = mapDynamic(h.value);
+  if (req.body !== undefined) req.body = mapDynamic(req.body);
   const clean = cleanImportedRequest(req, label, warnings);
   return clean ? { folder, req: clean } : undefined;
 }
@@ -240,7 +296,11 @@ function buildCollection(
   const warnings: string[] = [];
   const folders = folderMap(folderList);
   const s = isObj(settings) ? settings : {};
-  const collectionAuth = isObj(s.auth) ? s.auth : undefined;
+  const coll: CollectionSettings = {
+    auth: isObj(s.auth) ? s.auth : undefined,
+    headers: arr(s.headers),
+    baseUrl: isObj(s.options) ? str(s.options.baseUrl) : '',
+  };
   const collSkipped: string[] = [];
   if (hasContent(s.tests)) collSkipped.push('tests');
   if (hasContent(s.preReq)) collSkipped.push('pre-request actions');
@@ -257,7 +317,7 @@ function buildCollection(
 
   const sorted = requests.filter(isObj).map((r, i) => ({ r, i })).sort((a, b) => sortNum(a.r) - sortNum(b.r) || a.i - b.i);
   for (const { r } of sorted) {
-    const c = convertRequest(r, folders, collectionAuth, warnings);
+    const c = convertRequest(r, folders, coll, warnings);
     if (!c) continue;
     const list = grouped.get(c.folder);
     if (list) list.push(c.req);
@@ -269,14 +329,22 @@ function buildCollection(
 
 export function isThunderCollection(json: unknown): boolean {
   if (!isObj(json)) return false;
-  if (str(json.clientName).toLowerCase().includes('thunder')) return true;
-  return typeof json.collectionName === 'string' && (Array.isArray(json.requests) || Array.isArray(json.folders));
+  // Exports from Thunder 1.x write "client", later ones "clientName".
+  if (str(json.clientName).toLowerCase().includes('thunder') || str(json.client).toLowerCase().includes('thunder')) return true;
+  if (typeof json.collectionName === 'string' && (Array.isArray(json.requests) || Array.isArray(json.folders))) return true;
+  // thunder-tests/collections/tc_col_*.json: { _id, colName, folders, requests, settings }.
+  return typeof json.colName === 'string' && Array.isArray(json.requests);
+}
+
+/** thunder-tests/environments/tc_env_*.json: one environment { _id, name, data: [{ name, value }] }. */
+export function isThunderEnvironment(json: unknown): boolean {
+  return isObj(json) && typeof json.name === 'string' && Array.isArray(json.data) && !('values' in json);
 }
 
 /** Import a Thunder Client collection export (the JSON written by "Export" on a collection). */
 export function importThunder(json: unknown): ImportedCollection {
   if (!isThunderCollection(json)) {
-    throw new Error('Not a Thunder Client collection export: expected an object with "collectionName" and "requests".');
+    throw new Error('Not a Thunder Client collection export: expected an object with "collectionName" (or "colName") and "requests".');
   }
   const j = json as Obj;
   const name = str(j.collectionName) || str(j.colName) || 'Thunder Client';
@@ -338,7 +406,10 @@ export function importThunderWorkspace(files: { collections?: unknown; requests?
   if (orphans.length) {
     const c = buildCollection(cols.length ? 'Thunder Client (no collection)' : 'Thunder Client', [], orphans, undefined);
     if (cols.length) c.warnings.unshift(`${orphans.length} request(s) did not belong to a known collection.`);
-    out.push(c);
+    // Real thunderclient.json files contain leftover entries without colId or URL; do not create
+    // an extra (environment-only) output folder for them, just report them.
+    if (!c.folders.length && out.length) out[0].warnings.push(...c.warnings);
+    else out.push(c);
   }
   if (!out.length) {
     out.push({ name: 'Thunder Client', folders: [], variables: [], environments: {}, warnings: [] });

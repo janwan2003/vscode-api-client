@@ -1,0 +1,11 @@
+# Used by .github/workflows/action-smoke.yml against `python3 -m http.server 8765` in the repo root.
+@base = http://127.0.0.1:8765
+
+### Read the README
+# @assert status == 200
+# @assert body contains Plainwire
+GET {{base}}/README.md
+
+### A missing file is a 404
+# @assert status == 404
+GET {{base}}/{{missing}}

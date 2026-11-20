@@ -1,8 +1,8 @@
 import type { ImportedCollection } from '../model.ts';
 import { serializeHttpFile } from '../httpFile.ts';
 import { parseCurl } from '../curl.ts';
-import { importPostman, importPostmanEnvironment, isObj, isPostmanCollection, isPostmanEnvironment } from './postman.ts';
-import { importThunder, importThunderEnvironments, importThunderWorkspace, isThunderCollection } from './thunder.ts';
+import { importPostman, importPostmanEnvironment, isObj, isPostmanCollection, isPostmanEnvironment, str } from './postman.ts';
+import { importThunder, importThunderEnvironments, importThunderWorkspace, isThunderCollection, isThunderEnvironment } from './thunder.ts';
 
 export { importPostman, importPostmanEnvironment } from './postman.ts';
 export { importThunder, importThunderWorkspace, importThunderEnvironments } from './thunder.ts';
@@ -46,8 +46,8 @@ export function detectAndImport(text: string, fileName?: string): ImportedCollec
     return [c];
   }
   if (isThunderCollection(json)) return [importThunder(json)];
-  if (isObj(json) && typeof json.environmentName === 'string') {
-    const c = emptyCollection(baseName(fileName) || json.environmentName || 'environment');
+  if (isObj(json) && (typeof json.environmentName === 'string' || isThunderEnvironment(json))) {
+    const c = emptyCollection(baseName(fileName).replace(/^tc_env_/, '') || str(json.environmentName) || str(json.name) || 'environment');
     c.environments = importThunderEnvironments(json);
     return [c];
   }
@@ -111,6 +111,27 @@ export function collectionToFiles(c: ImportedCollection, usedDirs: Set<string> =
     files.push({ path: `${dir}/http-client.env.json`, content: JSON.stringify(c.environments, null, 2) + '\n' });
   }
   return files;
+}
+
+/**
+ * Environment-only results (e.g. Thunder's `environments/tc_env_*.json` next to `collections/`)
+ * are merged into the first collection that has requests, so they land beside its .http files
+ * instead of in a folder of their own.
+ */
+export function attachEnvironments(cs: ImportedCollection[]): ImportedCollection[] {
+  const hasRequests = (c: ImportedCollection) => c.folders.some((f) => f.requests.length);
+  const target = cs.find(hasRequests);
+  if (!target) return cs;
+  const out: ImportedCollection[] = [];
+  for (const c of cs) {
+    if (c !== target && !hasRequests(c) && !c.variables.length) {
+      for (const [env, vars] of Object.entries(c.environments)) target.environments[env] = { ...target.environments[env], ...vars };
+      target.warnings.push(...c.warnings);
+      continue;
+    }
+    out.push(c);
+  }
+  return out;
 }
 
 /** `collectionToFiles` for several collections, giving each its own (de-duplicated) directory. */

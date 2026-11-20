@@ -32,6 +32,15 @@ test('detects Thunder collection export and legacy arrays', () => {
   assert.deepEqual(Object.keys(envs[0].environments), ['Local', 'Production']);
 });
 
+test('detects the split thunder-tests/ layout: tc_col_*.json and tc_env_*.json', () => {
+  const [col] = detectAndImport(read('thunder-split/tc_col_shop.json'), 'tc_col_shop.json');
+  assert.equal(col.name, 'Shop');
+  assert.equal(col.folders.reduce((n, f) => n + f.requests.length, 0), 5);
+  const [env] = detectAndImport(read('thunder-split/tc_env_dev.json'), 'tc_env_dev.json');
+  assert.equal(env.name, 'dev');
+  assert.deepEqual(env.environments, { '(Global Env)': { host: 'http://localhost:8080', api: '{{host}}/api', token: '' } });
+});
+
 test('detects a curl command', () => {
   const [c] = detectAndImport("curl -X DELETE 'https://e.test/x/1'");
   assert.equal(c.name, 'curl');

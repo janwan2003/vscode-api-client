@@ -101,6 +101,11 @@ export function jsonPath(data: unknown, path: string): unknown {
   if (consumed !== rest.length) return undefined;
   let cur: unknown = data;
   for (const t of tokens) {
+    // `.length` of a string (Postman's lengthOf on a string converts to `$.x.length`).
+    if (typeof cur === 'string' && t === 'length') {
+      cur = cur.length;
+      continue;
+    }
     if (cur === null || typeof cur !== 'object') return undefined;
     if (typeof t === 'number' && Array.isArray(cur)) cur = cur[t < 0 ? cur.length + t : t];
     else cur = (cur as Record<string, unknown>)[String(t)];
