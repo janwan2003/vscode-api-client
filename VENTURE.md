@@ -300,7 +300,7 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   site sharing the extension's core (Postman/Thunder/cURL → `.http`; `.http` → 11 languages), linked site-wide, sitemap
   resubmitted; an **HTTPie snippet bug** (failed/hung outside a TTY) found by actually running HTTPie and fixed; a subagent
   validated httpYac support on 83 real files (56 → 77 identical to httpYac's parser) and compacted Postman warnings. Evidence:
-  211/0/25 local tests, CI 44747172511 227 pass / 0 fail, e2e 12/12, live pages driven in headless Chromium with 0 external
+  211/0/25 local tests, CI 44747172511 227 pass / 0 fail and after the merge CI 44748870320 235 pass / 0 fail / 1 skip, e2e 12/12, live pages driven in headless Chromium with 0 external
   requests, GSC sitemap 204.
 
 ## Metrics
