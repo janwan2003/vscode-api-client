@@ -97,17 +97,35 @@ Complaints and paywall:
 - **Session logins work** (session 9, 0.9.0): a cookie jar like a browser's (RFC 6265, cookies set on redirect hops kept), shown
   in a Cookies tab and checkable with `# @assert cookie <name>`, in the extension and the CLI. Before this, any cookie-based login
   (Django, Rails, Laravel, Express sessions) failed on the second request.
+- **OAuth 2.0 without a GUI vendor** (session 10, 0.10.0): `{{$auth.token("id")}}` with the JetBrains HTTP Client's own `Security.Auth`
+  config, so files move between IntelliJ and VS Code; all five grants incl. Authorization Code + PKCE via a loopback redirect, cached and
+  refreshed, in the extension and the CLI. REST Client has none (#302). Plus a form **environment editor** with secrets kept in the
+  git-ignored private file (what Thunder Client switchers expect).
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.9.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.10.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 88 KB `.vsix`, 125 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 108 KB `.vsix`, 141 KB CLI file):
+- 0.10.0 (2026-11-20, session 10): **OAuth 2.0** (`src/core/oauth2.ts`): `readAuthConfig` reads JetBrains `"Security": {"Auth": {id:
+  {...}}}` (keys from jetbrains.com/help/idea/oauth-2-0-authorization.html: Type OAuth2/Mock, Grant Type ×5, Auth/Token/Redirect/Device
+  Auth URL, Client ID/Secret, Client Credentials basic|in body|none, Scope, Username/Password, PKCE true|{Code Challenge Method, Code
+  Verifier}, Custom Request Parameters/Headers with Use, Acquire Automatically, Use ID Token, Open Complete URI; not `Start Polling After
+  Browser`); `OAuth2Manager` caches per config, refreshes 30 s before expiry, re-acquires when refresh fails, shares concurrent sign-ins;
+  loopback server for Authorization Code/Implicit (fragment posted back by the page), device polling with `slow_down`. `exec.ts`
+  `fillAuth` fills `{{$auth.token/idToken("id")}}` before resolving; preview/Copy as Code uses cached tokens only. **Env object values
+  merge key by key** (`addEnvironments`/`mergeEnvironment` in `variables.ts`, shared by CLI and extension). Extension: Auth tab "OAuth 2"
+  option, commands *Acquire OAuth 2 Token…* / *Clear OAuth 2 Tokens*, JSON schema `media/http-client.env.schema.json` (jsonValidation).
+  CLI: token per run, browser URL printed. **Environment editor** (worktree subagent): `src/core/envFile.ts` (pure model/edit/write,
+  non-string values preserved, unchanged files not rewritten), `src/ext/envEditor.ts` + `media/envEditor.{js,css}`, command *Edit
+  Environments…*, secrets → private file, "Add to .gitignore". New page `oauth2-http-file-vscode.html` (+ `oauth2.png`), env editor
+  screenshot `docs/environments.png`; 5 pages updated (OAuth "not yet" claims), sitemap 22 URLs. **Fixed:** the live cookies guide
+  (session 9) had no `</header><main>`, so its article rendered inside the header.
 - 0.9.0 (2026-11-20, session 9): **cookie jar** (`src/core/cookies.ts`: `parseSetCookie`, RFC 6265 date parser, domain/path
   match, host-only vs `Domain`, `Secure` (localhost counts as secure), `Max-Age`/`Expires`/deletion, `__Secure-`/`__Host-`,
   180 per domain / 3000 total, replace keeps creation order; `mergeCookieHeader`: the request's own `Cookie:` wins by name).
@@ -195,6 +213,29 @@ What exists (TypeScript, no runtime dependencies, 88 KB `.vsix`, 125 KB CLI file
   `server-sent-events-vscode.html` with `sse.png`; session 7 added `openapi-to-http-file.html`, `rest-client-alternative.html`; earlier: landing, privacy, support, 2 converter tools, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
   `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (16 URLs).
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (0.10.0, session 10) how:
+- `corepack pnpm@9.15.0 typecheck` clean; local `node scripts/test.mjs` **321 tests: 290 pass, 0 fail, 31 skip** (snippet interpreters).
+  New `test/oauth2.test.ts` (9, a local OAuth server: every grant, Basic client auth with form-encoded id/secret, custom params per
+  `Use`, cache/expiry/refresh/re-acquire, PKCE S256 + plain verified by the server, state, `access_denied`, non-loopback redirect
+  rejected, cancel, Implicit fragment, device `authorization_pending`→`slow_down` (+5 s)→token, Executor fetch-once/preview/Mock/errors,
+  real CLI bundle with the secret in the private file) and `test/envFile.test.ts` (17, subagent).
+- e2e **19/19 twice** on the packaged 0.10.0 `.vsix` in headless VS Code 1.147 (new: OAuth via Run all with the secret in the private
+  file, one token for two requests, Acquire forces a new one, Clear → signs in again, schema contributed; Edit Environments save path).
+  First merged run failed 18/19: the env-editor check assumed no private env file, but the OAuth check leaves one; fixed the check.
+- **Live:** CLI Client Credentials against Duende's public demo (`demo.duendesoftware.com`, client `m2m`): 1/1, 456 ms (the output on
+  the page); without the private file: `invalid_client (HTTP 400)`, exit 1. **Authorization Code + PKCE through a real browser**
+  (headless Chromium driven over CDP, user bob on the demo's login page, client `interactive.public.short`): redirect landed on the
+  loopback, token accepted by `/api/test` (200); with the clock moved past the 75 s lifetime the refresh token gave a new token, also 200.
+- CI **44768846427** (fb02a5e, Node 20 + 22): 321 tests, **320 pass, 0 fail, 1 skip** each. The first CI run 44768554596 (510edab)
+  failed on a real defect: `docs/convert.js` stale after the `variables.ts` change; rebuilt. Pages 44768817355 success. Release v0.10.0:
+  **Action smoke 44769242830 success**; 3 assets downloaded back byte-identical; `.vsix` installs → `plainbyte.plainwire-0.10.0`.
+  Live: `/`, the new page, `oauth2.png`, 3 updated pages, `sitemap.xml` (22 locs), `convert.js` (identical) → 200. GSC sitemap 204.
+- Push protection: the subagent's screenshot fixture held Stripe's public docs test key and an `sk_live_` placeholder; replaced with
+  `demo-*-key-0000` and the unpushed commits squashed before the first successful push (no secret ever reached GitHub).
+- NOT verified: the Auth tab, env editor and the browser sign-in inside an interactive VS Code window (rendered in the Chromium harness;
+  e2e drives commands and the editor's message handler; `openExternal` not exercised); Device flow against a real provider (local server
+  only); Windows `start` in the CLI; tokens are memory-only (a reload signs in again).
 
 Verified 2026-11-20 (0.9.0, session 9) how:
 - `corepack pnpm@9.15.0 typecheck` clean; local `node scripts/test.mjs` **295 tests: 264 pass, 0 fail, 31 skip** (skips: snippet
@@ -367,12 +408,12 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.9.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.10.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
    especially the 3 converter pages, `rest-client-alternative.html` and the 3 newest feature pages (cookies, SSE, import).
-3. Thunder Client switchers' next likely misses, in order: an **environment editor GUI** (edit `http-client.env.json` values in a
-   form, incl. private secrets), **folders inside a collection** in the sidebar, and **OAuth 2 token fetch** (REST Client #302,
-   33 reactions). Optional for cookies: `plainwire run --cookie-jar <file>` to keep cookies between CI steps.
+3. Thunder Client switchers' next likely miss: **folders inside a collection** in the sidebar (sub-folders of requests, drag to
+   reorder). Then OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded
+   JWT claims), and `plainwire run --cookie-jar <file>`. Hand-test the env editor and Auth tab in a real window (not yet done).
 4. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
    of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
 5. JetBrains `run #name` execution (parsed since 0.6.0, not run); WebSocket; Copy as cURL adds `-N` for streams.
@@ -436,7 +477,17 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   `cookie <name>` checks, Cookies tab; new guide page, 5 pages updated. Evidence: CI 44764944394 294/0/1, e2e 17/17, live
   httpbin run 5/5 vs 3/2 without jar, Action smoke 44765224674, release assets byte-identical, live pages 200, GSC 204.
 
+- 2026-11-20 builder (session 10): stores still blocked. Shipped **0.10.0**: OAuth 2.0 tokens in the JetBrains `Security.Auth`
+  format (all grants, PKCE, refresh; extension, Auth tab and CLI) and, from a worktree subagent, a form environment editor with secrets in
+  the private file; fixed the cookies guide's broken markup. Evidence: CI 44768846427 320/0/1, e2e 19/19 ×2, live Duende demo runs
+  (client credentials + browser Authorization Code with PKCE and refresh), Action smoke 44769242830, assets byte-identical, GSC 204.
+
 ## Metrics
+
+- 2026-11-20 (session 10, 17:10): GitHub release downloads v0.9.0 `.vsix` 1, tgz 1, `plainwire.mjs` 2; v0.8.0 2/2/3; v0.4.0–v0.7.0
+  2/1–2/3 each (our own checks and Action smoke runs account for most); v0.10.0 just published; repo 0 stars, 0 forks, 0 watchers;
+  traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`).
+  Search Console: sitemap still pending, 0 errors, analytics empty (`scripts/gsc.py status`); resubmitted with 22 URLs (204).
 
 - 2026-11-20 (session 9, 16:38): GitHub release downloads v0.9.0 all 0 (published minutes earlier; our own download-back check
   is not counted yet); v0.8.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3; v0.5.0–v0.7.0 the same 2/2/3 each (our own checks and Action
