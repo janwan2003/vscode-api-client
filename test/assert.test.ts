@@ -287,7 +287,7 @@ test('Postman snippet tests convert to @assert lines', async () => {
     'status == 200', 'time < 200', '$.value == 100', '$.user.name == "Ada"', '$.items.length == 2',
     'header Content-Type exists', 'body contains "string_you_want_to_search"',
   ]);
-  assert.deepEqual(r.skipped, ['1 script statement(s)']);
+  assert.deepEqual(r.skipped, ['1 other script statement(s)']);
   for (const a of r.asserts) parseAssertion(a);
 });
 

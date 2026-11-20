@@ -179,9 +179,12 @@ test('one-line pm.test wrappers, status lists, negated text include, above; oaut
     '$.total == 2',
   ]);
   // The check inside the if-block is not converted (an @assert has no condition) and is named;
-  // pm.environment.set is counted as a script statement.
-  assert.ok(c.warnings.includes('"Auth / Login": test script converted to 6 # @assert check(s); not converted: skipped conditional check in test \'conditional\'; 1 script statement(s).'), c.warnings.join('\n'));
-  assert.ok(c.warnings.includes('"Auth / Login": dynamic variable(s) {{$randomUserName}} have no Plainwire equivalent; define them as variables or replace them.'));
+  // pm.environment.set is counted as a script statement. Everything about one request is one line.
+  assert.deepEqual(c.warnings.filter((w) => w.startsWith('"Auth / Login"')), [
+    '"Auth / Login": test script converted to 6 # @assert check(s); not converted: 1 check inside if/loop/callback/try ' +
+      "(1 in 'conditional'), 1 other script statement(s); dynamic variable(s) {{$randomUserName}} have no Plainwire " +
+      'equivalent; define them as variables or replace them.',
+  ]);
   assert.equal(c.warnings.filter((w) => w.includes('OAuth 2.0')).length, 1);
   assert.ok(c.warnings.includes('Collection auth: OAuth 2.0 auth has no stored access token; not imported.'));
 });
@@ -231,14 +234,13 @@ test('Postman checks inside if/else, loops, callbacks, try and ternaries are ski
   const r = convertPostmanTests(code);
   assert.deepEqual(r.asserts, ['status == 200', '$.id isNumber', '$.name == "Ada"', '$.code == "a{b"', 'time < 500']);
   assert.deepEqual(r.skipped, [
-    "skipped 3 conditional checks in test 'Body matches when OK'",
-    "skipped 2 conditional checks in test 'each item'",
-    "skipped 5 conditional checks in test 'one-liners'", // the ternary is one statement
-    'skipped conditional check outside any pm.test',
-    "skipped conditional check in test 'swallowed'",
+    // One entry for all of them (the ternary is one statement).
+    "12 checks inside if/loop/callback/try (3 in 'Body matches when OK', 2 in 'each item', 5 in 'one-liners', " +
+      "1 outside any pm.test, 1 in 'swallowed')",
     // console.log in the catch block, and the regex match (no @assert form for it).
-    '2 script statement(s)',
+    '2 other script statement(s)',
   ]);
+  assert.equal(r.conditional, 12);
 });
 
 test('Postman import warns per request with the conditional test name; unconditional checks kept', () => {
@@ -268,7 +270,33 @@ test('Postman import warns per request with the conditional test name; unconditi
     ],
   });
   assert.deepEqual(find(c, 'Get user').asserts, ['status == 200']);
-  assert.ok(c.warnings.includes(`"Get user": test script converted to 1 # @assert check(s); not converted: skipped conditional check in test 'admin fields'.`), c.warnings.join('\n'));
+  assert.deepEqual(c.warnings, [
+    `"Get user": test script converted to 1 # @assert check(s); not converted: 1 check inside if/loop/callback/try (1 in 'admin fields').`,
+    '"Only conditional": test script not converted: 1 check inside if/loop/callback/try (1 outside any pm.test).',
+  ]);
   assert.equal(find(c, 'Only conditional').asserts, undefined);
-  assert.ok(c.warnings.includes('"Only conditional": test script not converted: skipped conditional check outside any pm.test.'), c.warnings.join('\n'));
+});
+
+test('Postman import reports at most one warning line per request, and keeps every reason', () => {
+  for (const f of ['postman-v21.json', 'postman-real-tests.json']) {
+    const c = importPostman(load(f));
+    const labels = c.warnings.filter((w) => w.startsWith('"')).map((w) => w.slice(0, w.indexOf('": ') + 1));
+    assert.equal(new Set(labels).size, labels.length, `${f}:\n${c.warnings.join('\n')}`);
+  }
+  // A request with a body file, a skipped pre-request script and a conditional check: one line.
+  const c = importPostman({
+    info: { name: 'many', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+    item: [{
+      name: 'Upload',
+      request: { method: 'POST', url: 'https://e.test/u', body: { mode: 'file', file: { src: 'a.bin' } } },
+      event: [
+        { listen: 'prerequest', script: { exec: ['pm.variables.set("x", 1);'] } },
+        { listen: 'test', script: { exec: ['pm.response.to.have.status(201);', 'if (pm.response.code === 201) { pm.expect(pm.response.json().id).to.exist; }'] } },
+      ],
+    }],
+  });
+  assert.deepEqual(c.warnings, [
+    '"Upload": body is the file "a.bin"; check that the path exists relative to the .http file; test script converted to 1 # @assert ' +
+      'check(s); not converted: 1 check inside if/loop/callback/try (1 outside any pm.test); pre-request script skipped.',
+  ]);
 });
