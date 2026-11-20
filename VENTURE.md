@@ -153,6 +153,23 @@ What exists (TypeScript, no runtime dependencies, 141 KB `.vsix`, 180 KB CLI fil
   `plainwire.thunderImportOffered`, setting `plainwire.offerThunderImport`), activation `onStartupFinished` added so it runs in
   workspaces without `.http` files. CLI: `plainwire import --thunder [--history]`, folder imports through the same reader. Real-window
   walk `scripts/shot/live/thunder.sh` → `docs/thunder-import.png`. Docs subagent: new guide `thunder-client-data-location.html`.
+- 0.17.0 verification (session 17): `tsc --noEmit` clean; local `node scripts/test.mjs` **375 tests: 344 pass, 0 fail, 31 skip**
+  (snippet interpreters); new `test/thunderStore.test.ts` (8: NeDB replace/delete/index lines, old `.db` storage incl. history dedupe,
+  current `collections/`+`environments/` with backup + junk files skipped, 2.39 array body + per-request files, legacy JSON + export,
+  `detectAndImport` on `.db`/activity, locator per OS + fake home, website converter keeping collection names). Real public data
+  (GitHub code search, not committed): 17 real `tc_col_*.json` + 2 `thunderclient.db` + 3 activity files → `plainwire import <dir>
+  --history` 900 requests / 76 files (873 + 27 history); `HOME=<fake> plainwire import --thunder` found the copy under `.config/Cursor/…`
+  (failed before the `XDG_CONFIG_HOME=""` fix). e2e **24/24 twice** + once on the packaged minified build (new: storage folder next to
+  ours found with label = `vscode.env.appName`, imported with env and history; it failed first because of the `vscode-userdata:`
+  scheme). Real-window walk `scripts/shot/live/thunder.sh` (VS Code 1.147 headless, fresh profile, workspace with no `.http`): toast
+  "Plainwire found Thunder Client data from Visual Studio Code: 2 collections, 4 requests, 1 environment, 2 history entries…" appeared
+  by itself; DOM click on *Import* → picker row with counts + path → "Also the history" → 7 files written (Auth, Shop API + Orders
+  folder with `# @assert` from Thunder tests and `Bearer {{token}}`, history newest first with the duplicate dropped). CI 44792403099
+  success (Node 20 + 22), Pages 44792402703 success, Action smoke 44792706834 success (release event), release v0.17.0 3 assets
+  byte-identical (`cmp`), live pages 200 (landing, new guide, 2 updated guides, png identical, sitemap 27 URLs, resubmitted 204), live
+  `convert.js` has the new code. **Not verified:** a real Thunder Client 3.x storage folder or a v4 (one file per request) folder (none
+  public; Thunder now needs a login to install-and-use, so not created here); Windows/macOS paths (unit-tested strings only); Cursor/
+  Windsurf themselves (only the folder naming); the docs pages were not rendered in a browser (HTML parse + link check by the subagent).
 - 0.16.0 (2026-11-20, session 16): **third real-window hand-walk** (`scripts/shot/live/walk.sh`; `server.mjs` gained `/events` SSE,
   a `/ws` WebSocket echo and a `/token` OAuth endpoint) of SSE and WebSocket live views, GraphQL, cURL paste into the URL box, Copy as Code
   picker, OAuth 2 tab + Acquire, and tree Rename / Duplicate / Move to File / Delete (InputBox, QuickPick and modal answered from
