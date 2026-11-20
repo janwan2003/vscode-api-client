@@ -1,0 +1,13 @@
+# Shape of an emitter dump with every string double-quoted: tag and anchor before a key, escaped line breaks.
+"paths":
+  "/transactions/build":
+    "post":
+      "responses":
+        !!int "200":
+          "description": "A list\
+            \ of transaction templates\
+            \ \u2014 one per request."
+        &other "default":
+          "description": 'Unexpected
+            error'
+      "x-codes": [*other, !!str 404]

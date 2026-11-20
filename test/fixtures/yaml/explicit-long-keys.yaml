@@ -1,0 +1,20 @@
+# Shape of a generated spec (libyaml-style emitters write keys over 128 characters as "? key").
+openapi: 3.0.1
+paths:
+  /v1/Accounts/{AccountSid}/Things.json:
+    get:
+      operationId: ListThing
+  ? /v1/Accounts/{AccountSid}/IncomingThings/{ResourceSid}/AssignedExtras/{AssignedExtraSid}/Extensions/{ExtensionSid}/Details.json
+  : servers:
+    - url: https://api.example.com
+    description: ''
+    get:
+      operationId: FetchDetail
+components:
+  schemas:
+    ? api.v1.account.incoming_thing.incoming_thing_assigned_extra.incoming_thing_assigned_extra_extension_detail_record_entry
+    : type: object
+      properties:
+        sid:
+          pattern: ^XF[0-9a-fA-F]{32}$
+          nullable: true
