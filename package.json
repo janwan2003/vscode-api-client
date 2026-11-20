@@ -104,6 +104,11 @@
         "category": "Plainwire"
       },
       {
+        "command": "plainwire.copyAsCode",
+        "title": "Copy as Code…",
+        "category": "Plainwire"
+      },
+      {
         "command": "plainwire.openRequest",
         "title": "Open Request",
         "category": "Plainwire"
@@ -246,7 +251,12 @@
         {
           "command": "plainwire.copyCurlAt",
           "when": "viewItem == plainwire.request",
-          "group": "1_actions"
+          "group": "1_actions@1"
+        },
+        {
+          "command": "plainwire.copyAsCode",
+          "when": "viewItem == plainwire.request",
+          "group": "1_actions@2"
         }
       ],
       "editor/title/run": [
@@ -290,6 +300,14 @@
         },
         {
           "command": "plainwire.runFile",
+          "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        },
+        {
+          "command": "plainwire.copyCurlAt",
+          "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        },
+        {
+          "command": "plainwire.copyAsCode",
           "when": "resourceExtname =~ /^\\.(http|rest)$/"
         }
       ],

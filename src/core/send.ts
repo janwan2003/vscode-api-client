@@ -46,7 +46,7 @@ export function prepareBody(req: HttpRequest): string | undefined {
   return req.body;
 }
 
-function ensureScheme(url: string): string {
+export function ensureScheme(url: string): string {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `http://${url}`;
 }
 
