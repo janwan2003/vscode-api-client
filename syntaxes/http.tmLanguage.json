@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#separator" },
     { "include": "#metadata" },
+    { "include": "#httpyacAssert" },
     { "include": "#comment" },
     { "include": "#fileVariable" },
     { "include": "#requestLine" },
@@ -15,6 +16,14 @@
   ],
   "repository": {
     "separator": { "match": "^###.*$", "name": "markup.heading.separator.http" },
+    "httpyacAssert": {
+      "match": "^\\s*(\\?\\?)\\s+(\\S+)(.*)$",
+      "captures": {
+        "1": { "name": "keyword.control.assert.http" },
+        "2": { "name": "entity.name.tag.http" },
+        "3": { "name": "string.unquoted.http" }
+      }
+    },
     "metadata": {
       "match": "^\\s*(#|//)\\s*(@[\\w-]+)(.*)$",
       "captures": { "1": { "name": "comment.line.http" }, "2": { "name": "keyword.other.metadata.http" }, "3": { "name": "string.unquoted.metadata.http" } }
