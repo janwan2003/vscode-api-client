@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organize API requests in folders and collections in VS Code | Plainwire</title>
+<meta name="description" content="Group API requests into folders and collections in VS Code, Cursor and VSCodium: drag requests between files, reorder, rename, duplicate, and move files between folders. Plain .http files in git, no login, free.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/organize-api-requests-folders-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Organize API requests in folders and collections in VS Code">
+<meta property="og:description" content="Folders, collections, drag and drop for .http requests in VS Code. Plain files in git, no login.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/organize-api-requests-folders-vscode.html">
+<meta property="og:image" content="https://janwan2003.github.io/vscode-api-client/collections.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Organize API requests in folders and collections in VS Code</h1>
+    <p>In Plainwire a <strong>collection is a <code>.http</code> file</strong> and a <strong>folder is a folder</strong>. The sidebar shows your workspace&rsquo;s folders, the <code>.http</code> and <code>.rest</code> files in them, and the requests in each file. You can drag requests between files, reorder them, rename and duplicate them, and drag files into other folders. Because everything is a plain file, the structure you build is the structure in git: a teammate who pulls gets the same tree, with no account and no sync service.</p>
+
+    <figure>
+      <img src="collections.png" width="1280" height="760" alt="VS Code with Plainwire's Requests view: a shop-api folder containing admin and orders subfolders, orders.http and refunds.http files, and the requests in refunds.http (List refunds GET, Refund an order POST, Refund status GET), with the selected request open in the request editor.">
+      <figcaption class="small">The <strong>Requests</strong> view in VS Code (new in 0.11): folders, files, requests, and the request editor. Screenshot of a real VS Code window.</figcaption>
+    </figure>
+
+    <h2>The layout: folders, files, requests</h2>
+<pre>shop-api/
+  admin/
+    reports.http
+  orders/
+    orders.http          one collection: List orders, Create order, Cancel order
+    refunds.http         another: List refunds, Refund an order, Refund status
+  auth.http
+  users.http
+  http-client.env.json   environments for everything under shop-api/</pre>
+    <p>Each request in a file starts with a <code>###</code> line, and the text after <code>###</code> is the name the sidebar shows. A file can hold one request or fifty; a common split is one file per resource (<code>orders.http</code>, <code>users.http</code>) or one per workflow (<code>checkout.http</code>). The <a href="http-file-syntax.html">.http syntax cheat sheet</a> covers the format.</p>
+<pre>### List refunds
+GET {{host}}/v1/refunds
+
+### Refund an order
+# @name refund
+POST {{host}}/v1/orders/42/refund
+Content-Type: application/json
+
+{"amount": 1999, "reason": "damaged"}</pre>
+
+    <h2>What you can do in the sidebar</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>How</th><th>What changes on disk</th></tr></thead>
+        <tbody>
+          <tr><td>Reorder requests</td><td>Drag a request onto another one in the same file, or <strong>Move Up</strong> / <strong>Move Down</strong> (<kbd>Alt</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd>)</td><td>The request&rsquo;s block moves inside the file; nothing else is rewritten</td></tr>
+          <tr><td>Move requests to another collection</td><td>Drag onto a file (goes last) or onto a request in it (goes there), or <strong>Move to File&hellip;</strong>; several selected requests move together</td><td>The block is cut from one file and pasted into the other, comments, checks and scripts included</td></tr>
+          <tr><td>Rename a request</td><td><strong>Rename&hellip;</strong> or <kbd>F2</kbd></td><td>The <code>###</code> line only</td></tr>
+          <tr><td>Duplicate a request</td><td><strong>Duplicate</strong></td><td>A copy below it, titled &ldquo;(copy)&rdquo;; its <code># @name</code> gets a free number so <a href="http-file-syntax.html#chaining">chaining</a> still points at the original</td></tr>
+          <tr><td>Delete</td><td><strong>Delete</strong> (asks first)</td><td>A request&rsquo;s block is removed (Undo in the file brings it back); files and folders go to the trash</td></tr>
+          <tr><td>New collection or folder</td><td><strong>New .http File&hellip;</strong> / <strong>New Folder&hellip;</strong> on a folder or the view&rsquo;s menu; <code>orders/list</code> creates the subfolder too</td><td>A new file with one starter request, opened in the editor</td></tr>
+          <tr><td>Move or rename files and folders</td><td>Drag a file or folder onto a folder, or <strong>Rename&hellip;</strong></td><td>A normal rename, so open editors follow and Explorer Undo works</td></tr>
+          <tr><td>Run a whole folder</td><td><strong>Run All Requests in Folder</strong> on a folder</td><td>Nothing: every request in every file below it is sent in order, with a pass/fail report (<a href="api-tests-in-http-files.html">tests</a>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Every edit is made on the text of the file and keeps the rest of it byte for byte, so a moved request produces a small, readable git diff. File variables (<code>@host = &hellip;</code>) and <code># @import</code> lines belong to the whole file, so they stay where they are when a request moves away. If you move a request that other requests in its old file reuse (<code>{{login.response.body.$.token}}</code>), Plainwire tells you which <code># @import</code> line keeps them working; see <a href="import-http-file-shared-variables.html">sharing a login between files</a>.</p>
+
+    <h2>Coming from Thunder Client or Postman</h2>
+    <p>Thunder Client and Postman keep collections and folders in their own storage. Plainwire&rsquo;s importers write them as files: each collection becomes a folder, each folder a <code>.http</code> file, and folders inside folders become subfolders (<code>Orders / Refunds</code> &rarr; <code>Orders/Refunds.http</code>). Requests outside any folder go to <code>requests.http</code>, and environments to <code>http-client.env.json</code>. See <a href="import-thunder-client-to-http-files.html">Thunder Client to .http</a> and <a href="postman-collection-to-http-file.html">Postman to .http</a>, or try the <a href="convert-to-http-file.html">online converter</a> without installing anything.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Thunder Client / Postman</th><th>Plainwire</th></tr></thead>
+        <tbody>
+          <tr><td>Collection</td><td>A folder of <code>.http</code> files (or one file)</td></tr>
+          <tr><td>Folder</td><td>A <code>.http</code> file; nested folders become subfolders</td></tr>
+          <tr><td>Request name</td><td>The text after <code>###</code></td></tr>
+          <tr><td>Drag to reorder / move</td><td>Drag in the sidebar, or Move Up / Down / to File</td></tr>
+          <tr><td>Git Sync (paid in Thunder Client)</td><td>The files are in your repository already</td></tr>
+          <tr><td>Collection runner</td><td>Run All on a file, a folder or the workspace; the <a href="run-http-files-in-ci.html">CLI</a> in CI</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Settings</h2>
+    <p><code>plainwire.collections.compactFolders</code> (default on) shows a folder whose only child is another folder as one row, <code>api/v2</code>, like the Explorer&rsquo;s compact folders. Files under <code>node_modules</code> and <code>.git</code> are not listed.</p>
+
+    <h2>FAQ</h2>
+    <details><summary>Does the sidebar keep its own copy of my collections?</summary><p>No. It reads the files in the workspace every time they change, so editing a <code>.http</code> file by hand, switching git branches or pulling a teammate&rsquo;s change updates the tree. There is nothing to export or sync.</p></details>
+    <details><summary>Can I still edit the files as text?</summary><p>Yes, and the <a href="rest-client-alternative.html">REST Client</a>, httpYac and the JetBrains HTTP Client read the same files. The sidebar is a view of them, not a separate format.</p></details>
+    <details><summary>Does moving a request break request chaining?</summary><p>Chaining by <code># @name</code> works within a file and across files that <code># @import</code> each other. When a move would break a reference, Plainwire warns you and names the import to add.</p></details>
+    <details><summary>Is this free?</summary><p>Yes. Plainwire has no account, no paid plan and no request or collection limits, and it sends nothing except the requests you send. It is MIT-licensed.</p></details>
+
+    <p><a class="btn" href="./#install">Install Plainwire</a></p>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

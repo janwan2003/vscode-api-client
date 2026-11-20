@@ -88,7 +88,7 @@ Content-Type: application/json
         <thead><tr><th>Thunder Client</th><th>In a <code>.http</code> file</th></tr></thead>
         <tbody>
           <tr><td>Collection</td><td>A <code>.http</code> file (or a folder of them)</td></tr>
-          <tr><td>Folder</td><td>A separate <code>.http</code> file or a subfolder; the format has no folders of its own</td></tr>
+          <tr><td>Folder</td><td>A separate <code>.http</code> file; a folder inside a folder becomes a subfolder (<code>Orders/Refunds.http</code>). Plainwire&rsquo;s sidebar shows the folders, and you can drag requests between files to reorganise them</td></tr>
           <tr><td>Request <code>name</code></td><td><code>### Create order</code> title line</td></tr>
           <tr><td><code>method</code>, <code>url</code></td><td>Request line: <code>POST {{baseUrl}}/orders</code></td></tr>
           <tr><td><code>params</code></td><td>Query string on the URL, or <code>?a=1</code> / <code>&amp;b=2</code> continuation lines</td></tr>

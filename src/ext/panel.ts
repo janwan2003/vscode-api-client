@@ -59,6 +59,47 @@ export class RequestPanel {
     return p;
   }
 
+  /**
+   * After requests were reordered, moved between files or deleted from the sidebar: point each
+   * open request tab at its request's new place (looked up the way Save does, by `@name` or
+   * method + URL; first in its own file, then in the other changed files).
+   */
+  static relocate(changed: Map<string, string>): void {
+    for (const p of [...RequestPanel.open.values()]) {
+      if (p.source.kind !== 'file') continue;
+      const own = p.source.uri.toString();
+      if (!changed.has(own)) continue;
+      const same = (r: HttpRequest) => (p.snapshot.name ? r.name === p.snapshot.name : r.method === p.snapshot.method && r.url === p.snapshot.url);
+      for (const file of [own, ...[...changed.keys()].filter((k) => k !== own)]) {
+        const reqs = parseHttpFile(changed.get(file)!).requests;
+        // In its own file, prefer the old position when it still matches (two requests may share a URL).
+        const index = file === own && reqs[p.source.index] && same(reqs[p.source.index]) ? p.source.index : reqs.findIndex(same);
+        if (index < 0) continue;
+        const next: PanelSource = { kind: 'file', uri: vscode.Uri.parse(file), index };
+        const other = RequestPanel.open.get(RequestPanel.key(next));
+        if (other && other !== p) break;
+        p.rekey(next);
+        p.post({ type: 'env', ...p.meta() });
+        break;
+      }
+    }
+  }
+
+  /** After files or folders were renamed or moved: keep open request tabs pointing at their file. */
+  static renamed(pairs: [vscode.Uri, vscode.Uri][]): void {
+    for (const p of [...RequestPanel.open.values()]) {
+      if (p.source.kind !== 'file') continue;
+      const path = p.source.uri.path;
+      for (const [from, to] of pairs) {
+        if (path !== from.path && !path.startsWith(from.path + '/')) continue;
+        const uri = to.with({ path: to.path + path.slice(from.path.length) });
+        p.rekey({ kind: 'file', uri, index: p.source.index });
+        p.post({ type: 'env', ...p.meta() });
+        break;
+      }
+    }
+  }
+
   private static key(source: PanelSource): string {
     return source.kind === 'file' ? `${source.uri.toString()}#${source.index}` : `scratch:${++RequestPanel.scratchCount}`;
   }

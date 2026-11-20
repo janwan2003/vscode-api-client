@@ -69,7 +69,7 @@ test('collectionToFiles: one file per folder, variables on top, env file', () =>
   assert.deepEqual(files.map((f) => f.path), [
     'Pet Store API/requests.http',
     'Pet Store API/Pets.http',
-    'Pet Store API/Pets - Admin.http',
+    'Pet Store API/Pets/Admin.http',
     'Pet Store API/Auth.http',
     'Pet Store API/GraphQL.http',
     'Pet Store API/http-client.env.json',
@@ -78,8 +78,9 @@ test('collectionToFiles: one file per folder, variables on top, env file', () =>
   assert.ok(pets.startsWith('@baseUrl = https://petstore.example.com/v2\n@accessToken = dev-token-123\n\n### List pets\n'));
   assert.equal(files[5].content, '{\n  "dev": {\n    "baseUrl": "http://localhost"\n  }\n}\n');
   // Every .http file parses back to the same requests.
-  for (const f of files.filter((x) => x.path.endsWith('.http'))) {
-    const folder = c.folders.find((x) => f.path.endsWith(`/${x.name === '' ? 'requests' : safeName(x.name, 'folder')}.http`))!;
+  const nonEmpty = c.folders.filter((x) => x.requests.length);
+  for (const [i, f] of files.filter((x) => x.path.endsWith('.http')).entries()) {
+    const folder = nonEmpty[i];
     const parsed = parseHttpFile(f.content);
     assert.deepEqual(parsed.variables, c.variables);
     assert.deepEqual(parsed.requests.map((r) => [r.method, r.url, r.headers, r.body]), folder.requests.map((r) => [r.method, r.url, r.headers, r.body]));
@@ -106,4 +107,31 @@ test('collectionToFiles de-duplicates folder and collection names', () => {
     collectionsToFiles([c, { ...c, name: 'A?B', folders: [{ name: '', requests: [req] }] }]).map((f) => f.path).slice(-1),
     ['A-B-2/requests.http'],
   );
+});
+
+test('collectionToFiles: nested folders become subdirectories, names de-duplicated per directory', () => {
+  const req = (url: string) => ({ method: 'GET', url, headers: [] });
+  const files = collectionToFiles({
+    name: 'Shop',
+    folders: [
+      { name: '', requests: [req('/r')] },
+      { name: 'Orders', path: ['Orders'], requests: [req('/o')] },
+      { name: 'Orders / Refunds', path: ['Orders', 'Refunds'], requests: [req('/or')] },
+      { name: 'Orders / Refunds / Bulk', path: ['Orders', 'Refunds', 'Bulk'], requests: [req('/orb')] },
+      { name: 'Orders / Empty', path: ['Orders', 'Empty'], requests: [] },
+      { name: 'orders / refunds', path: ['orders', 'refunds'], requests: [req('/x')] },
+      { name: 'A/B', path: ['A/B'], requests: [req('/ab')] },
+    ],
+    variables: [],
+    environments: {},
+    warnings: [],
+  });
+  assert.deepEqual(files.map((f) => f.path), [
+    'Shop/requests.http',
+    'Shop/Orders.http',
+    'Shop/Orders/Refunds.http',
+    'Shop/Orders/Refunds/Bulk.http',
+    'Shop/orders-2/refunds.http',
+    'Shop/A-B.http',
+  ]);
 });

@@ -427,6 +427,62 @@ exports.run = async function run() {
     assert.equal(api.deps.envs.selected, 'local');
   });
 
+  await check('Collections: folders in the tree, drag requests between files and within one, duplicate, Move Up, move a file into a folder', async () => {
+    const api = vscode.extensions.getExtension('plainbyte.plainwire').exports;
+    const ws = vscode.workspace.workspaceFolders[0].uri;
+    const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(ws.fsPath, rel)), { recursive: true }); fs.writeFileSync(path.join(ws.fsPath, rel), text); };
+    const read = (rel) => fs.readFileSync(path.join(ws.fsPath, rel), 'utf8');
+    write('shop/orders.http', '@h = http://x\n\n### List orders\nGET {{h}}/orders\n\n### Create order\n# @name create\nPOST {{h}}/orders\nContent-Type: application/json\n\n{"a": 1}\n\n### Order by id\nGET {{h}}/orders/{{create.response.body.$.id}}\n');
+    write('shop/admin/users.http', '### Users\nGET http://x/users\n');
+    write('loose.http', '### Loose\nGET http://x/loose\n');
+    const tree = api.collectionsForTest;
+    tree.refresh();
+    await new Promise((r) => setTimeout(r, 500));
+    const label = (n) => tree.getTreeItem(n).label;
+    const top = await tree.getChildren();
+    const shop = top.find((n) => label(n) === 'shop');
+    assert.ok(shop, 'shop folder at the top: ' + top.map(label).join(', '));
+    assert.equal(tree.getTreeItem(shop).contextValue, 'plainwire.folder');
+    assert.ok(top.some((n) => label(n) === 'loose.http' && tree.getTreeItem(n).contextValue === 'plainwire.file'));
+    const inShop = await tree.getChildren(shop);
+    assert.deepEqual(inShop.map(label), ['admin', 'orders.http']);
+    const orders = inShop[1];
+    const reqs = await tree.getChildren(orders);
+    assert.deepEqual(reqs.map(label), ['List orders', 'Create order', 'Order by id']);
+    // Drag "Create order" onto users.http (append there).
+    const users = (await tree.getChildren(inShop[0]))[0];
+    const dt = new vscode.DataTransfer();
+    api.organizerForTest.handleDrag([reqs[1]], dt);
+    await api.organizerForTest.handleDrop(users, dt);
+    assert.equal(read('shop/admin/users.http'), '### Users\nGET http://x/users\n\n### Create order\n# @name create\nPOST {{h}}/orders\nContent-Type: application/json\n\n{"a": 1}\n');
+    assert.equal(read('shop/orders.http'), '@h = http://x\n\n### List orders\nGET {{h}}/orders\n\n### Order by id\nGET {{h}}/orders/{{create.response.body.$.id}}\n');
+    // Drag "List orders" down onto "Order by id": it lands after it.
+    const reqs2 = await tree.getChildren(orders);
+    const dt2 = new vscode.DataTransfer();
+    api.organizerForTest.handleDrag([reqs2[0]], dt2);
+    await api.organizerForTest.handleDrop(reqs2[1], dt2);
+    assert.deepEqual((await tree.getChildren(orders)).map(label), ['Order by id', 'List orders']);
+    assert.ok(read('shop/orders.http').startsWith('@h = http://x\n\n### Order by id\n'));
+    // Duplicate and Move Up through the commands, as the context menu runs them.
+    await vscode.commands.executeCommand('plainwire.duplicateRequest', (await tree.getChildren(orders))[1]);
+    assert.deepEqual((await tree.getChildren(orders)).map(label), ['Order by id', 'List orders', 'List orders (copy)']);
+    await vscode.commands.executeCommand('plainwire.moveUp', (await tree.getChildren(orders))[2]);
+    assert.deepEqual((await tree.getChildren(orders)).map(label), ['Order by id', 'List orders (copy)', 'List orders']);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    // Drag loose.http onto the admin folder: the file moves.
+    const loose = (await tree.getChildren()).find((n) => label(n) === 'loose.http');
+    const dt3 = new vscode.DataTransfer();
+    api.organizerForTest.handleDrag([loose], dt3);
+    assert.ok(dt3.get('text/uri-list'), 'files can also be dropped into editors');
+    await api.organizerForTest.handleDrop(inShop[0], dt3);
+    assert.ok(fs.existsSync(path.join(ws.fsPath, 'shop/admin/loose.http')));
+    assert.ok(!fs.existsSync(path.join(ws.fsPath, 'loose.http')));
+    tree.refresh();
+    await new Promise((r) => setTimeout(r, 500));
+    const admin = (await tree.getChildren((await tree.getChildren()).find((n) => label(n) === 'shop')))[0];
+    assert.deepEqual((await tree.getChildren(admin)).map(label), ['loose.http', 'users.http']);
+  });
+
   if (tlsServer) tlsServer.close();
   server.close();
   const report = results.join('\n');

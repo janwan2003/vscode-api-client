@@ -16,6 +16,7 @@ import { RequestPanel, type PanelDeps } from './panel.ts';
 import { readText, Runner } from './runner.ts';
 import { filesFor, RunAllPanel } from './runAll.ts';
 import { CollectionsProvider, HistoryProvider, type RequestNode } from './tree.ts';
+import { Organizer } from './organize.ts';
 
 interface At {
   uri: vscode.Uri;
@@ -31,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const copier = new CodeCopier(runner, context.globalState);
   const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier };
   const collections = new CollectionsProvider();
+  const organizer = new Organizer(deps, collections);
   void envs.reload();
 
   const requestAt = async (at: At): Promise<HttpRequest> => {
@@ -63,7 +65,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     history,
     output,
     collections,
-    vscode.window.registerTreeDataProvider('plainwire.collections', collections),
+    (organizer.view = vscode.window.createTreeView('plainwire.collections', { treeDataProvider: collections, dragAndDropController: organizer, canSelectMany: true, showCollapseAll: true })),
+    ...organizer.commands(),
     vscode.window.registerTreeDataProvider('plainwire.history', new HistoryProvider(history)),
     vscode.languages.registerCodeLensProvider([{ language: 'http' }, { pattern: '**/*.{http,rest}' }], new RequestCodeLens()),
     vscode.languages.registerDocumentLinkProvider([{ language: 'http' }, { pattern: '**/*.{http,rest}' }], new ImportLinkProvider()),
@@ -138,6 +141,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       const title = files.length === 1 ? vscode.workspace.asRelativePath(files[0]) : target ? `${vscode.workspace.asRelativePath(target instanceof vscode.Uri ? target : (target as { uri: vscode.Uri }).uri)} (${files.length} files)` : `workspace (${files.length} files)`;
       return RunAllPanel.run(runner, files, title, (uri, index) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index }));
     })),
+    vscode.commands.registerCommand('plainwire.runFolder', (target?: unknown) => vscode.commands.executeCommand('plainwire.runFile', target)),
     vscode.commands.registerCommand('plainwire.runAll', guard(async () => {
       const files = await filesFor(null);
       if (!files.length) throw new Error('No .http or .rest files in this workspace.');
@@ -179,6 +183,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     cookiesForTest: cookies,
     oauth2ForTest: runner.oauth2,
     envEditorForTest: () => EnvEditorPanel.current,
+    collectionsForTest: collections,
+    organizerForTest: organizer,
     parseHttpFileForTest: parseHttpFile,
     importTextForTest: (text: string, name: string, out: vscode.OutputChannel) => writeCollections(detectAndImport(text, name), out),
   };

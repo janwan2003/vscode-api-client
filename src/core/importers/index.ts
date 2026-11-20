@@ -126,18 +126,34 @@ function unique(name: string, used: Set<string>): string {
 }
 
 /**
- * Lay out an imported collection as files: one `.http` file per folder under
- * `<collection>/`, root requests in `requests.http`, and `http-client.env.json` for environments.
- * Paths use '/' and are relative to the import target directory.
+ * Lay out an imported collection as files: one `.http` file per folder under `<collection>/`,
+ * nested folders as subdirectories (`Orders / Refunds` → `Orders/Refunds.http`), root requests in
+ * `requests.http`, and `http-client.env.json` for environments. Paths use '/' and are relative
+ * to the import target directory.
  */
 export function collectionToFiles(c: ImportedCollection, usedDirs: Set<string> = new Set()): { path: string; content: string }[] {
   const dir = unique(safeName(c.name, 'collection'), usedDirs);
-  const used = new Set<string>();
+  /** Names taken per directory (case-insensitive), files and subdirectories alike. */
+  const used = new Map<string, Set<string>>();
+  const usedIn = (d: string) => used.get(d) ?? used.set(d, new Set()).get(d)!;
+  /** Each folder chain maps to one directory, so siblings of the same parent share it. */
+  const dirs = new Map<string, string>();
   const files: { path: string; content: string }[] = [];
   for (const f of c.folders) {
     if (!f.requests.length) continue;
-    const base = unique(f.name === '' ? 'requests' : safeName(f.name, 'folder'), used);
-    files.push({ path: `${dir}/${base}.http`, content: serializeHttpFile(c.variables, f.requests) });
+    const segs = f.path?.length ? f.path : f.name === '' ? [] : [f.name];
+    let at = dir;
+    for (let i = 0; i < segs.length - 1; i++) {
+      const key = segs.slice(0, i + 1).join('\u0000');
+      let d = dirs.get(key);
+      if (!d) {
+        d = `${at}/${unique(safeName(segs[i], 'folder'), usedIn(at + '/'))}`;
+        dirs.set(key, d);
+      }
+      at = d;
+    }
+    const base = unique(segs.length ? safeName(segs[segs.length - 1], 'folder') : 'requests', usedIn(at));
+    files.push({ path: `${at}/${base}.http`, content: serializeHttpFile(c.variables, f.requests) });
   }
   if (Object.keys(c.environments).length) {
     files.push({ path: `${dir}/http-client.env.json`, content: JSON.stringify(c.environments, null, 2) + '\n' });

@@ -138,6 +138,8 @@ export function applyGraphqlBody(req: HttpRequest, query: string, variables: str
 interface Ctx {
   warnings: string[];
   folders: Map<string, HttpRequest[]>;
+  /** Folder chain per folder key, for nested output directories. */
+  paths: Map<string, string[]>;
 }
 
 /** Postman auth: v2.1 uses arrays of {key, value}; v2.0 uses plain objects. */
@@ -422,6 +424,7 @@ function walk(items: unknown, path: string[], inheritedAuth: InheritedAuth | und
     if (w.length) ctx.warnings.push(`${label}: ${w.map((x) => x.replace(`${label}: `, '').replace(/\.$/, '')).join('; ')}.`);
     if (!clean) continue;
     const folder = path.join(' / ');
+    if (!ctx.paths.has(folder)) ctx.paths.set(folder, [...path]);
     const list = ctx.folders.get(folder);
     if (list) list.push(clean);
     else ctx.folders.set(folder, [clean]);
@@ -440,7 +443,7 @@ export function importPostman(json: unknown): ImportedCollection {
     }
     throw new Error('Not a Postman collection: expected an object with "info" and "item" (Collection v2.0/v2.1 export).');
   }
-  const ctx: Ctx = { warnings: [], folders: new Map() };
+  const ctx: Ctx = { warnings: [], folders: new Map(), paths: new Map() };
   const name = str(json.info.name) || 'Postman collection';
   const kinds = scriptKinds(json.event);
   if (kinds.length) ctx.warnings.push(`Collection: ${kinds.join(' and ')} skipped.`);
@@ -459,7 +462,7 @@ export function importPostman(json: unknown): ImportedCollection {
   const folders: ImportedCollection['folders'] = [];
   const root = ctx.folders.get('');
   if (root) folders.push({ name: '', requests: root });
-  for (const [fname, requests] of ctx.folders) if (fname !== '') folders.push({ name: fname, requests });
+  for (const [fname, requests] of ctx.folders) if (fname !== '') folders.push({ name: fname, path: ctx.paths.get(fname), requests });
 
   return { name, folders, variables, environments: {}, warnings: ctx.warnings };
 }

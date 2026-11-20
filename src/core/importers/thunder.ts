@@ -207,7 +207,7 @@ function convertRequest(
   folders: Map<string, Folder>,
   coll: CollectionSettings,
   warnings: string[],
-): { folder: string; req: HttpRequest } | undefined {
+): { folder: string; path: string[]; req: HttpRequest } | undefined {
   const name = str(r.name) || 'Untitled';
   const parents = chain(folders, str(r.containerId));
   const folder = parents.map((f) => f.name).join(' / ');
@@ -277,7 +277,7 @@ function convertRequest(
   for (const h of req.headers) h.value = mapDynamic(h.value);
   if (req.body !== undefined) req.body = mapDynamic(req.body);
   const clean = cleanImportedRequest(req, label, warnings);
-  return clean ? { folder, req: clean } : undefined;
+  return clean ? { folder, path: parents.map((f) => f.name), req: clean } : undefined;
 }
 
 function sortNum(x: unknown): number {
@@ -307,6 +307,7 @@ function buildCollection(
   if (collSkipped.length) warnings.push(`Collection "${name}": ${collSkipped.join(', ')} skipped.`);
 
   const grouped = new Map<string, HttpRequest[]>();
+  const paths = new Map<string, string[]>();
   // Folder order: by the folders' own sortNum, so files appear in the same order as in the tree.
   const folderOrder = [...folders.values()]
     .map((f) => ({ path: chain(folders, f.id).map((c) => c.name).join(' / '), sort: sortNum(arr(folderList).find((x) => isObj(x) && x._id === f.id)) }))
@@ -318,11 +319,12 @@ function buildCollection(
   for (const { r } of sorted) {
     const c = convertRequest(r, folders, coll, warnings);
     if (!c) continue;
+    if (!paths.has(c.folder)) paths.set(c.folder, c.path);
     const list = grouped.get(c.folder);
     if (list) list.push(c.req);
     else grouped.set(c.folder, [c.req]);
   }
-  const outFolders = [...grouped].filter(([, reqs]) => reqs.length).map(([fname, reqs]) => ({ name: fname, requests: reqs }));
+  const outFolders = [...grouped].filter(([, reqs]) => reqs.length).map(([fname, reqs]) => (paths.get(fname)?.length ? { name: fname, path: paths.get(fname), requests: reqs } : { name: fname, requests: reqs }));
   return { name, folders: outFolders, variables: [], environments: {}, warnings };
 }
 

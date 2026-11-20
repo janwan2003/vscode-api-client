@@ -25,7 +25,7 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
 - **GraphQL**: `X-REQUEST-TYPE: GraphQL` requests (REST Client's format: query, blank line, variables JSON), with a Query + Variables editor. [Guide](https://janwan2003.github.io/vscode-api-client/graphql-requests-vscode.html).
 - **Copy as Code**: cURL, JavaScript/Node.js fetch, Python requests, Go, HTTPie, PowerShell, wget, C#, PHP, Java, with variables resolved.
 - **httpYac compatible tests**: `?? status == 200`-style lines run as checks too.
-- **Sidebar**: every `.http` file in the workspace with its requests, plus a local history of sent requests.
+- **Sidebar with folders** (new in 0.11): your folders, the `.http` files in them and their requests, plus a local history of sent requests. Drag requests between files or reorder them, rename, duplicate, move to another file, delete; drag files into folders; run a whole folder. Edits keep the rest of each file byte for byte. [Guide](https://janwan2003.github.io/vscode-api-client/organize-api-requests-folders-vscode.html).
 - Requests are sent from the extension host (Node), so there are no CORS problems.
 
 ## Example
@@ -63,7 +63,7 @@ unchanged, as are `$schema` and the order of your keys. With several env files i
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.10.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.11.0.vsix`; same for `cursor` / `codium`).
 
 ## Run the same files in CI
 
@@ -75,7 +75,7 @@ node plainwire.mjs run api/ --env staging --junit results.xml
 ```yaml
 # .github/workflows/api-tests.yml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.10.0
+- uses: janwan2003/vscode-api-client@v0.11.0
   with:
     files: api/
     env: ci

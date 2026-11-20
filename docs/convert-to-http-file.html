@@ -71,7 +71,7 @@
     <div class="table-wrap"><table>
       <thead><tr><th>From</th><th>To</th></tr></thead>
       <tbody>
-        <tr><td>Folders</td><td>One <code>.http</code> file per folder; requests outside folders go to <code>requests.http</code></td></tr>
+        <tr><td>Folders</td><td>One <code>.http</code> file per folder; nested folders become subfolders (<code>Orders / Refunds</code> &rarr; <code>Orders/Refunds.http</code>); requests outside folders go to <code>requests.http</code></td></tr>
         <tr><td>Requests</td><td><code>###</code> blocks titled with the request name, in the collection&rsquo;s order</td></tr>
         <tr><td>Collection variables</td><td><code>@name = value</code> lines at the top of each file</td></tr>
         <tr><td>Environments</td><td><code>http-client.env.json</code> (<code>{{var}}</code> syntax is kept)</td></tr>

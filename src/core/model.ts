@@ -70,8 +70,11 @@ export interface HttpFile {
 /** Result of importing a foreign collection (Thunder Client, Postman, cURL). */
 export interface ImportedCollection {
   name: string;
-  /** Each folder becomes its own .http file; requests without a folder use folder ''. */
-  folders: { name: string; requests: HttpRequest[] }[];
+  /**
+   * Each folder becomes its own .http file; requests without a folder use folder ''. `path` is the
+   * folder chain (outermost first) when folders nest: `['Orders', 'Refunds']` → `Orders/Refunds.http`.
+   */
+  folders: { name: string; path?: string[]; requests: HttpRequest[] }[];
   /** Collection-level variables, written as `@name = value` at the top of each file. */
   variables: FileVariable[];
   /** Environments, written to `http-client.env.json` format: { envName: { var: value } }. */

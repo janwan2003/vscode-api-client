@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0 (2026-11-20)
+
+- **Folders in the Requests view**: the sidebar now shows your workspace's folders, then the `.http` / `.rest` files in each, then the requests in each file (before: one flat list of file paths). A folder whose only child is a folder shows as one row (`api/v2`); setting `plainwire.collections.compactFolders`. Multi-root workspaces get one top-level node per folder.
+- **Drag and drop**: drag requests onto a request (reorder within a file, or move to that place in another file) or onto a file (move to its end); several selected requests move together, in order. Drag files and folders onto a folder to move them (a normal rename, so open editors follow). Dragging a file into the editor area opens it.
+- **Request actions** in the context menu: *Rename…* (`F2`, edits the `###` line only), *Duplicate* (a copy below, title "(copy)", a free `# @name` such as `create2` so chaining still points at the original), *Move Up* / *Move Down* (`Alt+↑/↓`), *Move to File…* (any `.http` file or a new one), *Delete* (asks first; `Delete` key). Files and folders: *New .http File…*, *New Folder…* (starts with `requests.http`; `orders/list` creates subfolders), *Rename…*, *Delete* (to the trash), *Run All Requests in Folder*.
+- Every request edit is made on the file's text: the moved block is copied verbatim (comments, `# @name`, checks, scripts) and every other line stays byte for byte, CRLF files stay CRLF, and the edit goes through the editor so Undo works. File variables and `# @import` lines in a moved block stay in their file (they apply to the whole file). Moving a `# @name` request that its old file still chains to (`{{login.response…}}`) shows the `# @import` line to add.
+- Open request tabs follow their request when it is reordered or moved to another file, and their file when it is renamed or moved.
+- **Import: nested folders become subfolders.** A Postman or Thunder Client folder inside a folder is written to `Collection/Orders/Refunds.http` instead of `Collection/Orders - Refunds.http`. Also in the CLI (`plainwire import`) and the online converter.
+
 ## 0.10.0 (2026-11-20)
 
 - **OAuth 2.0 tokens**: `{{$auth.token("id")}}` and `{{$auth.idToken("id")}}` in any URL, header or body. The configuration lives in the environment, in the JetBrains HTTP Client format: `"Security": { "Auth": { "id": { "Type": "OAuth2", "Grant Type": …, "Token URL": …, "Client ID": … } } }`. A token is fetched before the first request that needs it, reused while it is valid, refreshed with its refresh token 30 s before it expires, and fetched again when the refresh fails. REST Client had no OAuth support ([#302](https://github.com/Huachao/vscode-restclient/issues/302)).

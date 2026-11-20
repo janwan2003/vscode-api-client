@@ -2,7 +2,7 @@
   "name": "plainwire",
   "displayName": "Plainwire — API Client (no login, plain .http files)",
   "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible), with GraphQL, tests, a collection runner, copy as code and a free CLI for CI. One-click import from Thunder Client, Postman and cURL.",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -186,6 +186,62 @@
         "title": "Run All Requests in Workspace",
         "category": "Plainwire",
         "icon": "$(run-all)"
+      },
+      {
+        "command": "plainwire.newRequestIn",
+        "title": "New Request",
+        "category": "Plainwire",
+        "icon": "$(add)"
+      },
+      {
+        "command": "plainwire.newFile",
+        "title": "New .http File…",
+        "category": "Plainwire",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "plainwire.newFolder",
+        "title": "New Folder…",
+        "category": "Plainwire",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "plainwire.rename",
+        "title": "Rename…",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.duplicateRequest",
+        "title": "Duplicate",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.delete",
+        "title": "Delete",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.moveUp",
+        "title": "Move Up",
+        "category": "Plainwire",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "plainwire.moveDown",
+        "title": "Move Down",
+        "category": "Plainwire",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "plainwire.moveToFile",
+        "title": "Move to File…",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.runFolder",
+        "title": "Run All Requests in Folder",
+        "category": "Plainwire",
+        "icon": "$(run-all)"
       }
     ],
     "viewsContainers": {
@@ -275,6 +331,16 @@
           "command": "plainwire.clearHistory",
           "when": "view == plainwire.history",
           "group": "navigation"
+        },
+        {
+          "command": "plainwire.newFile",
+          "when": "view == plainwire.collections",
+          "group": "1_new@1"
+        },
+        {
+          "command": "plainwire.newFolder",
+          "when": "view == plainwire.collections",
+          "group": "1_new@2"
         }
       ],
       "view/item/context": [
@@ -302,6 +368,66 @@
           "command": "plainwire.copyAsCode",
           "when": "viewItem == plainwire.request",
           "group": "1_actions@2"
+        },
+        {
+          "command": "plainwire.newFile",
+          "when": "view == plainwire.collections && viewItem =~ /^plainwire\\.(folder|root)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "plainwire.newFile",
+          "when": "view == plainwire.collections && viewItem =~ /^plainwire\\.(folder|root)$/",
+          "group": "1_new@1"
+        },
+        {
+          "command": "plainwire.newFolder",
+          "when": "view == plainwire.collections && viewItem =~ /^plainwire\\.(folder|root)$/",
+          "group": "1_new@2"
+        },
+        {
+          "command": "plainwire.runFolder",
+          "when": "view == plainwire.collections && viewItem =~ /^plainwire\\.(folder|root)$/",
+          "group": "2_run@1"
+        },
+        {
+          "command": "plainwire.newRequestIn",
+          "when": "view == plainwire.collections && viewItem == plainwire.file",
+          "group": "inline@1"
+        },
+        {
+          "command": "plainwire.newRequestIn",
+          "when": "view == plainwire.collections && viewItem =~ /^plainwire\\.(file|request)$/",
+          "group": "1_new@1"
+        },
+        {
+          "command": "plainwire.duplicateRequest",
+          "when": "view == plainwire.collections && viewItem == plainwire.request",
+          "group": "3_edit@1"
+        },
+        {
+          "command": "plainwire.moveToFile",
+          "when": "view == plainwire.collections && viewItem == plainwire.request",
+          "group": "3_edit@2"
+        },
+        {
+          "command": "plainwire.moveUp",
+          "when": "view == plainwire.collections && viewItem == plainwire.request",
+          "group": "4_order@1"
+        },
+        {
+          "command": "plainwire.moveDown",
+          "when": "view == plainwire.collections && viewItem == plainwire.request",
+          "group": "4_order@2"
+        },
+        {
+          "command": "plainwire.rename",
+          "when": "view == plainwire.collections && viewItem =~ /^plainwire\\.(folder|file|request)$/",
+          "group": "7_modify@1"
+        },
+        {
+          "command": "plainwire.delete",
+          "when": "view == plainwire.collections && viewItem =~ /^plainwire\\.(folder|file|request)$/",
+          "group": "7_modify@2"
         }
       ],
       "editor/title/run": [
@@ -354,6 +480,38 @@
         {
           "command": "plainwire.copyAsCode",
           "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        },
+        {
+          "command": "plainwire.newRequestIn",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.rename",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.duplicateRequest",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.delete",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.moveUp",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.moveDown",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.moveToFile",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.runFolder",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -370,6 +528,27 @@
         "key": "ctrl+alt+enter",
         "mac": "cmd+alt+enter",
         "when": "editorTextFocus && resourceExtname =~ /^\\.(http|rest)$/"
+      },
+      {
+        "command": "plainwire.rename",
+        "key": "f2",
+        "when": "focusedView == plainwire.collections"
+      },
+      {
+        "command": "plainwire.delete",
+        "key": "delete",
+        "mac": "cmd+backspace",
+        "when": "focusedView == plainwire.collections"
+      },
+      {
+        "command": "plainwire.moveUp",
+        "key": "alt+up",
+        "when": "focusedView == plainwire.collections"
+      },
+      {
+        "command": "plainwire.moveDown",
+        "key": "alt+down",
+        "when": "focusedView == plainwire.collections"
       }
     ],
     "languages": [
@@ -444,6 +623,11 @@
           "type": "string",
           "default": "",
           "description": "HTTP proxy for requests, e.g. http://user:pass@proxy:8080. Falls back to VS Code's http.proxy, then HTTPS_PROXY / HTTP_PROXY. Hosts in NO_PROXY and localhost are always sent directly."
+        },
+        "plainwire.collections.compactFolders": {
+          "type": "boolean",
+          "default": true,
+          "description": "In the Collections view, show a folder whose only child is one folder as a single row (api/v2), like the Explorer's compact folders."
         }
       }
     },
