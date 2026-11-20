@@ -1,4 +1,5 @@
 import type { Header, HttpRequest } from './model.ts';
+import { toGraphqlHttp } from './graphql.ts';
 
 /**
  * cURL <-> HttpRequest conversion.
@@ -558,8 +559,9 @@ export function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** Render a request as a multi-line curl command (one argument per line). */
-export function toCurl(req: HttpRequest): string {
+/** Render a request as a multi-line curl command (one argument per line). GraphQL requests get their JSON body. */
+export function toCurl(request: HttpRequest): string {
+  const req = toGraphqlHttp(request, true);
   const lines: string[] = [`curl ${shellQuote(req.url)}`];
   const method = req.method.toUpperCase();
   const hasBody = req.body !== undefined && req.body !== '';

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { importPostman, importPostmanEnvironment } from '../src/core/importers/postman.ts';
 import { MULTIPART_BOUNDARY } from '../src/core/curl.ts';
 import { parseHttpFile, serializeHttpFile } from '../src/core/httpFile.ts';
+import { toGraphqlHttp } from '../src/core/graphql.ts';
 import type { HttpRequest, ImportedCollection } from '../src/core/model.ts';
 
 const load = (f: string): unknown => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8'));
@@ -90,14 +91,24 @@ test('apikey in query; URL rebuilt from host/path', () => {
   assert.deepEqual(r.headers, []);
 });
 
-test('graphql body becomes JSON', () => {
+test('graphql body becomes a REST Client GraphQL request (query, blank line, variables)', () => {
   const r = find(col, 'Pet by id');
-  assert.deepEqual(JSON.parse(r.body!), { query: 'query Pet($id: ID!) {\n  pet(id: $id) { id name }\n}', variables: { id: '42' } });
+  assert.equal(r.body, 'query Pet($id: ID!) {\n  pet(id: $id) { id name }\n}\n\n{\n  "id": "42"\n}');
   assert.deepEqual(r.headers, [
     { name: 'X-Request-Id', value: 'abc' },
     { name: 'Content-Type', value: 'application/json' },
+    { name: 'X-REQUEST-TYPE', value: 'GraphQL' },
     { name: 'Authorization', value: 'Bearer {{accessToken}}' },
   ]);
+  // Written to .http and read back, it is sent as the JSON body GraphQL servers expect.
+  const back = parseHttpFile(serializeHttpFile([], [r])).requests[0];
+  assert.deepEqual(JSON.parse(toGraphqlHttp(back).body!), { query: 'query Pet($id: ID!) {\n  pet(id: $id) { id name }\n}', variables: { id: '42' }, operationName: 'Pet' });
+  // Variables given as an object, or with {{placeholders}} that are not JSON yet; empty variables are left out.
+  const gq = (graphql: unknown) =>
+    importPostman({ info: { name: 'G', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' }, item: [{ name: 'q', request: { method: 'POST', url: 'https://x.test/gql', body: { mode: 'graphql', graphql } } }] }).folders[0].requests[0].body;
+  assert.equal(gq({ query: '{ a }', variables: { n: 1 } }), '{ a }\n\n{\n  "n": 1\n}');
+  assert.equal(gq({ query: '{ a }', variables: '{"n": {{n}}}' }), '{ a }\n\n{"n": {{n}}}');
+  assert.equal(gq({ query: '{ a }', variables: '{}' }), '{ a }');
 });
 
 test('one warning per request with scripts; empty collection script ignored', () => {

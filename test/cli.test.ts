@@ -33,6 +33,7 @@ before(async () => {
       if (req.url === '/me') return req.headers.authorization === 'Bearer tok-alice' ? json(200, { name: 'Alice', roles: ['admin'] }) : json(401, { error: 'no' });
       if (req.url === '/missing') return json(404, { error: 'not found' });
       if (req.url === '/upload') return json(200, { got: Buffer.concat(chunks).toString() });
+      if (req.url === '/graphql') return json(200, { contentType: req.headers['content-type'], requestType: req.headers['x-request-type'] ?? null, received: JSON.parse(Buffer.concat(chunks).toString()) });
       json(200, { path: req.url });
     });
   });
@@ -212,4 +213,41 @@ test('import: Thunder split layout puts environments beside the collection', asy
   const envFiles = r.stdout.split('\n').filter((l) => l.includes('http-client.env.json'));
   assert.equal(envFiles.length, 1, r.stdout);
   assert.ok(r.stdout.split('\n').some((l) => l.trim().startsWith(envFiles[0].trim().replace(/http-client\.env\.json$/, '')) && l.endsWith('.http')), r.stdout);
+});
+
+test('run: GraphQL requests (X-REQUEST-TYPE: GraphQL) are sent as JSON; bad variables are a request error', async () => {
+  mkdirSync(join(dir, 'gql'), { recursive: true });
+  writeFileSync(
+    join(dir, 'gql', 'pets.http'),
+    [
+      '### Pet by id',
+      '# @assert $.contentType == application/json',
+      '# @assert $.requestType isNull',
+      '# @assert $.received.operationName == Pet',
+      '# @assert $.received.variables.id == 7',
+      '# @assert $.received.variables.owner == {{user}}',
+      '# @assert $.received.query contains pet(id: $id) { id name }',
+      'POST {{base}}/graphql',
+      'X-REQUEST-TYPE: GraphQL',
+      '',
+      'query Pet($id: ID!) {',
+      '  pet(id: $id) { id {{field}} }',
+      '}',
+      '',
+      '{"id": {{petId}}, "owner": "{{user}}"}',
+      '',
+      '### Broken variables',
+      'POST {{base}}/graphql',
+      'x-request-type: graphql',
+      '',
+      'query { pets { id } }',
+      '',
+      '{"id": }',
+      '',
+    ].join('\n'),
+  );
+  const r = await runCli(['run', 'gql', '-e', 'local', '--var', 'petId=7', '--var', 'field=name']);
+  assert.equal(r.code, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /1 passed, 0 failed, 1 errors/);
+  assert.match(r.stdout, /GraphQL variables are not valid JSON/);
 });

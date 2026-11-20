@@ -2,7 +2,7 @@ import type { HttpRequest, ImportedCollection } from '../model.ts';
 import { basicAuthValue, buildMultipartBody, filePath, formEncode, multipartContentType } from '../curl.ts';
 import type { MultipartPart } from '../curl.ts';
 import { convertThunderTests } from './tests.ts';
-import { arr, cleanImportedRequest, graphqlBody, hasHeader, isObj, str } from './postman.ts';
+import { applyGraphqlBody, arr, cleanImportedRequest, hasHeader, isObj, str } from './postman.ts';
 
 /**
  * Thunder Client importer. Three layouts are supported (all checked against real files):
@@ -169,8 +169,7 @@ function applyBody(body: unknown, req: HttpRequest, label: string, warnings: str
     case 'graphql': {
       const g = isObj(body.graphql) ? body.graphql : {};
       const vars = typeof g.variables === 'string' ? g.variables : g.variables ? JSON.stringify(g.variables) : '';
-      req.body = graphqlBody(str(g.query), vars);
-      setType('application/json');
+      applyGraphqlBody(req, str(g.query), vars);
       return;
     }
     case 'binary': {
