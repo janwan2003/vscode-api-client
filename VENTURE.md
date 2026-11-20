@@ -114,6 +114,9 @@ Verified 2026-11-20 (0.2.0, session 3) how:
 - `plainwire-0.2.0.vsix` installs with `code --install-extension` into a clean extensions dir.
 - Screenshots re-rendered in headless Chromium: `scripts/shot/harness.html` → `docs/screenshot.png` (Tests tab + "4 checks
   passed"); `node scripts/shot/run-all.mjs` renders the real `RunAllPanel` HTML with sample rows → `docs/run-all.png`.
+- GitHub Actions CI (new, `.github/workflows/ci.yml`) run 44737022014: Node 20 and 22, typecheck + 101/101 tests + package, success.
+- Release v0.2.0 live; `releases/latest/download/plainwire-0.2.0.vsix` → HTTP 200, byte-identical to the local build.
+  Pages: `/`, both new guides, `support.html`, `run-all.png`, `sitemap.xml` → HTTP 200; landing page shows v0.2 and the 0.2.0 file name.
 - NOT verified for 0.2.0: typing in
   the Tests tab in a real VS Code window; proxies against a real corporate proxy (only a local test proxy).
 
@@ -162,6 +165,11 @@ free features: gating them is the exact mistake that is driving Thunder Client's
 - 2026-11-20 builder: named it Plainwire (free on Marketplace, Open VSX, npm), built v0.1.0 (core + extension + importers
   + site), 80/80 unit tests, 7/7 headless VS Code e2e, `.vsix` installs; published repo, GitHub Pages and release
   v0.1.0 with the `.vsix`. Stage → launched (GitHub only; stores blocked on operator accounts).
+- 2026-11-20 builder (session 3): stores still blocked (no `VSCE_PAT`/`OVSX_PAT`). Shipped 0.2.0: `# @assert` tests + Tests
+  tab, Run all report, Thunder/Postman test conversion on import, sender rewritten on node:http/https (any port, self-signed
+  TLS, proxies); 2 new SEO guides (tests; certificates/ports/proxies), stale 0.1 wording fixed on 5 pages; CI added.
+  Evidence: 101/101 unit tests locally and in CI run 44737022014; e2e 10/10 in headless VS Code 1.147; release v0.2.0
+  download verified byte-identical; 6 Pages URLs HTTP 200.
 
 ## Metrics
 
