@@ -1,3 +1,4 @@
+import { isHttpYacAssert } from './assert.ts';
 import type { FileVariable, Header, HttpFile, HttpRequest, ParsedRequest } from './model.ts';
 
 /**
@@ -13,6 +14,11 @@ import type { FileVariable, Header, HttpFile, HttpRequest, ParsedRequest } from 
  *   Accept: application/json               headers until the first blank line
  *
  *   { "body": true }                       body until the next ###
+ *
+ *   ?? status == 200                       httpYac test line (anywhere in the block; never body)
+ *
+ * `??` lines are kept verbatim in `asserts` (see core/assert.ts) and written back after the
+ * headers / body. REST Client has no such syntax; httpYac recognises them by the `??` prefix alone.
  */
 
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'TRACE', 'CONNECT'];
@@ -76,6 +82,10 @@ function parseBlock(
   for (; i < end; i++) {
     const line = lines[i];
     if (line.trim() === '') continue;
+    if (isHttpYacAssert(line)) {
+      asserts.push(line);
+      continue;
+    }
     const fv = FILE_VAR.exec(line);
     if (fv) {
       variables.push({ name: fv[1], value: fv[2] });
@@ -109,7 +119,7 @@ function parseBlock(
   // Query continuation lines: lines starting with ? or & directly after the request line.
   for (; i < end; i++) {
     const t = lines[i].trim();
-    if (t.startsWith('?') || t.startsWith('&')) url += t;
+    if ((t.startsWith('?') || t.startsWith('&')) && !isHttpYacAssert(t)) url += t;
     else break;
   }
 
@@ -120,6 +130,10 @@ function parseBlock(
     if (line.trim() === '') {
       i++;
       break;
+    }
+    if (isHttpYacAssert(line)) {
+      asserts.push(line);
+      continue;
     }
     const dh = DISABLED_HEADER.exec(line);
     if (dh) {
@@ -135,10 +149,14 @@ function parseBlock(
     }
   }
 
-  // Body: everything until the end of the block, minus trailing blank lines.
-  let bodyEnd = end;
-  while (bodyEnd > i && lines[bodyEnd - 1].trim() === '') bodyEnd--;
-  const body = bodyEnd > i ? lines.slice(i, bodyEnd).join('\n') : undefined;
+  // Body: everything until the end of the block, minus `??` test lines and trailing blank lines.
+  const bodyLines: string[] = [];
+  for (; i < end; i++) {
+    if (isHttpYacAssert(lines[i])) asserts.push(lines[i]);
+    else bodyLines.push(lines[i]);
+  }
+  while (bodyLines.length && bodyLines[bodyLines.length - 1].trim() === '') bodyLines.pop();
+  const body = bodyLines.length ? bodyLines.join('\n') : undefined;
 
   const req: ParsedRequest = { method, url, headers, startLine: start, endLine: end, requestLine };
   if (name) req.name = name;
@@ -158,15 +176,23 @@ export function serializeRequest(req: HttpRequest): string {
   for (const c of req.comments ?? []) out.push(`# ${c}`.trimEnd());
   if (req.name) out.push(`# @name ${req.name}`);
   for (const [k, v] of Object.entries(req.meta ?? {})) out.push(`# @${k}${v ? ' ' + v : ''}`);
-  for (const a of req.asserts ?? []) if (a.trim()) out.push(`# @assert ${a.trim()}`);
+  const yac = (req.asserts ?? []).filter(isHttpYacAssert);
+  for (const a of req.asserts ?? []) if (a.trim() && !isHttpYacAssert(a)) out.push(`# @assert ${a.trim()}`);
   out.push(`${req.method.toUpperCase()} ${req.url}${req.httpVersion ? ' ' + req.httpVersion : ''}`);
   for (const h of req.headers) {
     if (!h.name.trim()) continue;
     out.push(`${h.disabled ? '# ' : ''}${h.name}: ${h.value}`);
   }
-  if (req.body !== undefined && req.body !== '') {
+  const hasBody = req.body !== undefined && req.body !== '';
+  if (hasBody) {
     out.push('');
-    out.push(req.body.replace(/\r\n/g, '\n').replace(/\n+$/, ''));
+    out.push(req.body!.replace(/\r\n/g, '\n').replace(/\n+$/, ''));
+  }
+  // httpYac `??` lines go after the request, verbatim: right after the headers, or after a blank
+  // line following the body (so they can never be read back as part of it).
+  if (yac.length) {
+    if (hasBody) out.push('');
+    out.push(...yac);
   }
   return out.join('\n');
 }

@@ -402,9 +402,13 @@ function walk(items: unknown, path: string[], inheritedAuth: InheritedAuth | und
     if (code.trim()) {
       const t = convertPostmanTests(code);
       if (t.asserts.length) req.asserts = t.asserts;
-      if (t.asserts.length || !t.skipped.length) kinds = kinds.filter((k) => k !== 'test script');
+      const conditional = t.skipped.some((x) => x.includes('conditional check'));
+      if (t.asserts.length || !t.skipped.length || conditional) kinds = kinds.filter((k) => k !== 'test script');
       if (t.asserts.length && t.skipped.length) {
         ctx.warnings.push(`${label}: test script converted to ${t.asserts.length} # @assert check(s); not converted: ${t.skipped.join('; ')}.`);
+      } else if (conditional) {
+        // Nothing converted, but name the tests whose checks were conditional.
+        ctx.warnings.push(`${label}: test script not converted: ${t.skipped.join('; ')}.`);
       }
     }
     if (kinds.length) ctx.warnings.push(`${label}: ${kinds.join(' and ')} skipped.`);

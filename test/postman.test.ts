@@ -167,9 +167,97 @@ test('one-line pm.test wrappers, status lists, negated text include, above; oaut
     '$.items.length > 1',
     '$.total == 2',
   ]);
-  // The if-block and pm.environment.set are not converted (an @assert has no condition).
-  assert.ok(c.warnings.includes('"Auth / Login": test script converted to 6 # @assert check(s); not converted: 2 script statement(s).'));
+  // The check inside the if-block is not converted (an @assert has no condition) and is named;
+  // pm.environment.set is counted as a script statement.
+  assert.ok(c.warnings.includes('"Auth / Login": test script converted to 6 # @assert check(s); not converted: skipped conditional check in test \'conditional\'; 1 script statement(s).'), c.warnings.join('\n'));
   assert.ok(c.warnings.includes('"Auth / Login": dynamic variable(s) {{$randomUserName}} have no Plainwire equivalent; define them as variables or replace them.'));
   assert.equal(c.warnings.filter((w) => w.includes('OAuth 2.0')).length, 1);
   assert.ok(c.warnings.includes('Collection auth: OAuth 2.0 auth has no stored access token; not imported.'));
+});
+
+// Conditional checks: an @assert always runs, so a check that Postman only runs under a condition
+// or in a loop must not become an unconditional @assert.
+test('Postman checks inside if/else, loops, callbacks, try and ternaries are skipped and named', async () => {
+  const { convertPostmanTests } = await import('../src/core/importers/tests.ts');
+  const code = [
+    'var jsonData = pm.response.json();',
+    'pm.test("Status code is 200", function () {',
+    '    pm.response.to.have.status(200);',
+    '});',
+    'pm.test("Body matches when OK", function () {',
+    '    if (pm.response.code === 200) {',
+    '        pm.expect(jsonData.status).to.eql("active");',
+    '        if (jsonData.items) { pm.expect(jsonData.items).to.have.lengthOf(2); }',
+    '    } else {',
+    '        pm.expect(jsonData.error).to.exist;',
+    '    }',
+    '    pm.expect(jsonData.id).to.be.a("number");',
+    '});',
+    'pm.test("each item", () => {',
+    '    jsonData.items.forEach(function (item) {',
+    '        pm.expect(jsonData.total).to.be.above(0);',
+    '    });',
+    '    for (let i = 0; i < 3; i++) { pm.expect(jsonData.total).to.be.above(i); }',
+    '});',
+    'pm.test("one-liners", function () {',
+    '    if (jsonData.debug) pm.expect(jsonData.trace).to.exist;',
+    '    if (jsonData.debug)',
+    '        pm.expect(jsonData.trace).to.be.a("string");',
+    '    else pm.expect(jsonData.trace).to.not.be.undefined;',
+    '    jsonData.legacy ? pm.expect(jsonData.v).to.eql(1) : pm.expect(jsonData.v).to.eql(2);',
+    '    jsonData.strict && pm.expect(jsonData.name).to.eql("x");',
+    '    pm.expect(jsonData.name).to.eql("Ada"); // the only unconditional one',
+    '});',
+    'if (pm.response.code !== 204) { pm.expect(pm.response.text()).to.include("{"); }',
+    'pm.test("swallowed", () => { try { pm.expect(jsonData.x).to.eql(1); } catch (e) { console.log(e); } });',
+    'pm.test("braces in strings and regexes", () => {',
+    '    pm.expect(jsonData.code).to.eql("a{b");',
+    '    pm.expect(jsonData.code).to.match(/^a\\{/);',
+    '});',
+    '/* if (x) { */',
+    'pm.expect(pm.response.responseTime).to.be.below(500);',
+  ].join('\n');
+  const r = convertPostmanTests(code);
+  assert.deepEqual(r.asserts, ['status == 200', '$.id isNumber', '$.name == "Ada"', '$.code == "a{b"', 'time < 500']);
+  assert.deepEqual(r.skipped, [
+    "skipped 3 conditional checks in test 'Body matches when OK'",
+    "skipped 2 conditional checks in test 'each item'",
+    "skipped 5 conditional checks in test 'one-liners'", // the ternary is one statement
+    'skipped conditional check outside any pm.test',
+    "skipped conditional check in test 'swallowed'",
+    // console.log in the catch block, and the regex match (no @assert form for it).
+    '2 script statement(s)',
+  ]);
+});
+
+test('Postman import warns per request with the conditional test name; unconditional checks kept', () => {
+  const c = importPostman({
+    info: { name: 'cond', schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' },
+    item: [
+      {
+        name: 'Get user',
+        request: { method: 'GET', url: 'https://e.test/user' },
+        event: [{ listen: 'test', script: { exec: [
+          'pm.test("ok", function () {',
+          '  pm.response.to.have.status(200);',
+          '});',
+          'pm.test("admin fields", function () {',
+          '  const body = pm.response.json();',
+          '  if (body.role === "admin") {',
+          '    pm.expect(body.permissions).to.be.an("array");',
+          '  }',
+          '});',
+        ] } }],
+      },
+      {
+        name: 'Only conditional',
+        request: { method: 'GET', url: 'https://e.test/x' },
+        event: [{ listen: 'test', script: { exec: ['if (pm.response.code === 200) { pm.expect(pm.response.json().ok).to.eql(true); }'] } }],
+      },
+    ],
+  });
+  assert.deepEqual(find(c, 'Get user').asserts, ['status == 200']);
+  assert.ok(c.warnings.includes(`"Get user": test script converted to 1 # @assert check(s); not converted: skipped conditional check in test 'admin fields'.`), c.warnings.join('\n'));
+  assert.equal(find(c, 'Only conditional').asserts, undefined);
+  assert.ok(c.warnings.includes('"Only conditional": test script not converted: skipped conditional check outside any pm.test.'), c.warnings.join('\n'));
 });
