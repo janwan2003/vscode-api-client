@@ -16,6 +16,11 @@ export interface VariableContext {
   dotenv: Record<string, string>;
   /** Clock override for tests. */
   now?: () => Date;
+  /**
+   * Leave unknown variables as `{{name}}` instead of throwing, and collect their names here
+   * (used when copying a request as code without sending it).
+   */
+  unresolved?: Set<string>;
 }
 
 export class UnresolvedVariableError extends Error {
@@ -31,7 +36,15 @@ const VAR = /\{\{\s*([^{}]+?)\s*\}\}/g;
 /** Resolve every `{{...}}` in `text`. Unknown variables throw UnresolvedVariableError. */
 export function resolveText(text: string, ctx: VariableContext, depth = 0): string {
   if (depth > 10) throw new Error('Variables reference each other in a loop');
-  return text.replace(VAR, (_all, expr: string) => resolveOne(expr, ctx, depth));
+  return text.replace(VAR, (all, expr: string) => {
+    try {
+      return resolveOne(expr, ctx, depth);
+    } catch (e) {
+      if (!ctx.unresolved || !(e instanceof UnresolvedVariableError)) throw e;
+      ctx.unresolved.add(e.variable);
+      return all;
+    }
+  });
 }
 
 function resolveOne(expr: string, ctx: VariableContext, depth: number): string {

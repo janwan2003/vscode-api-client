@@ -153,6 +153,33 @@ exports.run = async function run() {
     assert.ok(lenses.some((l) => l.command && /Run all 2 requests \(2 checks\)/.test(l.command.title)), JSON.stringify(lenses.map((l) => l.command && l.command.title)));
   });
 
+  await check('Copy as Code: picker, resolved snippet on the clipboard, last-picked language first', async () => {
+    const all = await vscode.commands.getCommands(true);
+    assert.ok(all.includes('plainwire.copyAsCode'));
+    const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', file);
+    assert.equal(lenses.filter((l) => l.command && l.command.command === 'plainwire.copyAsCode').length, 2);
+    const pickWith = async (keys) => {
+      const p = vscode.commands.executeCommand('plainwire.copyAsCode', { uri: file, index: 1 });
+      await new Promise((r) => setTimeout(r, 1000));
+      for (const k of keys) await vscode.commands.executeCommand(k);
+      await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+      return p;
+    };
+    // First item on a fresh profile is cURL. The chained token comes from the login sent earlier.
+    const curl = await pickWith([]);
+    assert.equal(await vscode.env.clipboard.readText(), curl);
+    assert.ok(curl.startsWith(`curl http://127.0.0.1:${port}/me`), curl);
+    assert.ok(curl.includes("-H 'Authorization: Bearer tok-123'") && curl.includes("-H 'X-Env: local'"), curl);
+    // Pick the second language (JavaScript); next time it is listed first.
+    const js = await pickWith(['workbench.action.quickOpenSelectNext']);
+    assert.ok(js.includes(`await fetch("http://127.0.0.1:${port}/me"`), js);
+    const again = await pickWith([]);
+    assert.equal(again, js);
+    // Direct call with a language id.
+    const py = await vscode.commands.executeCommand('plainwire.copyAsCode', { uri: file, index: 0 }, 'python-requests');
+    assert.ok(py.includes(`url = "http://127.0.0.1:${port}/login"`) && py.includes('requests.post(url'), py);
+  });
+
   if (tlsServer) tlsServer.close();
   server.close();
   const report = results.join('\n');

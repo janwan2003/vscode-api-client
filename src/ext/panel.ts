@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { parseCurl, toCurl } from '../core/curl.ts';
+import { parseCurl } from '../core/curl.ts';
 import { appendRequest, parseHttpFile, replaceRequest } from '../core/httpFile.ts';
 import type { HttpRequest, HttpResponse } from '../core/model.ts';
+import type { CodeCopier } from './copyCode.ts';
 import type { EnvironmentManager } from './environments.ts';
 import { readText, type Runner } from './runner.ts';
 
@@ -11,6 +12,7 @@ export interface PanelDeps {
   extensionUri: vscode.Uri;
   runner: Runner;
   envs: EnvironmentManager;
+  copier: CodeCopier;
 }
 
 type FromWebview =
@@ -20,6 +22,7 @@ type FromWebview =
   | { type: 'save'; request: HttpRequest }
   | { type: 'saveAs'; request: HttpRequest }
   | { type: 'copyCurl'; request: HttpRequest }
+  | { type: 'copyCode'; request: HttpRequest }
   | { type: 'openText' }
   | { type: 'selectEnv' }
   | { type: 'changed'; request: HttpRequest }
@@ -128,8 +131,8 @@ export class RequestPanel {
           await this.saveAs(m.request);
           break;
         case 'copyCurl':
-          await vscode.env.clipboard.writeText(toCurl(m.request));
-          void vscode.window.setStatusBarMessage('$(check) Copied as cURL', 2500);
+        case 'copyCode':
+          await this.deps.copier.copy(m.request, this.source.kind === 'file' ? this.source.uri : undefined, m.type === 'copyCurl' ? 'curl' : undefined);
           break;
         case 'openText':
           if (this.source.kind === 'file') await this.revealInFile();

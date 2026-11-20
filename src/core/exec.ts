@@ -2,7 +2,7 @@ import { runAssertions, type AssertionResult } from './assert.ts';
 import { isGraphqlRequest, toGraphqlHttp } from './graphql.ts';
 import { parseHttpFile } from './httpFile.ts';
 import type { HttpFile, HttpRequest, HttpResponse } from './model.ts';
-import { sendRequest, type SendOptions } from './send.ts';
+import { ensureScheme, prepareBody, sendRequest, type SendOptions } from './send.ts';
 import { referencedRequestNames, resolveRequest, resolveText, type NamedExchange, type VariableContext } from './variables.ts';
 
 /**
@@ -43,6 +43,11 @@ export class Executor {
   /** Forget named responses for a file, so the next run sends chained requests again. */
   resetSession(file: string): void {
     this.named.delete(file);
+  }
+
+  /** Resolve without sending; see `previewRequest`. Uses responses already received for `file`. */
+  preview(req: HttpRequest, file: string | undefined): Promise<PreviewResult> {
+    return previewRequest(req, this.host, file, this.named.get(file ?? ''));
   }
 
   async run(req: HttpRequest, file: string | undefined, signal?: AbortSignal, depth = 0): Promise<ExecResult> {
@@ -103,6 +108,47 @@ export class Executor {
       throw e;
     }
   }
+}
+
+export interface PreviewResult {
+  /** The request as it would go on the wire: variables resolved, Basic auth encoded, body normalised. */
+  request: HttpRequest;
+  /** Variables left as `{{name}}` because they are unknown, or chained to a request not sent yet. */
+  unresolved: string[];
+}
+
+/**
+ * Resolve a request the way `run` would, without sending anything (for "Copy as cURL / Code").
+ * Chained values come only from responses already received in this session; nothing else is sent.
+ * A `< ./file` body stays a file reference; a `<@ ./file` body is read and resolved.
+ */
+export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'readHttpFile' | 'readBodyFile' | 'dotenv' | 'environment'>, file: string | undefined, named: Map<string, NamedExchange> = new Map()): Promise<PreviewResult> {
+  const parsed: HttpFile = file !== undefined ? parseHttpFile(await host.readHttpFile(file)) : { variables: [], requests: [] };
+  const unresolved = new Set<string>();
+  const ctx: VariableContext = {
+    fileVariables: parsed.variables,
+    environment: host.environment(),
+    named,
+    processEnv: process.env,
+    dotenv: await host.dotenv(file),
+    unresolved,
+  };
+  const resolved = resolveRequest(req, ctx);
+  normalizeBasicAuth(resolved);
+  resolved.url = ensureScheme(resolved.url.trim());
+  const ref = bodyFileRef(resolved.body);
+  if (ref?.resolveVariables) {
+    try {
+      resolved.body = resolveText(new TextDecoder().decode(await host.readBodyFile(ref.path, file)), ctx);
+    } catch {
+      resolved.body = `< ${ref.path}`; // unreadable here: let the snippet read the file itself
+    }
+  }
+  const method = resolved.method.toUpperCase();
+  // The sender never puts a body on GET/HEAD, and normalises form and multipart bodies.
+  if (method === 'GET' || method === 'HEAD') resolved.body = undefined;
+  else if (resolved.body !== undefined && !bodyFileRef(resolved.body)) resolved.body = prepareBody(resolved);
+  return { request: resolved, unresolved: [...unresolved] };
 }
 
 /** A body that is exactly one `< ./file` (raw bytes) or `<@ ./file` (text with variables) line. */

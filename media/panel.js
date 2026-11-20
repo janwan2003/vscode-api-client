@@ -163,6 +163,7 @@
           h('div', { class: 'menu-items' },
             h('button', { onclick: () => vscode.postMessage({ type: 'saveAs', request: S.request }) }, 'Save as… (add to another .http file)'),
             h('button', { onclick: () => vscode.postMessage({ type: 'copyCurl', request: S.request }) }, 'Copy as cURL'),
+            h('button', { title: 'cURL, fetch, Python, Go, HTTPie, PowerShell, wget, C#, PHP, Java', onclick: () => vscode.postMessage({ type: 'copyCode', request: S.request }) }, 'Copy as Code…'),
             S.meta.canSave ? h('button', { onclick: () => vscode.postMessage({ type: 'openText' }) }, 'Show in .http file') : null))),
       h('div', { class: 'sub' },
         h('span', { class: 'source', title: 'Where this request is stored' }, S.meta.sourceLabel, h('span', { id: 'dirty', class: 'dirty', hidden: !(S.dirty && S.meta.canSave) }, ' ● unsaved')),

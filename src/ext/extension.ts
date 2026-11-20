@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import { parseCurl, toCurl } from '../core/curl.ts';
+import type { CodeTarget } from '../core/codegen.ts';
+import { parseCurl } from '../core/curl.ts';
 import { parseHttpFile } from '../core/httpFile.ts';
 import type { HttpRequest } from '../core/model.ts';
 import { RequestCodeLens } from './codelens.ts';
+import { CodeCopier } from './copyCode.ts';
 import { EnvironmentManager } from './environments.ts';
 import { History, type HistoryEntry } from './history.ts';
 import { importFromFiles, writeCollections } from './importer.ts';
@@ -21,7 +23,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const envs = new EnvironmentManager(context.workspaceState);
   const history = new History(context.workspaceState);
   const runner = new Runner(envs, history);
-  const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs };
+  const copier = new CodeCopier(runner, context.globalState);
+  const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier };
   const output = vscode.window.createOutputChannel('Plainwire');
   const collections = new CollectionsProvider();
   void envs.reload();
@@ -73,8 +76,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     vscode.commands.registerCommand('plainwire.copyCurlAt', guard(async (at?: At | RequestNode) => {
       const target = at ?? atCursor();
       if (!target) throw new Error('Put the cursor inside a request in a .http file.');
-      await vscode.env.clipboard.writeText(toCurl(await requestAt(target)));
-      void vscode.window.setStatusBarMessage('$(check) Copied as cURL', 2500);
+      return copier.copy(await requestAt(target), target.uri, 'curl');
+    })),
+    // Optional second argument: a language id from CODE_TARGETS in core/codegen.ts (skips the picker).
+    vscode.commands.registerCommand('plainwire.copyAsCode', guard(async (at?: At | RequestNode, language?: CodeTarget) => {
+      const target = at ?? atCursor();
+      if (!target) throw new Error('Put the cursor inside a request in a .http file.');
+      return copier.copy(await requestAt(target), target.uri, language);
     })),
     vscode.commands.registerCommand('plainwire.revealRequest', guard(async (n: RequestNode) => {
       const doc = await vscode.workspace.openTextDocument(n.uri);

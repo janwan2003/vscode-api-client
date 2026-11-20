@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { parseHttpFile } from '../core/httpFile.ts';
 
-/** "Send" / "Open in Plainwire" / "Copy as cURL" above every request in .http files. */
+/** "Send" / "Open in Plainwire" / "Copy as Code…" (cURL is one of its languages) above every request in .http files. */
 export class RequestCodeLens implements vscode.CodeLensProvider {
   provideCodeLenses(doc: vscode.TextDocument): vscode.CodeLens[] {
     if (!vscode.workspace.getConfiguration('plainwire').get<boolean>('codeLens', true)) return [];
@@ -18,7 +18,7 @@ export class RequestCodeLens implements vscode.CodeLensProvider {
       lenses.push(
         new vscode.CodeLens(range, { title: '$(play) Send', command: 'plainwire.sendAt', arguments: args, tooltip: 'Send this request and show the response in Plainwire' }),
         new vscode.CodeLens(range, { title: 'Open in Plainwire', command: 'plainwire.openAt', arguments: args }),
-        new vscode.CodeLens(range, { title: 'Copy as cURL', command: 'plainwire.copyCurlAt', arguments: args }),
+        new vscode.CodeLens(range, { title: 'Copy as Code…', command: 'plainwire.copyAsCode', arguments: args, tooltip: 'Copy this request as cURL, fetch, Python, Go, … (variables resolved, nothing sent)' }),
       );
     });
     return lenses;

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { HttpRequest } from '../core/model.ts';
-import { Executor, type ExecResult } from '../core/exec.ts';
+import { Executor, type ExecResult, type PreviewResult } from '../core/exec.ts';
 import { parseDotenv } from '../core/variables.ts';
 import type { EnvironmentManager } from './environments.ts';
 import type { History } from './history.ts';
@@ -47,6 +47,11 @@ export class Runner {
   /** Forget named responses for a file, so the next run sends chained requests again. */
   resetSession(uri: vscode.Uri): void {
     this.exec.resetSession(uri.toString());
+  }
+
+  /** The request as it would be sent (variables resolved), without sending it or its chained requests. */
+  preview(req: HttpRequest, source: RunSource): Promise<PreviewResult> {
+    return this.exec.preview(req, source.uri?.toString());
   }
 
   async run(req: HttpRequest, source: RunSource, token?: vscode.CancellationToken): Promise<RunResult> {
