@@ -130,6 +130,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     })),
     vscode.commands.registerCommand('plainwire.importThunder', guard(() => importFromFiles('thunder', output))),
     vscode.commands.registerCommand('plainwire.importPostman', guard(() => importFromFiles('postman', output))),
+    vscode.commands.registerCommand('plainwire.importOpenApi', guard(() => importFromFiles('openapi', output))),
     vscode.commands.registerCommand('plainwire.importCurl', guard(async () => {
       const clip = (await vscode.env.clipboard.readText()).trim();
       const value = /^curl\s/i.test(clip) ? clip : '';

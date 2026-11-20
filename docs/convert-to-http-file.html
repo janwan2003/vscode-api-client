@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Postman, Thunder Client and cURL to .http converter (online, free) | Plainwire</title>
-<meta name="description" content="Convert a Postman collection, Postman environment, Thunder Client export or cURL command to .http files and http-client.env.json in your browser. Nothing is uploaded. Works with VS Code REST Client, Plainwire and JetBrains HTTP Client.">
+<title>Postman, Thunder Client, OpenAPI and cURL to .http converter (online, free) | Plainwire</title>
+<meta name="description" content="Convert a Postman collection, Postman environment, Thunder Client export, OpenAPI/Swagger definition or cURL command to .http files and http-client.env.json in your browser. Nothing is uploaded. Works with VS Code REST Client, Plainwire and JetBrains HTTP Client.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/convert-to-http-file.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Plainwire">
@@ -32,19 +32,20 @@
 <main id="content">
   <div class="wrap">
     <h1>Postman, Thunder Client &amp; cURL to <code>.http</code> converter</h1>
-    <p>Paste a <strong>Postman collection</strong> (v2.0/v2.1), a <strong>Postman environment</strong>, a <strong>Thunder Client</strong> collection export or <code>thunder-tests/*.json</code> file, or a <strong>cURL command</strong>. You get plain <code>.http</code> files, one per folder, plus an <code>http-client.env.json</code> for environments. The files work in REST Client, Plainwire, httpYac and the JetBrains HTTP Client.</p>
+    <p>Paste a <strong>Postman collection</strong> (v2.0/v2.1), a <strong>Postman environment</strong>, a <strong>Thunder Client</strong> collection export or <code>thunder-tests/*.json</code> file, an <strong>OpenAPI / Swagger</strong> definition (JSON or YAML; <a href="openapi-to-http-file.html">details</a>), or a <strong>cURL command</strong>. You get plain <code>.http</code> files, one per folder, plus an <code>http-client.env.json</code> for environments. The files work in REST Client, Plainwire, httpYac and the JetBrains HTTP Client.</p>
     <p class="note">The conversion runs in this page with the same code as the Plainwire extension and CLI. Your collection is not uploaded or stored, and the page makes no network requests. Exported environments can still hold real tokens, so check them before you commit the files.</p>
 
     <div class="pw-tool">
       <div class="pw-pane">
-        <label for="pw-src">Input: export JSON or cURL</label>
-        <textarea id="pw-src" spellcheck="false" placeholder="Paste a Postman collection, Thunder Client export or curl command here, or drop files on this box."></textarea>
+        <label for="pw-src">Input: export JSON, OpenAPI YAML/JSON or cURL</label>
+        <textarea id="pw-src" spellcheck="false" placeholder="Paste a Postman collection, Thunder Client export, OpenAPI definition or curl command here, or drop files on this box."></textarea>
         <div class="pw-row">
           <label class="btn secondary pw-small" for="pw-files">Choose files&hellip;</label>
-          <input id="pw-files" type="file" multiple accept=".json,.txt,.sh,application/json,text/plain" hidden>
+          <input id="pw-files" type="file" multiple accept=".json,.yaml,.yml,.txt,.sh,application/json,text/plain" hidden>
           <span class="small">Examples:</span>
           <button type="button" class="btn secondary pw-small" data-example="postman">Postman</button>
           <button type="button" class="btn secondary pw-small" data-example="thunder">Thunder Client</button>
+          <button type="button" class="btn secondary pw-small" data-example="openapi">OpenAPI</button>
           <button type="button" class="btn secondary pw-small" data-example="curl">cURL</button>
         </div>
       </div>
@@ -71,7 +72,7 @@
       <thead><tr><th>From</th><th>To</th></tr></thead>
       <tbody>
         <tr><td>Folders</td><td>One <code>.http</code> file per folder; requests outside folders go to <code>requests.http</code></td></tr>
-        <tr><td>Requests</td><td><code>###</code> blocks titled with the request name, in the collection<td><code>###</code> blocks with the request name as title and <code># @name</code></td>rsquo;s order</td></tr>
+        <tr><td>Requests</td><td><code>###</code> blocks titled with the request name, in the collection&rsquo;s order</td></tr>
         <tr><td>Collection variables</td><td><code>@name = value</code> lines at the top of each file</td></tr>
         <tr><td>Environments</td><td><code>http-client.env.json</code> (<code>{{var}}</code> syntax is kept)</td></tr>
         <tr><td>Bearer, Basic, API key auth</td><td><code>Authorization</code> or the API key header / query parameter, inherited auth applied per request</td></tr>
@@ -87,7 +88,7 @@
       <li>Or keep them as text with REST Client, and run them in CI with the free <a href="run-http-files-in-ci.html">Plainwire CLI</a>: one file with no dependencies, JUnit output.</li>
       <li>Going the other way? The <a href="http-file-to-curl.html">.http to cURL and code converter</a> turns requests back into cURL, fetch, Python, Go and 7 more.</li>
     </ul>
-    <p>Step-by-step guides with the full field mapping: <a href="postman-collection-to-http-file.html">Postman to .http</a>, <a href="import-thunder-client-to-http-files.html">Thunder Client to .http</a>, <a href="curl-to-http-file.html">cURL to .http</a>.</p>
+    <p>Step-by-step guides with the full field mapping: <a href="postman-collection-to-http-file.html">Postman to .http</a>, <a href="openapi-to-http-file.html">OpenAPI / Swagger to .http</a>, <a href="import-thunder-client-to-http-files.html">Thunder Client to .http</a>, <a href="curl-to-http-file.html">cURL to .http</a>.</p>
 
     <h2>FAQ</h2>
     <details><summary>Is my collection sent anywhere?</summary><p>No. The converter is a script on this page (<a href="https://github.com/janwan2003/vscode-api-client/tree/main/src/web">source</a>). It reads the text you paste or the files you choose, converts them in memory and lets you copy or download the result. Nothing is uploaded and nothing is stored after you close the tab.</p></details>

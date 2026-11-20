@@ -19,8 +19,9 @@ const HELP = `plainwire ${VERSION}: run and test .http files from the command li
 
 Usage:
   plainwire run [files, folders or "globs"...] [options]   Send every request in order and check its # @assert lines
-  plainwire import <export.json | thunder-tests/>... [--out dir]
-                                                          Convert Thunder Client / Postman exports or a curl command file to .http files
+  plainwire import <export.json | openapi.yaml | thunder-tests/>... [--out dir]
+                                                          Convert Thunder Client / Postman exports, OpenAPI / Swagger
+                                                          definitions or a curl command file to .http files
 
 Run options:
   -e, --env <name>          Environment from http-client.env.json / http-client.private.env.json / .vscode/settings.json
@@ -264,7 +265,7 @@ async function run(args: string[]): Promise<number> {
 
 async function importCmd(args: string[]): Promise<number> {
   const { values: o, positionals } = parseArgs({ args, allowPositionals: true, options: { out: { type: 'string', short: 'o' }, force: { type: 'boolean' } } });
-  if (!positionals.length) throw new UsageError('import needs at least one file: a Postman or Thunder Client export (.json), a thunder-tests/ folder, or a file with a curl command');
+  if (!positionals.length) throw new UsageError('import needs at least one file: a Postman or Thunder Client export (.json), an OpenAPI / Swagger definition (.json, .yaml), a thunder-tests/ folder, or a file with a curl command');
   const cwd = process.cwd();
   const outDir = resolve(cwd, o.out ?? 'http');
   let collections: ImportedCollection[] = [];

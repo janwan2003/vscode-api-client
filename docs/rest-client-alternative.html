@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REST Client alternative for VS Code with a GUI, tests and a CLI | Plainwire</title>
+<meta name="description" content="REST Client has had no release since 2022. Plainwire opens the same .http files with a form editor, and adds the most-requested REST Client features: run all requests in order, assertions, and a CLI for CI. Free, no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/rest-client-alternative.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="A REST Client alternative that keeps your .http files">
+<meta property="og:description" content="REST Client has had no release since 2022. Plainwire opens the same .http files with a form editor, and adds the most-requested REST Client features: run all requests in order, assertions, and a CLI for CI. Free, no login.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/rest-client-alternative.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>A REST Client alternative that keeps your <code>.http</code> files</h1>
+    <p>REST Client made <code>.http</code> files the way to keep API requests next to your code in VS Code. Its last release, 0.25.1, came out in August 2022, and its issue tracker has 528 open issues. Plainwire opens the <strong>same files</strong>, unchanged, and adds what REST Client users ask for most: a form editor and response viewer, running every request in order, assertions, and a command-line runner for CI. It is free and open source, needs no account and sends nothing except your requests.</p>
+    <p class="small">Plainwire is an independent open-source project. It is not affiliated with or endorsed by REST Client or its author.</p>
+
+    <h2>The most-requested REST Client features</h2>
+    <p>The ten open issues with the most reactions in the <a href="https://github.com/Huachao/vscode-restclient/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc">REST Client repository</a>, read on 20 November 2026, and whether Plainwire does them today:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">REST Client issue</th><th scope="col">Reactions</th><th scope="col">Plainwire</th><th scope="col">How</th></tr></thead>
+        <tbody>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/182">#182</a> Import/require another .http file</td><td>84</td><td class="no">No</td><td>Not yet.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/724">#724</a> Sequential execution of multiple requests</td><td>62</td><td class="yes">Yes</td><td><strong>Run all</strong> sends every request in a file, folder or workspace in order, with a pass/fail report.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/267">#267</a> How to write tests on top of the requests?</td><td>59</td><td class="yes">Yes</td><td><a href="api-tests-in-http-files.html"><code># @assert status == 200</code></a>, <code># @assert $.id exists</code> and 26 other operators; httpYac&rsquo;s <code>?? status == 200</code> lines work too.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/229">#229</a> Support for rest-client.env.json and .private.env.json</td><td>53</td><td class="">Partly</td><td>Environments in <code>http-client.env.json</code> + <code>http-client.private.env.json</code> (the JetBrains file names), and your existing <code>rest-client.environmentVariables</code> setting.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/493">#493</a> Support for text/event-stream</td><td>49</td><td class="no">No</td><td>Not yet.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/432">#432</a> CLI runner for the same format</td><td>44</td><td class="yes">Yes</td><td><a href="run-http-files-in-ci.html"><code>plainwire run</code></a>: one file, no dependencies, JUnit/JSON/Markdown reports, plus a GitHub Action.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/627">#627</a> Compatibility with IntelliJ&rsquo;s HTTP client</td><td>41</td><td class="">Partly</td><td>Same <code>.http</code> syntax and <code>http-client.env.json</code> files; JetBrains <code>&gt; {% %}</code> response handlers are kept in the file but not run.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/444">#444</a> Send all requests in a file</td><td>36</td><td class="yes">Yes</td><td><strong>Run all</strong> on the file&rsquo;s CodeLens, the editor title or the sidebar.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/302">#302</a> Handle OAuth interactive login</td><td>33</td><td class="no">No</td><td>Not yet: paste a token into an environment variable.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/521">#521</a> JavaScript code evaluation</td><td>29</td><td class="no">No</td><td>No, by design: requests and checks never run code from the file.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>What stays the same</h2>
+    <ul>
+      <li>Your <code>.http</code> and <code>.rest</code> files: <code>###</code> separators, <code>@variable = value</code>, <code>{{variable}}</code>, <code># @name</code> and request chaining with <code>{{login.response.body.$.token}}</code>, <code>&lt; ./file.json</code> bodies, multipart, GraphQL with <code>X-REQUEST-TYPE: GraphQL</code>, and system variables such as <code>{{$guid}}</code>, <code>{{$timestamp}}</code>, <code>{{$dotenv NAME}}</code>.</li>
+      <li>Your environments in the <code>rest-client.environmentVariables</code> setting, including <code>$shared</code>.</li>
+      <li>Plain text in git: Plainwire writes back only the request you edit, byte for byte elsewhere, so diffs stay small. You can keep both extensions installed.</li>
+    </ul>
+
+    <h2>What you get on top</h2>
+    <ul>
+      <li><strong>A GUI</strong>: click <em>Open in Plainwire</em> above any request for a form with params, headers, body, auth and tests, and a response viewer with a JSON tree, headers and timing. Edits are saved into the <code>.http</code> file.</li>
+      <li><strong><a href="api-tests-in-http-files.html">Tests</a></strong> as <code># @assert</code> lines and <strong>Run all</strong> with a pass/fail report you can copy as Markdown.</li>
+      <li><strong><a href="run-http-files-in-ci.html">A CLI and a GitHub Action</a></strong> that run the same files in CI.</li>
+      <li><strong>Copy as Code</strong> in 11 languages, with variables resolved (<a href="http-file-to-curl.html">try it online</a>).</li>
+      <li><strong>Import</strong> from <a href="postman-collection-to-http-file.html">Postman</a>, <a href="import-thunder-client-to-http-files.html">Thunder Client</a>, <a href="openapi-to-http-file.html">OpenAPI / Swagger</a> and cURL into <code>.http</code> files.</li>
+      <li>Self-signed certificates per request, any port, HTTP proxies (<a href="self-signed-certificate-localhost-api-client.html">guide</a>).</li>
+    </ul>
+
+    <h2>Switch in a minute</h2>
+    <ol>
+      <li>Download <code>plainwire-0.4.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (works in VS Code, Cursor, Windsurf and VSCodium).</li>
+      <li>Open a folder with your <code>.http</code> files. Each request gets <em>Send | Open in Plainwire | Copy as Code&hellip;</em> above it, and the Plainwire sidebar lists every request in the workspace.</li>
+      <li>Pick an environment in the status bar; your <code>rest-client.environmentVariables</code> are already there.</li>
+    </ol>
+
+    <h2>What Plainwire does not do (yet)</h2>
+    <p>Being honest about the gaps: no JavaScript scripting (by design), no <code>import</code> of other <code>.http</code> files, no server-sent events or WebSocket, no interactive OAuth login, no SOCKS proxies or client certificates. REST Client&rsquo;s Markdown-embedded requests and <code>rest-client.*</code> settings other than environments are not read. If you rely on one of these, REST Client may still be the better fit.</p>
+
+    <h2>FAQ</h2>
+    <details><summary>Is REST Client abandoned?</summary><p>We cannot speak for its author. The facts: the last Marketplace release is 0.25.1 from 19 August 2022 and the repository has 528 open issues (both read on 20 November 2026). The extension still works for many people, and its 4.9-star rating is well earned.</p></details>
+    <details><summary>Can I use both extensions at once?</summary><p>Yes. Both read the same files. Each adds its own CodeLens above requests; you can turn REST Client&rsquo;s off with its <code>rest-client.enableSendRequestCodeLens</code> setting if the row gets crowded.</p></details>
+    <details><summary>Does Plainwire need an account or send telemetry?</summary><p>No. It makes no network requests except the ones you send, and the source is on <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a> (MIT).</p></details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

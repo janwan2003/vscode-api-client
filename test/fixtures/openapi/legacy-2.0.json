@@ -1,0 +1,23 @@
+{
+  "swagger": "2.0",
+  "info": { "title": "Legacy", "version": "1" },
+  "host": "api.legacy.example.com",
+  "basePath": "/api/",
+  "schemes": ["https"],
+  "consumes": ["application/json"],
+  "securityDefinitions": { "key": { "type": "apiKey", "in": "header", "name": "X-Key" } },
+  "security": [{ "key": [] }],
+  "paths": {
+    "/v2/users/{id}": {
+      "get": { "summary": "Get user", "parameters": [{ "name": "id", "in": "path", "required": true, "type": "integer", "x-example": 7 }, { "name": "fields", "in": "query", "required": true, "type": "array", "items": { "type": "string" }, "default": ["a", "b"] }], "responses": { "200": { "description": "ok" } } },
+      "put": { "summary": "Replace user", "parameters": [{ "name": "id", "in": "path", "required": true, "type": "integer" }, { "name": "user", "in": "body", "schema": { "$ref": "#/definitions/User" } }], "responses": { "200": { "description": "ok" } } }
+    },
+    "/v2/avatar": {
+      "post": { "summary": "Avatar", "consumes": ["multipart/form-data"], "parameters": [{ "name": "image", "in": "formData", "type": "file" }, { "name": "alt", "in": "formData", "type": "string", "default": "me" }], "responses": { "200": { "description": "ok" } } }
+    },
+    "/v2/login": {
+      "post": { "summary": "Login", "consumes": ["application/x-www-form-urlencoded"], "security": [], "parameters": [{ "name": "user", "in": "formData", "type": "string", "required": true }, { "name": "remember", "in": "formData", "type": "boolean" }], "responses": { "200": { "description": "ok" } } }
+    }
+  },
+  "definitions": { "User": { "type": "object", "properties": { "name": { "type": "string", "example": "Ada" }, "ext": { "$ref": "other.json#/User" } } } }
+}

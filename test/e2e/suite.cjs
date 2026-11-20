@@ -42,7 +42,7 @@ exports.run = async function run() {
 
   await check('commands are registered', async () => {
     const all = await vscode.commands.getCommands(true);
-    for (const c of ['plainwire.newRequest', 'plainwire.importThunder', 'plainwire.importPostman', 'plainwire.importCurl', 'plainwire.sendAt', 'plainwire.selectEnvironment']) assert.ok(all.includes(c), c);
+    for (const c of ['plainwire.newRequest', 'plainwire.importThunder', 'plainwire.importPostman', 'plainwire.importOpenApi', 'plainwire.importCurl', 'plainwire.sendAt', 'plainwire.selectEnvironment']) assert.ok(all.includes(c), c);
   });
 
   await check('.http files get the http language and CodeLenses', async () => {
@@ -93,6 +93,39 @@ exports.run = async function run() {
     assert.ok(files.length >= 1, 'no files written');
     const content = fs.readFileSync(files[0].fsPath, 'utf8');
     assert.match(content, /^(GET|POST|PUT|PATCH|DELETE) /m);
+  });
+
+  await check('OpenAPI YAML import writes .http + env files and the request sends with $shared baseUrl', async () => {
+    const spec = [
+      'openapi: 3.0.3',
+      'info: { title: E2E Shop, version: "1" }',
+      'servers:',
+      `  - url: http://127.0.0.1:${port}/v1`,
+      'paths:',
+      '  /orders:',
+      '    get:',
+      '      tags: [orders]',
+      '      summary: List orders',
+      '      operationId: listOrders',
+      '      parameters:',
+      '        - { name: status, in: query, required: true, schema: { type: string, enum: [open] } }',
+      '        - { name: X-Tenant, in: header, required: true, example: acme }',
+      "      responses: { '200': { description: ok } }",
+      '',
+    ].join('\n');
+    const out = vscode.window.createOutputChannel('t2');
+    await api.importTextForTest(spec, 'shop.yaml', out);
+    const files = await vscode.workspace.findFiles('http/E2E Shop/*');
+    assert.deepEqual(files.map((f) => path.basename(f.fsPath)).sort(), ['http-client.env.json', 'orders.http']);
+    const httpFile = files.find((f) => f.fsPath.endsWith('orders.http'));
+    await api.deps.envs.reload();
+    const reqs = api.parseHttpFileForTest(fs.readFileSync(httpFile.fsPath, 'utf8')).requests;
+    seen.length = 0;
+    const { response, assertions } = await api.deps.runner.run(reqs[0], { uri: httpFile });
+    assert.equal(response.status, 200);
+    assert.equal(seen[0].url, '/v1/orders?status=open');
+    assert.equal(seen[0].headers['x-tenant'], 'acme');
+    assert.deepEqual(assertions.map((a) => [a.source, a.passed]), [['status == 200', true]]);
   });
 
   await check('assertions from the .http file are evaluated on send', async () => {

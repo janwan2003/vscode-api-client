@@ -1,0 +1,83 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Shop API", "version": "1.2.0" },
+  "servers": [
+    { "url": "https://{region}.shop.example.com/v1", "description": "Production", "variables": { "region": { "default": "eu" } } },
+    { "url": "https://staging.shop.example.com/v1", "description": "Staging (EU)" }
+  ],
+  "security": [{ "bearer": [] }],
+  "tags": [{ "name": "Orders" }],
+  "paths": {
+    "/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "List orders",
+        "description": "<p>Returns orders, newest first &amp; paged.</p>",
+        "operationId": "listOrders",
+        "parameters": [
+          { "name": "status", "in": "query", "required": true, "schema": { "type": "string", "enum": ["open", "closed"] } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } },
+          { "name": "X-Tenant", "in": "header", "required": true, "example": "acme" },
+          { "$ref": "#/components/parameters/Trace" }
+        ],
+        "responses": { "200": { "description": "ok" }, "default": { "description": "error" } }
+      },
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Create order",
+        "operationId": "createOrder",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewOrder" } } } },
+        "responses": { "201": { "description": "created" }, "202": { "description": "queued" } }
+      }
+    },
+    "/orders/{order id}": {
+      "parameters": [{ "name": "order id", "in": "path", "required": true, "schema": { "type": "integer" }, "example": 42 }],
+      "delete": {
+        "tags": ["Orders"],
+        "operationId": "deleteOrder",
+        "deprecated": true,
+        "security": [{ "apiKeyQuery": [] }],
+        "responses": { "204": { "description": "gone" } }
+      },
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Update order",
+        "operationId": "createOrder",
+        "security": [{}],
+        "requestBody": { "content": { "application/x-www-form-urlencoded": { "schema": { "type": "object", "required": ["note", "address"], "properties": { "note": { "type": "string", "example": "fragile & heavy" }, "address": { "type": "object", "properties": { "city": { "type": "string", "example": "Kraków" } } }, "gift": { "type": "boolean" } } } } } },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/files": {
+      "post": {
+        "summary": "Upload",
+        "security": [{ "basic": [], "apiKeyCookie": [] }],
+        "requestBody": { "content": { "multipart/form-data": { "schema": { "type": "object", "properties": { "file": { "type": "string", "format": "binary" }, "label": { "type": "string", "example": "invoice" } } } } } },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/oauth/me": {
+      "get": { "summary": "Me", "security": [{ "oauth": ["read"] }], "servers": [{ "url": "https://auth.example.com" }], "responses": { "200": { "description": "ok" } } }
+    }
+  },
+  "components": {
+    "parameters": { "Trace": { "name": "X-Trace", "in": "header", "schema": { "type": "string" } } },
+    "schemas": {
+      "Money": { "type": "object", "properties": { "amount": { "type": "number", "example": 9.5 }, "currency": { "type": "string", "default": "EUR" } } },
+      "Item": { "type": "object", "properties": { "sku": { "type": "string" }, "qty": { "type": "integer", "minimum": 1 }, "parent": { "$ref": "#/components/schemas/Item" } } },
+      "NewOrder": {
+        "allOf": [
+          { "type": "object", "properties": { "id": { "type": "string", "format": "uuid", "readOnly": true }, "email": { "type": "string", "format": "email" } } },
+          { "type": "object", "properties": { "total": { "$ref": "#/components/schemas/Money" }, "items": { "type": "array", "items": { "$ref": "#/components/schemas/Item" } }, "note": { "type": ["string", "null"] }, "ship": { "oneOf": [{ "type": "null" }, { "type": "object", "properties": { "at": { "type": "string", "format": "date-time" } } }] } } }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "bearer": { "type": "http", "scheme": "bearer" },
+      "basic": { "type": "http", "scheme": "basic" },
+      "apiKeyQuery": { "type": "apiKey", "in": "query", "name": "api_key" },
+      "apiKeyCookie": { "type": "apiKey", "in": "cookie", "name": "sid" },
+      "oauth": { "type": "oauth2", "flows": {} }
+    }
+  }
+}

@@ -406,6 +406,13 @@ export function evaluateAssertion(a: Assertion, res: HttpResponse): AssertionRes
   const pass = (): AssertionResult => ({ source: a.source, passed: true, actual: show(actual), message: 'passed' });
   const check = (ok: boolean, message: string) => (ok ? pass() : fail(message));
 
+  // httpYac's predicates (6.16 ExistsPredicate / IsFalsePredicate): `exists` and `isTrue` are `!!value`,
+  // `isFalse` is `!value`. `??` lines get those semantics; `# @assert` lines keep the stricter ones below.
+  if (isHttpYacAssert(a.source) && (a.op === 'exists' || a.op === 'isTrue' || a.op === 'isFalse')) {
+    const truthy = !!actual;
+    if (a.op === 'isFalse') return check(!truthy, `expected a falsy value, got ${show(actual)}`);
+    return check(truthy, actual === undefined ? 'does not exist' : `expected a truthy value, got ${show(actual)}`);
+  }
   switch (a.op) {
     case 'exists':
       return check(found, 'does not exist');

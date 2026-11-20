@@ -50,7 +50,13 @@ export async function writeCollections(imported: ImportedCollection[], output: v
     .then((choice) => choice && output.show());
 }
 
-export async function importFromFiles(kind: 'thunder' | 'postman', output: vscode.OutputChannel): Promise<void> {
+const DIALOG = {
+  thunder: { filters: { 'JSON export': ['json'] }, title: 'Thunder Client collection or environment export (.json)' },
+  postman: { filters: { 'JSON export': ['json'] }, title: 'Postman collection v2.0/v2.1 or environment export (.json)' },
+  openapi: { filters: { 'OpenAPI / Swagger': ['json', 'yaml', 'yml'] }, title: 'OpenAPI 3.x or Swagger 2.0 definition (.json, .yaml)' },
+};
+
+export async function importFromFiles(kind: 'thunder' | 'postman' | 'openapi', output: vscode.OutputChannel): Promise<void> {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri;
   if (kind === 'thunder' && root) {
     // Thunder Client's "save to workspace" folder.
@@ -61,12 +67,7 @@ export async function importFromFiles(kind: 'thunder' | 'postman', output: vscod
       if (pick.startsWith('Import the')) return importThunderFolder(tt, output);
     }
   }
-  const uris = await vscode.window.showOpenDialog({
-    canSelectMany: true,
-    filters: { 'JSON export': ['json'] },
-    openLabel: 'Import',
-    title: kind === 'thunder' ? 'Thunder Client collection or environment export (.json)' : 'Postman collection v2.0/v2.1 or environment export (.json)',
-  });
+  const uris = await vscode.window.showOpenDialog({ canSelectMany: true, openLabel: 'Import', ...DIALOG[kind] });
   if (!uris?.length) return;
   const collections: ImportedCollection[] = [];
   for (const u of uris) {

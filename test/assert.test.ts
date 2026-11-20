@@ -303,3 +303,18 @@ test('Postman one-line tests are unwrapped and split into statements', async () 
   assert.deepEqual(r.skipped, []);
   for (const a of r.asserts) parseAssertion(a);
 });
+
+test('httpYac ?? exists / isTrue / isFalse are truthy / falsy checks (as httpYac 6.16); # @assert stays strict', () => {
+  // httpYac: ExistsPredicate (exists, isTrue) = !!value, IsFalsePredicate = !value.
+  for (const [l, want] of [
+    ['?? body $.id isTrue', true], ['?? body $.name exists', true], ['?? body $.tags isTrue', true], ['?? body $.empty exists', true],
+    ['?? body $.nested.nil exists', false], ['?? body $.nested.nil isFalse', true], ['?? body $.missing isFalse', true],
+    ['?? body $.id isFalse', false], ['?? body $.missing exists', false], ['?? js response.parsedBody.id isTrue', true],
+    ['?? header x-count isTrue', true], ['?? header x-missing isFalse', true],
+  ] as [string, boolean][]) {
+    assert.equal(passes(l), want, l);
+  }
+  assert.equal(passes('$.id isTrue'), false);
+  assert.equal(passes('$.nested.nil exists'), true);
+  assert.equal(runAssertions(['?? body $.id isFalse'], res)[0].message, 'expected a falsy value, got 42');
+});

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenAPI / Swagger to .http file converter (online, free) | Plainwire</title>
+<meta name="description" content="Convert an OpenAPI 3.0/3.1 or Swagger 2.0 definition (YAML or JSON) to .http files with example bodies, auth headers and an http-client.env.json, in your browser. Nothing is uploaded. Works with VS Code REST Client, Plainwire, httpYac and JetBrains HTTP Client.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/openapi-to-http-file.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="OpenAPI / Swagger to .http file converter">
+<meta property="og:description" content="Paste an OpenAPI or Swagger definition, get one .http file per tag with example requests. Runs in your browser; nothing is uploaded.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/openapi-to-http-file.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-tool="import">
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap">
+    <h1>OpenAPI / Swagger to <code>.http</code> file converter</h1>
+    <p>Paste an <strong>OpenAPI 3.0 or 3.1</strong> or <strong>Swagger 2.0</strong> definition, in YAML or JSON, or choose the file. You get one <code>.http</code> file per tag with a ready-to-send request for every operation: example bodies, required parameters, auth headers and a status check. Server URLs, path parameters and credentials go into an <code>http-client.env.json</code>. The files work in REST Client, Plainwire, httpYac and the JetBrains HTTP Client.</p>
+    <p class="note">The conversion runs in this page with the same code as the Plainwire extension and CLI. Your definition is not uploaded or stored, and the page makes no network requests.</p>
+
+    <div class="pw-tool">
+      <div class="pw-pane">
+        <label for="pw-src">Input: OpenAPI or Swagger (YAML or JSON)</label>
+        <textarea id="pw-src" spellcheck="false" placeholder="Paste openapi.yaml, openapi.json or swagger.json here, or choose a file."></textarea>
+        <div class="pw-row">
+          <label class="btn secondary pw-small" for="pw-files">Choose files&hellip;</label>
+          <input id="pw-files" type="file" multiple accept=".json,.yaml,.yml,application/json,application/yaml,text/yaml,text/plain" hidden>
+          <span class="small">Examples:</span>
+          <button type="button" class="btn secondary pw-small" data-example="openapi">OpenAPI 3 (YAML)</button>
+          <button type="button" class="btn secondary pw-small" data-example="swagger">Swagger 2.0 (JSON)</button>
+        </div>
+      </div>
+      <div class="pw-pane">
+        <label>Output: <code>.http</code> files</label>
+        <div id="pw-summary" class="pw-summary" aria-live="polite"></div>
+        <div id="pw-tabs" class="pw-tabs" role="tablist"></div>
+        <pre id="pw-code" class="pw-code"></pre>
+        <div id="pw-actions" class="pw-row" hidden>
+          <button type="button" id="pw-copy" class="btn pw-small">Copy</button>
+          <button type="button" id="pw-download" class="btn secondary pw-small">Download this file</button>
+          <button type="button" id="pw-zip" class="btn secondary pw-small">Download all (.zip)</button>
+        </div>
+        <div id="pw-warnings-box" class="pw-warnings note" hidden>
+          <strong>Notes</strong> (things to fill in or check by hand):
+          <ul id="pw-warnings"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="wrap narrow">
+    <h2>What you get</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>In the definition</th><th>In the <code>.http</code> files</th></tr></thead>
+      <tbody>
+        <tr><td>Operations (path + method)</td><td>One <code>###</code> request each, titled with the <code>summary</code>; <code>operationId</code> becomes <code># @name</code> so you can chain requests</td></tr>
+        <tr><td>Tags</td><td>One file per first tag (<code>pets.http</code>, <code>orders.http</code>); untagged operations are grouped by their first path segment</td></tr>
+        <tr><td><code>servers</code> (or Swagger&rsquo;s <code>host</code> + <code>basePath</code>)</td><td><code>{{baseUrl}}</code> in every URL; the first server in <code>$shared</code>, and one named environment per server when there are several. Server variables use their defaults</td></tr>
+        <tr><td>Path parameters</td><td><code>{{petId}}</code> in the URL, with the example value in <code>$shared</code></td></tr>
+        <tr><td>Required query, header and cookie parameters</td><td>Written with their <code>example</code>, else <code>default</code>, else a value made from the schema; optional query parameters are listed in a comment</td></tr>
+        <tr><td>Request bodies</td><td>The media type&rsquo;s example, else a body generated from the schema (<code>$ref</code>, <code>allOf</code>, first <code>oneOf</code>/<code>anyOf</code>, <code>readOnly</code> fields left out). JSON, form (<code>a[b]=</code> for nested fields), multipart with <code>&lt; ./file</code> parts</td></tr>
+        <tr><td>Security schemes</td><td>Bearer &rarr; <code>Authorization: Bearer {{token}}</code>; Basic; API keys in a header, query or cookie; OAuth 2 and OpenID Connect &rarr; <code>Bearer {{accessToken}}</code>. Empty values are created in <code>$shared</code> for you to fill in</td></tr>
+        <tr><td>Exactly one documented 2xx response</td><td><code># @assert status == 200</code> (or 201, 204&hellip;), so the run-all report and the CLI check every endpoint</td></tr>
+        <tr><td><code>description</code>, <code>deprecated</code></td><td>A one-line comment above the request</td></tr>
+      </tbody>
+    </table></div>
+    <p>Not converted: external <code>$ref</code>s to other files (bundle the definition first, for example with <code>redocly bundle</code>), XML bodies without an example, and callbacks/webhooks. Each is listed under &ldquo;Notes&rdquo;.</p>
+
+    <h2>Example</h2>
+<pre><code>### Create a pet
+# @name createPet
+# @assert status == 201
+POST {{baseUrl}}/pets
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Rex",
+  "tag": "dog"
+}
+
+### Get a pet
+# @name getPet
+# @assert status == 200
+GET {{baseUrl}}/pets/{{petId}}
+Authorization: Bearer {{token}}</code></pre>
+    <p>with <code>http-client.env.json</code>:</p>
+<pre><code>{
+  "$shared": { "baseUrl": "https://api.example.com/v1", "token": "", "petId": "1" },
+  "production": { "baseUrl": "https://api.example.com/v1" },
+  "sandbox": { "baseUrl": "https://sandbox.example.com/v1" }
+}</code></pre>
+
+    <h2>In VS Code, Cursor or VSCodium</h2>
+    <p>With the <a href="./">Plainwire</a> extension, run <strong>Plainwire: Import OpenAPI / Swagger&hellip;</strong> and pick the file: the <code>.http</code> files are written into your workspace and open in a form editor with a response viewer, environments and a test runner. No account, no request limits, nothing leaves your machine except the requests you send.</p>
+    <p>In a terminal or CI, the free <a href="run-http-files-in-ci.html">CLI</a> does the same and can then run every request with its status check:</p>
+<pre><code>plainwire import openapi.yaml --out http/
+plainwire run http/ --var baseUrl=https://staging.example.com --junit report.xml</code></pre>
+
+    <h2>FAQ</h2>
+    <details><summary>Is my API definition sent anywhere?</summary><p>No. The converter is a script on this page (<a href="https://github.com/janwan2003/vscode-api-client/tree/main/src/web">source</a>). It parses the YAML or JSON in memory and lets you copy or download the result. Nothing is uploaded and nothing is stored after you close the tab.</p></details>
+    <details><summary>Why are values like <code>"string"</code> or <code>1</code> in the bodies?</summary><p>When an operation has no example, the body is generated from its schema: strings become <code>"string"</code> (or a sample matching the <code>format</code>, such as an email, a date or a UUID), numbers <code>1</code>, booleans <code>true</code>. Add <code>example</code>s to your definition and they are used instead.</p></details>
+    <details><summary>Where do I put my token?</summary><p>In <code>http-client.env.json</code> (the converter creates the empty <code>token</code>, <code>apiKey</code> or <code>accessToken</code> entries), or better in <code>http-client.private.env.json</code>, which you keep out of git. Values there override the shared ones.</p></details>
+    <details><summary>Why is my server URL <code>http://localhost/...</code>?</summary><p>The definition uses a relative server URL such as <code>/api/v3</code>, which only means something relative to where the file was served from. Set <code>baseUrl</code> in <code>http-client.env.json</code> to the real host.</p></details>
+    <details><summary>Can it convert Postman or Thunder Client collections too?</summary><p>Yes, on the <a href="convert-to-http-file.html">Postman, Thunder Client &amp; cURL converter</a>. Going the other way, the <a href="http-file-to-curl.html">.http to cURL and code converter</a> turns requests into cURL, fetch, Python and 8 more.</p></details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+<script src="convert.js"></script>
+</body>
+</html>

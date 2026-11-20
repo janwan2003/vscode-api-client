@@ -68,6 +68,11 @@
         "category": "Plainwire"
       },
       {
+        "command": "plainwire.importOpenApi",
+        "title": "Import OpenAPI / Swagger…",
+        "category": "Plainwire"
+      },
+      {
         "command": "plainwire.importCurl",
         "title": "Import cURL Command…",
         "category": "Plainwire"
@@ -180,7 +185,7 @@
     "viewsWelcome": [
       {
         "view": "plainwire.collections",
-        "contents": "No .http files in this workspace yet.\n[New Request](command:plainwire.newRequest)\nComing from another client? Import your collections as plain .http files:\n[Import from Thunder Client](command:plainwire.importThunder)\n[Import Postman Collection](command:plainwire.importPostman)\n[Import cURL Command](command:plainwire.importCurl)\nNo account, no login, no limits. [Learn more](https://janwan2003.github.io/vscode-api-client/)"
+        "contents": "No .http files in this workspace yet.\n[New Request](command:plainwire.newRequest)\nComing from another client? Import your collections as plain .http files:\n[Import from Thunder Client](command:plainwire.importThunder)\n[Import Postman Collection](command:plainwire.importPostman)\n[Import OpenAPI / Swagger](command:plainwire.importOpenApi)\n[Import cURL Command](command:plainwire.importCurl)\nNo account, no login, no limits. [Learn more](https://janwan2003.github.io/vscode-api-client/)"
       },
       {
         "view": "plainwire.history",
@@ -220,9 +225,14 @@
           "group": "import@2"
         },
         {
-          "command": "plainwire.importCurl",
+          "command": "plainwire.importOpenApi",
           "when": "view == plainwire.collections",
           "group": "import@3"
+        },
+        {
+          "command": "plainwire.importCurl",
+          "when": "view == plainwire.collections",
+          "group": "import@4"
         },
         {
           "command": "plainwire.createEnvFile",

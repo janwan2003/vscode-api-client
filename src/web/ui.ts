@@ -80,6 +80,102 @@ const EXAMPLES: Record<string, { name: string; text: string }> = {
       2,
     ),
   },
+  openapi: {
+    name: 'pets.yaml',
+    text: `openapi: 3.0.3
+info:
+  title: Pets API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com/v1
+    description: Production
+  - url: https://sandbox.example.com/v1
+    description: Sandbox
+security:
+  - bearerAuth: []
+paths:
+  /pets:
+    get:
+      tags: [pets]
+      summary: List pets
+      operationId: listPets
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, maximum: 100 }
+      responses:
+        '200': { description: A page of pets }
+    post:
+      tags: [pets]
+      summary: Create a pet
+      operationId: createPet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewPet' }
+      responses:
+        '201': { description: Created }
+  /pets/{petId}:
+    get:
+      tags: [pets]
+      summary: Get a pet
+      operationId: getPet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema: { type: integer, example: 1 }
+      responses:
+        '200': { description: The pet }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  schemas:
+    NewPet:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, example: Rex }
+        tag: { type: string, example: dog }
+`,
+  },
+  swagger: {
+    name: 'swagger.json',
+    text: JSON.stringify(
+      {
+        swagger: '2.0',
+        info: { title: 'Store', version: '1.0' },
+        host: 'store.example.com',
+        basePath: '/api',
+        schemes: ['https'],
+        securityDefinitions: { apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key' } },
+        security: [{ apiKey: [] }],
+        paths: {
+          '/orders/{id}': {
+            get: {
+              tags: ['orders'],
+              summary: 'Get an order',
+              operationId: 'getOrder',
+              parameters: [{ name: 'id', in: 'path', required: true, type: 'integer', 'x-example': 42 }],
+              responses: { 200: { description: 'ok' } },
+            },
+          },
+          '/orders': {
+            post: {
+              tags: ['orders'],
+              summary: 'Place an order',
+              operationId: 'placeOrder',
+              parameters: [{ name: 'order', in: 'body', schema: { type: 'object', properties: { sku: { type: 'string', example: 'TSHIRT-M' }, quantity: { type: 'integer', example: 2 } } } }],
+              responses: { 201: { description: 'created' } },
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
   curl: {
     name: '',
     text: `curl -X POST 'https://api.example.com/v1/orders' \\\n  -H 'Authorization: Bearer abc123' \\\n  -H 'Content-Type: application/json' \\\n  --data-raw '{"sku":"TSHIRT-M","quantity":2}'`,

@@ -2,9 +2,11 @@ import type { ImportedCollection } from '../model.ts';
 import { serializeHttpFile } from '../httpFile.ts';
 import { parseCurl } from '../curl.ts';
 import { importPostman, importPostmanEnvironment, isObj, isPostmanCollection, isPostmanEnvironment, str } from './postman.ts';
+import { importOpenApi, isOpenApi } from './openapi.ts';
 import { importThunder, importThunderEnvironments, importThunderWorkspace, isThunderCollection, isThunderEnvironment } from './thunder.ts';
 
 export { importPostman, importPostmanEnvironment } from './postman.ts';
+export { importOpenApi } from './openapi.ts';
 export { importThunder, importThunderWorkspace, importThunderEnvironments } from './thunder.ts';
 
 function baseName(fileName: string | undefined): string {
@@ -39,6 +41,7 @@ export function detectAndImport(text: string, fileName?: string): ImportedCollec
   }
 
   if (isPostmanCollection(json)) return [importPostman(json)];
+  if (isOpenApi(json)) return [importOpenApi(json)];
   if (isPostmanEnvironment(json)) {
     const environments = importPostmanEnvironment(json);
     const c = emptyCollection(baseName(fileName).replace(/\.postman_(environment|globals)$/, '') || Object.keys(environments)[0] || 'environment');
@@ -70,7 +73,7 @@ export function detectAndImport(text: string, fileName?: string): ImportedCollec
   }
   throw new Error(
     `${fileName ?? 'This file'} is not a recognized export. Supported: Postman Collection v2.0/v2.1, Postman environment, ` +
-      'Thunder Client collection export, thunder-tests/*.json, or a curl command.',
+      'OpenAPI 3.x / Swagger 2.0, Thunder Client collection export, thunder-tests/*.json, or a curl command.',
   );
 }
 
