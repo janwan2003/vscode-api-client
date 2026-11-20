@@ -5,6 +5,7 @@ Usage:
   python3 scripts/gsc.py token      # get a FILE verification token, write docs/<token>.html
   python3 scripts/gsc.py verify     # verify ownership (after the file is live), add the site, submit the sitemap
   python3 scripts/gsc.py status     # sitemap status + last 28 days of search analytics
+  python3 scripts/gsc.py sitemap    # resubmit the sitemap after adding pages
 
 Reads CWS_CLIENT_ID / CWS_CLIENT_SECRET / GSC_REFRESH_TOKEN from the studio .env. Never prints them.
 Touches nothing but SITE (charter: other sites visible to the token are off limits).
@@ -62,6 +63,10 @@ def main(cmd):
         print("verify", s, "ok" if s == 200 else r)  # the 200 body lists owner accounts: do not print it
         s, r = call("PUT", f"https://www.googleapis.com/webmasters/v3/sites/{enc}", None, at)
         print("add site", s, r)
+        s, r = call("PUT", f"https://www.googleapis.com/webmasters/v3/sites/{enc}/sitemaps/"
+                    + urllib.parse.quote(SITEMAP, safe=""), None, at)
+        print("submit sitemap", s, r)
+    elif cmd == "sitemap":  # resubmit after adding pages
         s, r = call("PUT", f"https://www.googleapis.com/webmasters/v3/sites/{enc}/sitemaps/"
                     + urllib.parse.quote(SITEMAP, safe=""), None, at)
         print("submit sitemap", s, r)

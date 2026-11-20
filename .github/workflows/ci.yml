@@ -15,6 +15,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: corepack enable && corepack pnpm@9.15.0 install --frozen-lockfile
+      - run: pipx install httpie && http --version  # so the HTTPie Copy-as-Code snippets run in tests
       - run: corepack pnpm@9.15.0 typecheck
       - run: node scripts/test.mjs
       - run: node scripts/build-web.mjs --check

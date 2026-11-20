@@ -313,7 +313,9 @@ function go(r: Req): string {
 }
 
 function httpie(r: Req): string {
-  const args = ['http'];
+  // HTTPie reads stdin as the body whenever stdin is not a terminal (scripts, CI, editors' tasks):
+  // that clashes with --raw and makes body-less requests wait for input. Only a `< file` body uses stdin.
+  const args = r.body.kind === 'file' ? ['http'] : ['http', '--ignore-stdin'];
   if (r.body.kind === 'text') args.push(`--raw ${shellQuote(r.body.text)}`);
   args.push(`${r.method} ${shellQuote(r.url)}`);
   for (const h of r.headers) {

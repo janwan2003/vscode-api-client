@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Copy as Code → HTTPie** snippets now pass `--ignore-stdin` (except for `< file` bodies). Without it HTTPie read stdin whenever it was not a terminal (scripts, CI, editor tasks): `--raw` bodies failed with "cannot be mixed" and requests without a body waited 10 s. Found by running the snippets against a real HTTPie 3.2.4; CI now installs HTTPie so these runtime tests run.
+- **Website**: free in-browser converters, [Postman / Thunder Client / cURL → .http](https://janwan2003.github.io/vscode-api-client/convert-to-http-file.html) and [.http → cURL and 10 other languages](https://janwan2003.github.io/vscode-api-client/http-file-to-curl.html), built from the same code as the extension.
+
 ## 0.4.0 (2026-11-20)
 
 - **GraphQL**: requests in REST Client's format (`X-REQUEST-TYPE: GraphQL`, the query, a blank line, a JSON variables object) are sent as `{"query", "variables", "operationName"}` JSON, from the extension and the CLI, with `{{variables}}` in both parts. New GraphQL body mode in the request editor (Query + Variables). Postman and Thunder Client GraphQL requests now import in this format instead of a JSON body.

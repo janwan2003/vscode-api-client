@@ -382,10 +382,11 @@ test('PowerShell: Content-Type and User-Agent as parameters, custom methods, UTF
   assert.match(generateCode('powershell', req({ body: 'ascii' })), /-Body \$body$/m);
 });
 
-test('HTTPie: method, header items, --raw body, empty header, leading = escaped, file via stdin', () => {
+test('HTTPie: method, header items, --raw body, empty header, leading = escaped, file via stdin, --ignore-stdin otherwise', () => {
   const code = generateCode('httpie', req({ headers: [{ name: 'X-A', value: "it's" }, { name: 'X-Empty', value: '' }, { name: 'X-Eq', value: '=1' }], body: '{"a":1}' }));
-  assert.equal(code, `http \\\n  --raw '{"a":1}' \\\n  POST https://api.example.com/items \\\n  'X-A:it'\\''s' \\\n  'X-Empty;' \\\n  'X-Eq:\\=1'\n`);
+  assert.equal(code, `http \\\n  --ignore-stdin \\\n  --raw '{"a":1}' \\\n  POST https://api.example.com/items \\\n  'X-A:it'\\''s' \\\n  'X-Empty;' \\\n  'X-Eq:\\=1'\n`);
   assert.equal(generateCode('httpie', req({ method: 'PUT', body: '< ./data.bin' })), `http \\\n  PUT https://api.example.com/items \\\n  < ./data.bin\n`);
+  assert.equal(generateCode('httpie', req({ method: 'GET' })), `http \\\n  --ignore-stdin \\\n  GET https://api.example.com/items\n`);
 });
 
 test('PHP: CURLOPT_* array, NOBODY for HEAD, file_get_contents for files, empty header as Name;', () => {
