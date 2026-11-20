@@ -153,6 +153,7 @@ async function run(args: string[]): Promise<number> {
   const noProxy = (process.env.NO_PROXY ?? process.env.no_proxy ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const exec = new Executor({
     readHttpFile: async (file) => readFileSync(file, 'utf8'),
+    resolveImport: (p, file) => (isAbsolute(p) ? p : resolve(dirname(file), p)),
     readBodyFile: async (p, file) => readFileSync(isAbsolute(p) ? p : resolve(file ? dirname(file) : cwd, p)),
     dotenv: async (file) => {
       for (const d of [file ? dirname(file) : undefined, cwd]) {

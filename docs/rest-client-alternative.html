@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>REST Client alternative for VS Code with a GUI, tests and a CLI | Plainwire</title>
-<meta name="description" content="REST Client has had no release since 2022. Plainwire opens the same .http files with a form editor, and adds the most-requested REST Client features: run all requests in order, assertions, and a CLI for CI. Free, no login.">
+<meta name="description" content="REST Client has had no release since 2022. Plainwire opens the same .http files with a form editor, and adds the most-requested REST Client features: importing another .http file, run all requests in order, assertions, and a CLI for CI. Free, no login.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/rest-client-alternative.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Plainwire">
@@ -32,7 +32,7 @@
 <main id="content">
   <div class="wrap narrow">
     <h1>A REST Client alternative that keeps your <code>.http</code> files</h1>
-    <p>REST Client made <code>.http</code> files the way to keep API requests next to your code in VS Code. Its last release, 0.25.1, came out in August 2022, and its issue tracker has 528 open issues. Plainwire opens the <strong>same files</strong>, unchanged, and adds what REST Client users ask for most: a form editor and response viewer, running every request in order, assertions, and a command-line runner for CI. It is free and open source, needs no account and sends nothing except your requests.</p>
+    <p>REST Client made <code>.http</code> files the way to keep API requests next to your code in VS Code. Its last release, 0.25.1, came out in August 2022, and its issue tracker has 528 open issues. Plainwire opens the <strong>same files</strong>, unchanged, and adds what REST Client users ask for most: a form editor and response viewer, importing one <code>.http</code> file into another, running every request in order, assertions, and a command-line runner for CI. It is free and open source, needs no account and sends nothing except your requests.</p>
     <p class="small">Plainwire is an independent open-source project. It is not affiliated with or endorsed by REST Client or its author.</p>
 
     <h2>The most-requested REST Client features</h2>
@@ -41,7 +41,7 @@
       <table>
         <thead><tr><th scope="col">REST Client issue</th><th scope="col">Reactions</th><th scope="col">Plainwire</th><th scope="col">How</th></tr></thead>
         <tbody>
-          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/182">#182</a> Import/require another .http file</td><td>84</td><td class="no">No</td><td>Not yet.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/182">#182</a> Import/require another .http file</td><td>84</td><td class="yes">Yes</td><td><a href="import-http-file-shared-variables.html"><code># @import ./shared.http</code></a> (or JetBrains&rsquo; <code>import ./shared.http</code>): the other file&rsquo;s variables and named requests, so one login serves every file. Since 0.6.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/724">#724</a> Sequential execution of multiple requests</td><td>62</td><td class="yes">Yes</td><td><strong>Run all</strong> sends every request in a file, folder or workspace in order, with a pass/fail report.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/267">#267</a> How to write tests on top of the requests?</td><td>59</td><td class="yes">Yes</td><td><a href="api-tests-in-http-files.html"><code># @assert status == 200</code></a>, <code># @assert $.id exists</code> and 26 other operators; httpYac&rsquo;s <code>?? status == 200</code> lines work too.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/229">#229</a> Support for rest-client.env.json and .private.env.json</td><td>53</td><td class="">Partly</td><td>Environments in <code>http-client.env.json</code> + <code>http-client.private.env.json</code> (the JetBrains file names), and your existing <code>rest-client.environmentVariables</code> setting.</td></tr>
@@ -74,13 +74,13 @@
 
     <h2>Switch in a minute</h2>
     <ol>
-      <li>Download <code>plainwire-0.5.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (works in VS Code, Cursor, Windsurf and VSCodium).</li>
+      <li>Download <code>plainwire-0.6.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (works in VS Code, Cursor, Windsurf and VSCodium).</li>
       <li>Open a folder with your <code>.http</code> files. Each request gets <em>Send | Open in Plainwire | Copy as Code&hellip;</em> above it, and the Plainwire sidebar lists every request in the workspace.</li>
       <li>Pick an environment in the status bar; your <code>rest-client.environmentVariables</code> are already there.</li>
     </ol>
 
     <h2>What Plainwire does not do (yet)</h2>
-    <p>Being honest about the gaps: no JavaScript scripting (by design), no <code>import</code> of other <code>.http</code> files, no server-sent events or WebSocket, no interactive OAuth login, no SOCKS proxies or client certificates. REST Client&rsquo;s Markdown-embedded requests and <code>rest-client.*</code> settings other than environments are not read. If you rely on one of these, REST Client may still be the better fit.</p>
+    <p>Being honest about the gaps: no JavaScript scripting (by design), no server-sent events or WebSocket, no interactive OAuth login, no SOCKS proxies or client certificates. REST Client&rsquo;s Markdown-embedded requests and <code>rest-client.*</code> settings other than environments are not read. If you rely on one of these, REST Client may still be the better fit.</p>
 
     <h2>FAQ</h2>
     <details><summary>Is REST Client abandoned?</summary><p>We cannot speak for its author. The facts: the last Marketplace release is 0.25.1 from 19 August 2022 and the repository has 528 open issues (both read on 20 November 2026). The extension still works for many people, and its 4.9-star rating is well earned.</p></details>

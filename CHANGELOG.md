@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 (2026-11-20)
+
+- **Import another `.http` file**: `# @import ./shared.http` (also `// @import`, and JetBrains' `import ./shared.http`) makes that file's variables and `# @name` requests available. Chain to an imported login with `{{login.response.body.$.token}}`: it is sent first, with its own file's variables, once per session. The importing file's variables win over imported ones, a later import over an earlier one; nested imports work and a file is read once even in an import cycle. A missing file is a request error naming the import line. Works for Send, Run all, Copy as Code and the `plainwire` CLI. This was REST Client's most-reacted open request ([#182](https://github.com/Huachao/vscode-restclient/issues/182)).
+- Import paths are Ctrl+click links to the file; `import` and `run` lines are highlighted.
+- JetBrains `run #name` / `run ./file.http` lines are kept in the file and not executed. 0.5.0 read both `run …` and `import …` lines as GET requests.
+- Editing the first request in the form editor keeps an `# @import` line above it.
+
 ## 0.5.0 (2026-11-20)
 
 - **Import OpenAPI / Swagger** (new command *Plainwire: Import OpenAPI / Swagger…*, `plainwire import openapi.yaml`, and the [online converter](https://janwan2003.github.io/vscode-api-client/openapi-to-http-file.html)): OpenAPI 3.0/3.1 and Swagger 2.0, YAML or JSON. One `.http` file per tag (untagged operations grouped by path), one request per operation titled with its summary and named after its `operationId`; `{{baseUrl}}` and path parameters in the URL with their values in `http-client.env.json` (`$shared`, plus one environment per server); required query/header/cookie parameters filled from examples, defaults or the schema, optional query parameters listed in a comment; bodies from examples or generated from the schema (`$ref`, `allOf`, `oneOf`/`anyOf`, `readOnly` skipped; JSON, form with `a[b]=` nesting, multipart); Bearer/Basic/API key/OAuth 2 auth; a `# @assert status == …` check when the operation documents exactly one 2xx status. Checked on the GitHub (1,281 operations, 0.13 s), Stripe (612), Twilio (197) and both Petstore definitions: every operation becomes a request and every file reads back the same requests.

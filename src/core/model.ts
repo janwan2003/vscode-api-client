@@ -58,6 +58,11 @@ export interface ParsedRequest extends HttpRequest {
 export interface HttpFile {
   variables: FileVariable[];
   requests: ParsedRequest[];
+  /**
+   * Paths from `# @import ./other.http` (httpYac) and `import ./other.http` (JetBrains) lines, in file
+   * order, as written (relative to this file). Their variables and named requests are available here.
+   */
+  imports?: string[];
 }
 
 /** Result of importing a foreign collection (Thunder Client, Postman, cURL). */

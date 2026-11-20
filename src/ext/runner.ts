@@ -19,6 +19,7 @@ export class Runner {
   constructor(envs: EnvironmentManager, history: History) {
     this.exec = new Executor({
       readHttpFile: (file) => readText(vscode.Uri.parse(file)),
+      resolveImport: (p, file) => resolveBodyPath(p, vscode.Uri.parse(file)).toString(),
       readBodyFile: async (p, file) => vscode.workspace.fs.readFile(resolveBodyPath(p, file ? vscode.Uri.parse(file) : undefined)),
       dotenv: (file) => loadDotenv(file ? vscode.Uri.parse(file) : undefined),
       environment: () => envs.variables(),

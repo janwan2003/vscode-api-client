@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import another .http file: share variables and a login between files | Plainwire</title>
+<meta name="description" content="Use # @import ./shared.http to share variables and a login request between .http files in VS Code. Works with httpYac and JetBrains syntax, in the editor and in CI. Free, no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/import-http-file-shared-variables.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Share variables and a login between .http files with # @import">
+<meta property="og:description" content="Use # @import ./shared.http to share variables and a login request between .http files in VS Code, Cursor and VSCodium, and in CI.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/import-http-file-shared-variables.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Share variables and a login between <code>.http</code> files</h1>
+    <p>Once a project has more than one <code>.http</code> file, every file starts with the same lines: the base URL, a content type, and a login request whose token the other requests use. Copying them into each file means fixing them in each file. With Plainwire you write them once and add one line to every other file:</p>
+<pre># @import ./shared/auth.http</pre>
+    <p>The importing file can then use the shared file&rsquo;s variables and chain to its named requests. This works in the editor (Send, Run all, Copy as Code) and in the <a href="run-http-files-in-ci.html">command-line runner</a>, so CI runs the files the same way. Importing another file is the most-reacted open request for REST Client (<a href="https://github.com/Huachao/vscode-restclient/issues/182">issue #182</a>, 84 reactions when we read it on 20 November 2026).</p>
+
+    <h2>A complete example</h2>
+    <p>The shared file holds the variables and the login:</p>
+<pre># shared/auth.http
+@contentType = application/json
+@user = ada@example.com
+
+### Log in
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{ "email": "{{user}}", "password": "{{password}}" }</pre>
+    <p>Every other file imports it and uses the token:</p>
+<pre># orders/orders.http
+# @import ../shared/auth.http
+
+### List orders
+# @assert status == 200
+GET {{baseUrl}}/orders
+Authorization: Bearer {{login.response.body.$.token}}
+
+### Create an order
+POST {{baseUrl}}/orders
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: {{contentType}}
+
+{ "sku": "A-1", "qty": 2 }</pre>
+    <p><code>baseUrl</code> and <code>password</code> come from your environment (<code>http-client.env.json</code>, with the password in <code>http-client.private.env.json</code> so it stays out of git). When you send <em>List orders</em>, Plainwire sees that it needs <code>login</code>, finds it in the imported file, sends it first, and then sends your request with the token. The second request reuses the same token: the login is sent once per session, not once per request.</p>
+
+    <h2>The rules</h2>
+    <ul>
+      <li><strong>Syntax.</strong> <code># @import ./path.http</code> or <code>// @import ./path.http</code> (the httpYac form), or <code>import ./path.http</code> (the JetBrains HTTP Client form). Quotes around the path are allowed. Put imports at the top of the file.</li>
+      <li><strong>Paths</strong> are relative to the file that contains the import line, or absolute. In VS Code, Ctrl+click (Cmd+click on macOS) the path to open the file.</li>
+      <li><strong>Imported variables</strong> are available everywhere in the importing file. If both files define the same variable, <strong>the importing file wins</strong>. Between two imports, the later import wins.</li>
+      <li><strong>Imported named requests</strong> can be chained with <code>{{name.response.body.$.path}}</code>. A request in your own file wins over one with the same name in an import. The imported request is sent with <em>its own</em> file&rsquo;s variables, so a shared login always logs in the same way, whoever imports it.</li>
+      <li><strong>Nested imports</strong> work: a shared file can import another one. A file imported twice, or two files that import each other, are read once.</li>
+      <li><strong>A missing file</strong> is an error on each request of the importing file, naming the import line and the file, for example <code>Cannot import ./gone.http from orders.http</code>.</li>
+      <li><strong>Sessions.</strong> Run all starts with a fresh session, and the CLI keeps one session per file, so each file you run sends the login once. In the editor, the token is kept until you run the file again with Run all or reload the window.</li>
+    </ul>
+
+    <h2>In CI</h2>
+    <p>The <code>plainwire</code> CLI follows imports the same way, so a pull request check needs nothing extra:</p>
+<pre>plainwire run orders/ --env ci --junit results.xml</pre>
+    <p>The shared file is a normal <code>.http</code> file too. If you run a whole folder that contains it, its own requests run as well; keep it outside the folder you run, or add <code># @skip</code> above requests that should only run when imported.</p>
+
+    <h2>Compatibility</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Tool</th><th scope="col">Import syntax</th><th scope="col">Plainwire reads it</th></tr></thead>
+        <tbody>
+          <tr><td>httpYac</td><td><code># @import ./file.http</code></td><td class="yes">Yes</td></tr>
+          <tr><td>JetBrains HTTP Client</td><td><code>import ./file.http</code></td><td class="yes">Yes</td></tr>
+          <tr><td>JetBrains HTTP Client</td><td><code>run #login</code>, <code>run ./file.http</code></td><td class="">Kept in the file, not run. Chain with <code>{{login.response...}}</code> instead.</td></tr>
+          <tr><td>REST Client</td><td>none</td><td>REST Client ignores <code># @import</code> lines as comments, so files with imports still open there (without the shared variables).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>FAQ</h2>
+    <details><summary>Can I import only the variables?</summary><p>Yes. A file with only <code>@name = value</code> lines and no requests is a fine thing to import. It appears in the Plainwire sidebar as a file with no requests.</p></details>
+    <details><summary>Does the online converter follow imports?</summary><p>No. The <a href="http-file-to-curl.html">.http to cURL converter</a> runs in your browser with one file at a time, so variables from imported files are reported as unresolved. Copy as Code inside the editor resolves them.</p></details>
+    <details><summary>Is it free?</summary><p>Yes. Plainwire is MIT-licensed, needs no account and sends nothing except your requests. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a>; see the <a href="./">home page</a> for steps.</p></details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

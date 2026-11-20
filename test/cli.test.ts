@@ -251,3 +251,29 @@ test('run: GraphQL requests (X-REQUEST-TYPE: GraphQL) are sent as JSON; bad vari
   assert.match(r.stdout, /1 passed, 0 failed, 1 errors/);
   assert.match(r.stdout, /GraphQL variables are not valid JSON/);
 });
+
+test('run: # @import shares variables and a named login across files; a missing import is a request error', async () => {
+  mkdirSync(join(dir, 'imp', 'shared'), { recursive: true });
+  mkdirSync(join(dir, 'imp', 'api'), { recursive: true });
+  writeFileSync(join(dir, 'imp', 'shared', 'auth.http'), ['@who = alice', '', '### Log in', '# @name login', 'POST {{base}}/login', 'Content-Type: application/json', '', '{"user": "{{who}}"}', ''].join('\n'));
+  writeFileSync(
+    join(dir, 'imp', 'api', 'me.http'),
+    ['# @import ../shared/auth.http', '', '### Me', '# @assert $.name == Alice', 'GET {{base}}/me', 'Authorization: Bearer {{login.response.body.$.token}}', ''].join('\n'),
+  );
+  writeFileSync(join(dir, 'imp', 'broken.http'), ['import ./gone.http', 'GET {{base}}/x', ''].join('\n'));
+  seen.length = 0;
+  const ok = await runCli(['run', 'imp/api/me.http', '--env', 'local']);
+  assert.equal(ok.code, 0, ok.stdout + ok.stderr);
+  assert.match(ok.stdout, /1 passed, 0 failed/);
+  assert.deepEqual(seen, ['POST /login ', 'GET /me Bearer tok-alice']);
+  // A shared login marked # @skip is skipped as its own row but still sent when another file chains to it.
+  writeFileSync(join(dir, 'imp', 'shared', 'auth.http'), ['@who = alice', '', '### Log in', '# @skip', '# @name login', 'POST {{base}}/login', 'Content-Type: application/json', '', '{"user": "{{who}}"}', ''].join('\n'));
+  seen.length = 0;
+  const skip = await runCli(['run', 'imp/shared', 'imp/api', '--env', 'local']);
+  assert.equal(skip.code, 0, skip.stdout + skip.stderr);
+  assert.match(skip.stdout, /1 passed, 0 failed, 1 skipped/);
+  assert.deepEqual(seen, ['POST /login ', 'GET /me Bearer tok-alice']);
+  const bad = await runCli(['run', 'imp/broken.http', '--env', 'local']);
+  assert.equal(bad.code, 1, bad.stdout + bad.stderr);
+  assert.match(bad.stdout, /Cannot import \.\/gone\.http from broken\.http: .*gone\.http could not be read/);
+});

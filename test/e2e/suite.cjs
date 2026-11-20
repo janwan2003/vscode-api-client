@@ -181,6 +181,24 @@ exports.run = async function run() {
     assert.ok(tabs.some((t) => t.startsWith('Run: checks.http')), JSON.stringify(tabs));
   });
 
+  await check('# @import: Run all uses a login and variables from another folder; the import path is a link', async () => {
+    fs.mkdirSync(path.join(ws.fsPath, 'shared'), { recursive: true });
+    fs.mkdirSync(path.join(ws.fsPath, 'imp'), { recursive: true });
+    fs.writeFileSync(path.join(ws.fsPath, 'shared', 'auth.http'), '@who = grace\n\n### Log in\n# @name login\nPOST {{host}}/login\nContent-Type: application/json\n\n{"user": "{{who}}"}\n');
+    const me = vscode.Uri.joinPath(ws, 'imp', 'me.http');
+    fs.writeFileSync(me.fsPath, '# @import ../shared/auth.http\n\n### Me\n# @assert $.auth == Bearer tok-123\nGET {{host}}/me\nAuthorization: Bearer {{login.response.body.$.token}}\n');
+    const from = seen.length;
+    const summary = await vscode.commands.executeCommand('plainwire.runFile', me);
+    const { timeMs, ...rest } = summary;
+    assert.deepEqual(rest, { total: 1, passed: 1, failed: 0, errors: 0, skipped: 0 });
+    const sent = seen.slice(from);
+    assert.deepEqual(sent.map((x) => x.url), ['/login', '/me']);
+    assert.equal(sent[0].body, '{"user": "grace"}');
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(me));
+    const links = await vscode.commands.executeCommand('vscode.executeLinkProvider', me);
+    assert.ok(links.some((l) => l.target && l.target.fsPath === path.join(ws.fsPath, 'shared', 'auth.http')), JSON.stringify(links.map((l) => l.target && l.target.toString())));
+  });
+
   await check('CodeLens offers "Run all" on files with several requests', async () => {
     const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', file);
     assert.ok(lenses.some((l) => l.command && /Run all 2 requests \(2 checks\)/.test(l.command.title)), JSON.stringify(lenses.map((l) => l.command && l.command.title)));

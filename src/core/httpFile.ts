@@ -72,6 +72,21 @@ const OUTPUT_REDIRECT = /^\s*>>!?\s+\S/;
 /** JetBrains / httpYac response reference: `<> previous-response.json`. */
 const RESPONSE_REF = /^\s*<>\s+\S/;
 const BLOCK_COMMENT_START = /^\s*\/\*/;
+/**
+ * Import of another file: httpYac `# @import ./shared.http` (also `// @import`) and JetBrains
+ * `import ./shared.http`. The JetBrains form needs a `.http`/`.rest` path so that it can never be
+ * mistaken for a request line to a host called "import".
+ */
+const IMPORT_META = /^\s*(?:#|\/\/)\s*@import\s+(\S(?:.*\S)?)\s*$/;
+const IMPORT_JETBRAINS = /^\s*import\s+(\S+\.(?:http|rest))\s*$/i;
+/** JetBrains `run #name` / `run #(name)` / `run ./file.http`: kept verbatim, not executed. */
+const RUN_LINE = /^\s*run\s+(?:#\(?[^\s)]+\)?|\S+\.(?:http|rest))(?:\s+\(.*\))?\s*$/i;
+
+/** The imported path on an import line, or undefined. */
+export function importPath(line: string): string | undefined {
+  const m = IMPORT_META.exec(line) ?? IMPORT_JETBRAINS.exec(line);
+  return m ? m[1].replace(/^(["'])(.*)\1$/, '$2') : undefined;
+}
 
 export function splitLines(text: string): string[] {
   return text.split(/\r?\n/);
@@ -89,6 +104,7 @@ function rawBlockEnd(lines: string[], i: number, end: number, before: boolean): 
     return i;
   };
   if (SCRIPT_START.test(line)) return until(SCRIPT_END);
+  if (before && RUN_LINE.test(line)) return i + 1;
   const h = HANDLER_START.exec(line);
   if (h && (before || h[1] === '>')) return until(HANDLER_END);
   const hl = HANDLER_LINE.exec(line);
@@ -107,6 +123,7 @@ export function parseHttpFile(text: string): HttpFile {
   const lines = splitLines(text);
   const variables: FileVariable[] = [];
   const requests: ParsedRequest[] = [];
+  const imports: string[] = [];
 
   // Split into blocks at ### lines (a ### inside a multi-line script or comment block does not count).
   const blocks: { start: number; end: number; title?: string }[] = [];
@@ -132,13 +149,13 @@ export function parseHttpFile(text: string): HttpFile {
     let from = block.start;
     let blockTitle = block.title;
     while (from < block.end) {
-      const { req, next } = parseBlock(lines, from, block.end, blockTitle, variables);
+      const { req, next } = parseBlock(lines, from, block.end, blockTitle, variables, imports);
       if (req) requests.push(req);
       from = next;
       blockTitle = undefined;
     }
   }
-  return { variables, requests };
+  return imports.length ? { variables, requests, imports } : { variables, requests };
 }
 
 function parseBlock(
@@ -147,6 +164,7 @@ function parseBlock(
   end: number,
   title: string | undefined,
   variables: FileVariable[],
+  imports: string[],
 ): { req?: ParsedRequest; next: number } {
   let i = start;
   if (i < end && SEPARATOR.test(lines[i])) i++;
@@ -170,6 +188,11 @@ function parseBlock(
     }
     if (isHttpYacAssert(line)) {
       asserts.push(line);
+      continue;
+    }
+    const imp = importPath(line);
+    if (imp !== undefined) {
+      imports.push(imp);
       continue;
     }
     const fv = FILE_VAR.exec(line);
@@ -354,10 +377,10 @@ export function replaceRequest(text: string, index: number, req: HttpRequest): s
   const lines = splitLines(text);
   const parsed = parseHttpFile(text).requests[index];
   if (!parsed) throw new Error(`No request #${index} in file`);
-  // Keep file variables that live inside the block's preamble.
+  // Keep file variables and imports that live inside the block's preamble.
   const kept: string[] = [];
   for (let i = parsed.startLine; i < parsed.requestLine; i++) {
-    if (FILE_VAR.test(lines[i])) kept.push(lines[i]);
+    if (FILE_VAR.test(lines[i]) || importPath(lines[i]) !== undefined) kept.push(lines[i]);
   }
   // Keep trailing blank lines of the block so spacing to the next block is unchanged.
   let trailing = 0;

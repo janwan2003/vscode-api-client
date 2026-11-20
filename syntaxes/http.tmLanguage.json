@@ -8,6 +8,7 @@
     { "include": "#httpyacAssert" },
     { "include": "#comment" },
     { "include": "#fileVariable" },
+    { "include": "#jetbrainsDirective" },
     { "include": "#requestLine" },
     { "include": "#query" },
     { "include": "#header" },
@@ -16,6 +17,14 @@
   ],
   "repository": {
     "separator": { "match": "^###.*$", "name": "markup.heading.separator.http" },
+    "jetbrainsDirective": {
+      "match": "^\\s*(import|run)\\s+(\\S+\\.(?:http|rest)|#\\(?[^\\s)]+\\)?)(.*)$",
+      "captures": {
+        "1": { "name": "keyword.control.import.http" },
+        "2": { "name": "string.unquoted.path.http" },
+        "3": { "name": "string.unquoted.metadata.http" }
+      }
+    },
     "httpyacAssert": {
       "match": "^\\s*(\\?\\?)\\s+(\\S+)(.*)$",
       "captures": {

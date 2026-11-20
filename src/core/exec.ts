@@ -1,7 +1,7 @@
 import { runAssertions, type AssertionResult } from './assert.ts';
 import { isGraphqlRequest, toGraphqlHttp } from './graphql.ts';
 import { parseHttpFile } from './httpFile.ts';
-import type { HttpFile, HttpRequest, HttpResponse } from './model.ts';
+import type { FileVariable, HttpFile, HttpRequest, HttpResponse, ParsedRequest } from './model.ts';
 import { bodyFileRef, normalizeBasicAuth, toWireForm } from './preview.ts';
 import { ensureScheme, sendRequest, type SendOptions } from './send.ts';
 
@@ -15,6 +15,11 @@ import { referencedRequestNames, resolveRequest, resolveText, type NamedExchange
 export interface ExecHost {
   /** Text of the .http file a request came from. */
   readHttpFile(file: string): Promise<string>;
+  /**
+   * The key (same kind as `file`) of a `# @import ./path` written in `file`, relative to that file.
+   * Without it, imports are an error.
+   */
+  resolveImport?(path: string, file: string): string;
   /** Bytes of a `< ./path` body file, relative to the .http file. */
   readBodyFile(path: string, file: string | undefined): Promise<Uint8Array>;
   /** Variables from the nearest `.env` file, for `{{$dotenv NAME}}`. */
@@ -54,23 +59,32 @@ export class Executor {
   }
 
   async run(req: HttpRequest, file: string | undefined, signal?: AbortSignal, depth = 0): Promise<ExecResult> {
-    if (depth > 5) throw new Error('Chained requests are nested too deeply (or reference each other in a loop)');
-    const parsed: HttpFile = file !== undefined ? parseHttpFile(await this.host.readHttpFile(file)) : { variables: [], requests: [] };
     const key = file ?? '';
     const named = this.named.get(key) ?? new Map<string, NamedExchange>();
     this.named.set(key, named);
+    return this.runIn(req, file, named, signal, depth);
+  }
+
+  /**
+   * Run `req` from `file`, remembering named responses in `named`. A chained request found in an
+   * imported file runs with that file's own variables, but its response is remembered in `named`
+   * (the session of the file the run started from), so `resetSession` forgets it too.
+   */
+  private async runIn(req: HttpRequest, file: string | undefined, named: Map<string, NamedExchange>, signal: AbortSignal | undefined, depth: number): Promise<ExecResult> {
+    if (depth > 5) throw new Error('Chained requests are nested too deeply (or reference each other in a loop)');
+    const loaded = await loadHttpFile(this.host, file);
 
     // Send named requests this one depends on, if they have not been sent yet.
     const text = [req.url, ...req.headers.map((h) => h.value), req.body ?? '', ...(req.asserts ?? [])].join('\n');
     for (const name of referencedRequestNames(text)) {
       if (named.has(name) || name === req.name) continue;
-      const dep = parsed.requests.find((r) => r.name === name);
+      const dep = loaded.findRequest(name);
       if (!dep) continue;
-      await this.run(dep, file, signal, depth + 1);
+      await this.runIn(dep.request, dep.file, named, signal, depth + 1);
     }
 
     const ctx: VariableContext = {
-      fileVariables: parsed.variables,
+      fileVariables: loaded.variables,
       environment: this.host.environment(),
       named,
       processEnv: process.env,
@@ -125,11 +139,11 @@ export interface PreviewResult {
  * Chained values come only from responses already received in this session; nothing else is sent.
  * A `< ./file` body stays a file reference; a `<@ ./file` body is read and resolved.
  */
-export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'readHttpFile' | 'readBodyFile' | 'dotenv' | 'environment'>, file: string | undefined, named: Map<string, NamedExchange> = new Map()): Promise<PreviewResult> {
-  const parsed: HttpFile = file !== undefined ? parseHttpFile(await host.readHttpFile(file)) : { variables: [], requests: [] };
+export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'readHttpFile' | 'resolveImport' | 'readBodyFile' | 'dotenv' | 'environment'>, file: string | undefined, named: Map<string, NamedExchange> = new Map()): Promise<PreviewResult> {
+  const loaded = await loadHttpFile(host, file);
   const unresolved = new Set<string>();
   const ctx: VariableContext = {
-    fileVariables: parsed.variables,
+    fileVariables: loaded.variables,
     environment: host.environment(),
     named,
     processEnv: process.env,
@@ -148,6 +162,68 @@ export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'rea
     }
   }
   return { request: toWireForm(resolved), unresolved: [...unresolved] };
+}
+
+/** A parsed `.http` file together with everything it imports. */
+export interface LoadedHttpFile {
+  parsed: HttpFile;
+  /** Variables of the imported files first (nested imports before the file importing them), then the file's own: the last definition wins. */
+  variables: FileVariable[];
+  /** Imported files in the order their variables apply (the file itself excluded). */
+  imported: { file: string; parsed: HttpFile }[];
+  /** A `# @name` request: the file's own first, then the imported files, latest import first. */
+  findRequest(name: string): { request: ParsedRequest; file: string | undefined } | undefined;
+}
+
+/** Most files one request may pull in through nested imports. */
+const MAX_IMPORTED_FILES = 50;
+
+/**
+ * Parse `file` and, recursively, the files it imports with `# @import ./other.http` (httpYac) or
+ * `import ./other.http` (JetBrains). A file imported twice, or an import cycle, is read once.
+ * A missing or unreadable import throws an error naming the line's path and the importing file.
+ */
+export async function loadHttpFile(host: Pick<ExecHost, 'readHttpFile' | 'resolveImport'>, file: string | undefined): Promise<LoadedHttpFile> {
+  const parsed: HttpFile = file !== undefined ? parseHttpFile(await host.readHttpFile(file)) : { variables: [], requests: [] };
+  const imported: { file: string; parsed: HttpFile }[] = [];
+  const seen = new Set<string>(file !== undefined ? [file] : []);
+  const visit = async (from: string, p: HttpFile): Promise<void> => {
+    for (const path of p.imports ?? []) {
+      if (!host.resolveImport) throw new Error(`Cannot import ${path}: imports are not supported here`);
+      const key = host.resolveImport(path, from);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (seen.size > MAX_IMPORTED_FILES) throw new Error(`Cannot import ${path}: more than ${MAX_IMPORTED_FILES} imported files`);
+      let text: string;
+      try {
+        text = await host.readHttpFile(key);
+      } catch (e) {
+        throw new Error(`Cannot import ${path} from ${baseName(from)}: ${key} could not be read (${(e as Error).message})`);
+      }
+      const child = parseHttpFile(text);
+      await visit(key, child); // nested imports first: the importing file's own values override them
+      imported.push({ file: key, parsed: child });
+    }
+  };
+  if (file !== undefined) await visit(file, parsed);
+  return {
+    parsed,
+    imported,
+    variables: [...imported.flatMap((f) => f.parsed.variables), ...parsed.variables],
+    findRequest(name) {
+      const own = parsed.requests.find((r) => r.name === name);
+      if (own) return { request: own, file };
+      for (let i = imported.length - 1; i >= 0; i--) {
+        const r = imported[i].parsed.requests.find((x) => x.name === name);
+        if (r) return { request: r, file: imported[i].file };
+      }
+      return undefined;
+    },
+  };
+}
+
+function baseName(file: string): string {
+  return decodeURIComponent(file.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? file);
 }
 
 /** One request in a run report (the Run all tab and the CLI share it). */

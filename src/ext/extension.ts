@@ -4,6 +4,7 @@ import { parseCurl } from '../core/curl.ts';
 import { parseHttpFile } from '../core/httpFile.ts';
 import type { HttpRequest } from '../core/model.ts';
 import { RequestCodeLens } from './codelens.ts';
+import { ImportLinkProvider } from './links.ts';
 import { CodeCopier } from './copyCode.ts';
 import { EnvironmentManager } from './environments.ts';
 import { History, type HistoryEntry } from './history.ts';
@@ -62,6 +63,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     vscode.window.registerTreeDataProvider('plainwire.collections', collections),
     vscode.window.registerTreeDataProvider('plainwire.history', new HistoryProvider(history)),
     vscode.languages.registerCodeLensProvider([{ language: 'http' }, { pattern: '**/*.{http,rest}' }], new RequestCodeLens()),
+    vscode.languages.registerDocumentLinkProvider([{ language: 'http' }, { pattern: '**/*.{http,rest}' }], new ImportLinkProvider()),
 
     vscode.commands.registerCommand('plainwire.newRequest', () => RequestPanel.show(deps, { method: 'GET', url: '', headers: [] }, { kind: 'scratch' })),
     vscode.commands.registerCommand('plainwire.openRequest', (n: RequestNode) => RequestPanel.show(deps, n.request, { kind: 'file', uri: n.uri, index: n.index })),

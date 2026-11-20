@@ -198,6 +198,16 @@ GET {{baseUrl}}/users/{{login.response.body.$.user.id}}
 Authorization: Bearer {{login.response.body.$.token}}</pre>
     <p>If the named request has not been sent yet in this session, Plainwire sends it first automatically, then the dependent one.</p>
 
+    <h2 id="import">Importing another .http file</h2>
+    <p>Put shared variables and a login request in one file and import it wherever you need them. The path is relative to the importing file. Both the httpYac form and the JetBrains form work:</p>
+<pre># api/orders.http
+# @import ../shared/auth.http
+
+### List orders
+GET {{baseUrl}}/orders
+Authorization: Bearer {{login.response.body.$.token}}</pre>
+    <p>Variables of the imported file are available, and its named requests can be chained: the login above is sent first, with <code>auth.http</code>&rsquo;s own variables, and remembered for the session. The importing file&rsquo;s own variables win over imported ones. More in <a href="import-http-file-shared-variables.html">sharing variables and a login between .http files</a>.</p>
+
     <h2 id="summary">Quick reference</h2>
     <div class="table-wrap">
       <table>
@@ -213,6 +223,7 @@ Authorization: Bearer {{login.response.body.$.token}}</pre>
           <tr><td><code>{{var}}</code></td><td>Use a file, environment or system variable</td></tr>
           <tr><td><code>&lt; ./file</code></td><td>Body from a file</td></tr>
           <tr><td><code>{{login.response.body.$.x}}</code></td><td>Value from a named request&rsquo;s response</td></tr>
+          <tr><td><code># @import ./shared.http</code></td><td>Use another file&rsquo;s variables and named requests (JetBrains: <code>import ./shared.http</code>)</td></tr>
         </tbody>
       </table>
     </div>
