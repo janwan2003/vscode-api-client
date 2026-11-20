@@ -738,7 +738,9 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   data straight from its own storage folder (all layouts incl. old NeDB `.db`, 2.39 array bodies, history), found for 9 VS Code-based
   editors + remote servers, with a one-time startup offer and `plainwire import --thunder`; docs subagent wrote
   `thunder-client-data-location.html`. Found and fixed 2 bugs while verifying: `globalStorageUri` is `vscode-userdata:` (the sibling
-  folder was never checked) and an empty `XDG_CONFIG_HOME` broke the CLI lookup. Evidence: see Status "0.17.0 verification".
+  folder was never checked) and an empty `XDG_CONFIG_HOME` broke the CLI lookup. Evidence: see Status "0.17.0 verification". CI on the
+  VENTURE.md commit 72e7c40 (44792829291) failed once on Node 20 in "run csharp" (a snippet run through `dotnet`; docs-only commit) and
+  passed on re-run of the identical commit (attempt 2): a flake, not a defect.
 
 ## Metrics
 
