@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Postman, Thunder Client and cURL to .http converter (online, free) | Plainwire</title>
+<meta name="description" content="Convert a Postman collection, Postman environment, Thunder Client export or cURL command to .http files and http-client.env.json in your browser. Nothing is uploaded. Works with VS Code REST Client, Plainwire and JetBrains HTTP Client.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/convert-to-http-file.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Postman, Thunder Client and cURL to .http converter">
+<meta property="og:description" content="Paste an export, get .http files. Runs in your browser; nothing is uploaded.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/convert-to-http-file.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-tool="import">
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap">
+    <h1>Postman, Thunder Client &amp; cURL to <code>.http</code> converter</h1>
+    <p>Paste a <strong>Postman collection</strong> (v2.0/v2.1), a <strong>Postman environment</strong>, a <strong>Thunder Client</strong> collection export or <code>thunder-tests/*.json</code> file, or a <strong>cURL command</strong>. You get plain <code>.http</code> files, one per folder, plus an <code>http-client.env.json</code> for environments. The files work in REST Client, Plainwire, httpYac and the JetBrains HTTP Client.</p>
+    <p class="note">The conversion runs in this page with the same code as the Plainwire extension and CLI. Your collection is not uploaded or stored, and the page makes no network requests. Exported environments can still hold real tokens, so check them before you commit the files.</p>
+
+    <div class="pw-tool">
+      <div class="pw-pane">
+        <label for="pw-src">Input: export JSON or cURL</label>
+        <textarea id="pw-src" spellcheck="false" placeholder="Paste a Postman collection, Thunder Client export or curl command here, or drop files on this box."></textarea>
+        <div class="pw-row">
+          <label class="btn secondary pw-small" for="pw-files">Choose files&hellip;</label>
+          <input id="pw-files" type="file" multiple accept=".json,.txt,.sh,application/json,text/plain" hidden>
+          <span class="small">Examples:</span>
+          <button type="button" class="btn secondary pw-small" data-example="postman">Postman</button>
+          <button type="button" class="btn secondary pw-small" data-example="thunder">Thunder Client</button>
+          <button type="button" class="btn secondary pw-small" data-example="curl">cURL</button>
+        </div>
+      </div>
+      <div class="pw-pane">
+        <label>Output: <code>.http</code> files</label>
+        <div id="pw-summary" class="pw-summary" aria-live="polite"></div>
+        <div id="pw-tabs" class="pw-tabs" role="tablist"></div>
+        <pre id="pw-code" class="pw-code"></pre>
+        <div id="pw-actions" class="pw-row" hidden>
+          <button type="button" id="pw-copy" class="btn pw-small">Copy</button>
+          <button type="button" id="pw-download" class="btn secondary pw-small">Download this file</button>
+          <button type="button" id="pw-zip" class="btn secondary pw-small">Download all (.zip)</button>
+        </div>
+        <div id="pw-warnings-box" class="pw-warnings note" hidden>
+          <strong>Not converted</strong> (pre-request scripts, unsupported auth, checks that are not simple assertions):
+          <ul id="pw-warnings"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="wrap narrow">
+    <h2>What gets converted</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>From</th><th>To</th></tr></thead>
+      <tbody>
+        <tr><td>Folders</td><td>One <code>.http</code> file per folder; requests outside folders go to <code>requests.http</code></td></tr>
+        <tr><td>Requests</td><td><code>###</code> blocks titled with the request name, in the collection<td><code>###</code> blocks with the request name as title and <code># @name</code></td>rsquo;s order</td></tr>
+        <tr><td>Collection variables</td><td><code>@name = value</code> lines at the top of each file</td></tr>
+        <tr><td>Environments</td><td><code>http-client.env.json</code> (<code>{{var}}</code> syntax is kept)</td></tr>
+        <tr><td>Bearer, Basic, API key auth</td><td><code>Authorization</code> or the API key header / query parameter, inherited auth applied per request</td></tr>
+        <tr><td>Bodies: raw, JSON, form, multipart, GraphQL, binary</td><td>The same body in <code>.http</code> syntax; files as <code>&lt; ./path</code></td></tr>
+        <tr><td>Thunder Client tests, simple Postman <code>pm.test</code> checks</td><td><code># @assert status == 200</code>, <code># @assert $.id exists</code> and similar lines</td></tr>
+        <tr><td>Pre-request and test scripts</td><td>Not converted; listed under &ldquo;Not converted&rdquo;</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>Then what?</h2>
+    <ul>
+      <li>Open the files in VS Code, Cursor or VSCodium with <a href="./">Plainwire</a> for a form editor, a response viewer, environments and a test runner. No account, no request limits.</li>
+      <li>Or keep them as text with REST Client, and run them in CI with the free <a href="run-http-files-in-ci.html">Plainwire CLI</a>: one file with no dependencies, JUnit output.</li>
+      <li>Going the other way? The <a href="http-file-to-curl.html">.http to cURL and code converter</a> turns requests back into cURL, fetch, Python, Go and 7 more.</li>
+    </ul>
+    <p>Step-by-step guides with the full field mapping: <a href="postman-collection-to-http-file.html">Postman to .http</a>, <a href="import-thunder-client-to-http-files.html">Thunder Client to .http</a>, <a href="curl-to-http-file.html">cURL to .http</a>.</p>
+
+    <h2>FAQ</h2>
+    <details><summary>Is my collection sent anywhere?</summary><p>No. The converter is a script on this page (<a href="https://github.com/janwan2003/vscode-api-client/tree/main/src/web">source</a>). It reads the text you paste or the files you choose, converts them in memory and lets you copy or download the result. Nothing is uploaded and nothing is stored after you close the tab.</p></details>
+    <details><summary>Can I convert a whole <code>thunder-tests</code> folder?</summary><p>Yes. Choose all of its JSON files at once (for example <code>thunderclient.json</code>, <code>thunderCollection.json</code> and <code>thunderEnvironment.json</code>, or the <code>collections/</code> and <code>environments/</code> files of the newer layout) and they are combined into one result.</p></details>
+    <details><summary>Postman v1 collections?</summary><p>Not supported. Open the collection in Postman and export it again as Collection v2.1.</p></details>
+    <details><summary>How is this different from the extension&rsquo;s import?</summary><p>It is the same converter. In VS Code, <strong>Plainwire: Import from Thunder Client / Postman / cURL</strong> writes the files straight into your workspace; the CLI does it with <code>plainwire import</code>.</p></details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+<script src="convert.js"></script>
+</body>
+</html>

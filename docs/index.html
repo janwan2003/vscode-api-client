@@ -21,6 +21,7 @@
     <a class="brand" href="./" aria-current="page"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
     <nav class="site-nav" aria-label="Main">
       <a href="http-file-syntax.html">.http syntax</a>
+      <a href="#tools">Converters</a>
       <a href="#guides">Guides</a>
       <a href="support.html">Support</a>
       <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
@@ -105,6 +106,15 @@ Content-Type: <span class="v">{{contentType}}</span>
 GET <span class="v">{{baseUrl}}</span>/me
 Authorization: Bearer <span class="v">{{login.response.body.$.token}}</span>
 X-Request-Id: <span class="v">{{$guid}}</span></pre>
+    </section>
+
+    <section id="tools">
+      <h2>Free online converters</h2>
+      <p>The same converters the extension uses, running in your browser. Nothing is uploaded.</p>
+      <div class="grid">
+        <div class="card"><h3><a href="convert-to-http-file.html">Postman, Thunder Client &amp; cURL to .http</a></h3><p>Paste an export or a curl command, download <code>.http</code> files and <code>http-client.env.json</code>.</p></div>
+        <div class="card"><h3><a href="http-file-to-curl.html">.http to cURL, fetch, Python &amp; more</a></h3><p>Turn <code>.http</code> requests into snippets for 11 languages and tools, variables resolved.</p></div>
+      </div>
     </section>
 
     <section id="guides">

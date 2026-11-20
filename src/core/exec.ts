@@ -2,7 +2,10 @@ import { runAssertions, type AssertionResult } from './assert.ts';
 import { isGraphqlRequest, toGraphqlHttp } from './graphql.ts';
 import { parseHttpFile } from './httpFile.ts';
 import type { HttpFile, HttpRequest, HttpResponse } from './model.ts';
-import { ensureScheme, prepareBody, sendRequest, type SendOptions } from './send.ts';
+import { bodyFileRef, normalizeBasicAuth, toWireForm } from './preview.ts';
+import { ensureScheme, sendRequest, type SendOptions } from './send.ts';
+
+export { bodyFileRef, normalizeBasicAuth } from './preview.ts';
 import { referencedRequestNames, resolveRequest, resolveText, type NamedExchange, type VariableContext } from './variables.ts';
 
 /**
@@ -144,37 +147,7 @@ export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'rea
       resolved.body = `< ${ref.path}`; // unreadable here: let the snippet read the file itself
     }
   }
-  // Same GraphQL → JSON conversion as `run`, so every snippet sends what Plainwire would send.
-  if (isGraphqlRequest(resolved) && !bodyFileRef(resolved.body)) resolved = toGraphqlHttp(resolved, true);
-  const method = resolved.method.toUpperCase();
-  // The sender never puts a body on GET/HEAD, and normalises form and multipart bodies.
-  if (method === 'GET' || method === 'HEAD') resolved.body = undefined;
-  else if (resolved.body !== undefined && !bodyFileRef(resolved.body)) resolved.body = prepareBody(resolved);
-  return { request: resolved, unresolved: [...unresolved] };
-}
-
-/** A body that is exactly one `< ./file` (raw bytes) or `<@ ./file` (text with variables) line. */
-export function bodyFileRef(body: string | undefined): { path: string; resolveVariables: boolean } | undefined {
-  if (body === undefined) return undefined;
-  const lines = body.split(/\r?\n/);
-  const m = /^<(@?)\s+(.+?)\s*$/.exec(lines[0]);
-  if (!m || lines.filter((l) => l.trim()).length !== 1) return undefined;
-  return { path: m[2], resolveVariables: m[1] === '@' };
-}
-
-/** `Authorization: Basic user:pass` or `Basic user pass` → base64, as REST Client does. */
-export function normalizeBasicAuth(req: HttpRequest): void {
-  for (const h of req.headers) {
-    if (h.name.toLowerCase() !== 'authorization') continue;
-    const m = /^Basic\s+(.+)$/i.exec(h.value.trim());
-    if (!m) continue;
-    const v = m[1];
-    if (v.includes(':')) h.value = `Basic ${Buffer.from(v).toString('base64')}`;
-    else if (/\s/.test(v)) {
-      const [u, ...p] = v.split(/\s+/);
-      h.value = `Basic ${Buffer.from(`${u}:${p.join(' ')}`).toString('base64')}`;
-    }
-  }
+  return { request: toWireForm(resolved), unresolved: [...unresolved] };
 }
 
 /** One request in a run report (the Run all tab and the CLI share it). */

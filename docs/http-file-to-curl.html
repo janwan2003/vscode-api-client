@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.http file to cURL, fetch, Python and more (online converter) | Plainwire</title>
+<meta name="description" content="Convert requests from a .http or .rest file (REST Client, httpYac, JetBrains format) to cURL, JavaScript fetch, Node.js, Python requests, Go, HTTPie, PowerShell, wget, C#, PHP or Java. Variables resolved, runs in your browser.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/http-file-to-curl.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content=".http file to cURL and code converter">
+<meta property="og:description" content="Turn .http requests into cURL, fetch, Python, Go and 7 more. Runs in your browser.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/http-file-to-curl.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-tool="code">
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap">
+    <h1><code>.http</code> file to cURL &amp; code converter</h1>
+    <p>Paste a <code>.http</code> or <code>.rest</code> file in the REST Client / JetBrains format. Every request becomes a snippet for <strong>cURL</strong>, <strong>JavaScript fetch</strong>, <strong>Node.js</strong>, <strong>Python requests</strong>, <strong>Go</strong>, <strong>HTTPie</strong>, <strong>PowerShell</strong>, <strong>wget</strong>, <strong>C#</strong>, <strong>PHP</strong> or <strong>Java</strong>. File variables (<code>@host = &hellip;</code>) are resolved, and you can add environment values below. GraphQL requests are sent as JSON and Basic auth is encoded, exactly as when the request is sent.</p>
+    <p class="note">Runs in this page with the same code as Plainwire&rsquo;s <em>Copy as Code</em> command. Nothing you paste is uploaded or stored.</p>
+
+    <div class="pw-tool">
+      <div class="pw-pane">
+        <label for="pw-src"><code>.http</code> file</label>
+        <textarea id="pw-src" spellcheck="false" placeholder="GET https://api.example.com/users/1&#10;Accept: application/json"></textarea>
+        <div class="pw-row">
+          <button type="button" class="btn secondary pw-small" data-example="http">Load an example</button>
+        </div>
+        <label for="pw-env">Variables (optional): <code>KEY=value</code> lines or an <code>http-client.env.json</code></label>
+        <textarea id="pw-env" class="pw-env" spellcheck="false" placeholder="token=abc123"></textarea>
+        <div class="pw-row" hidden><label for="pw-envname">Environment</label><select id="pw-envname"></select></div>
+      </div>
+      <div class="pw-pane">
+        <div class="pw-row">
+          <label for="pw-target">Convert to</label>
+          <select id="pw-target"></select>
+        </div>
+        <div id="pw-summary" class="pw-summary" aria-live="polite"></div>
+        <div id="pw-out"></div>
+      </div>
+    </div>
+  </div>
+  <div class="wrap narrow">
+    <h2>What is resolved</h2>
+    <ul>
+      <li><strong>File variables</strong> (<code>@baseUrl = https://&hellip;</code>) and the values you enter under Variables, including <code>$shared</code> values in an <code>http-client.env.json</code>.</li>
+      <li><strong>System variables</strong>: <code>{{$guid}}</code>, <code>{{$timestamp}}</code>, <code>{{$randomInt 1 100}}</code>, <code>{{$datetime iso8601}}</code>.</li>
+      <li><strong>Unknown variables</strong> and chained values such as <code>{{login.response.body.$.token}}</code> are left as written and listed above the snippets, so you can see what still needs a value.</li>
+      <li><strong>Bodies</strong>: form bodies split over <code>&amp;</code> lines are joined, multipart bodies get CRLF line endings, GraphQL becomes <code>{"query", "variables"}</code> JSON, and a <code>&lt; ./file</code> body becomes code that reads the file.</li>
+    </ul>
+
+    <h2>Do it inside VS Code</h2>
+    <p>With <a href="./">Plainwire</a> installed, every request in a <code>.http</code> file gets a <strong>Copy as Code&hellip;</strong> link above it, using your selected environment and values from earlier responses. To go from cURL to a <code>.http</code> file instead, use the <a href="convert-to-http-file.html">cURL, Postman and Thunder Client to .http converter</a>.</p>
+    <p>More: <a href="curl-to-http-file.html">cURL flags and their .http equivalents</a>, <a href="http-file-syntax.html">.http file syntax reference</a>, <a href="graphql-requests-vscode.html">GraphQL in .http files</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+<script src="convert.js"></script>
+</body>
+</html>

@@ -17,6 +17,7 @@ jobs:
       - run: corepack enable && corepack pnpm@9.15.0 install --frozen-lockfile
       - run: corepack pnpm@9.15.0 typecheck
       - run: node scripts/test.mjs
+      - run: node scripts/build-web.mjs --check
       - run: corepack pnpm@9.15.0 package
       - run: node scripts/build-cli.mjs
       - name: CLI smoke test against a local server

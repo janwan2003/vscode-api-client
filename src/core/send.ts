@@ -4,6 +4,9 @@ import { isIP, type Socket } from 'node:net';
 import * as tls from 'node:tls';
 import * as zlib from 'node:zlib';
 import type { HttpRequest, HttpResponse } from './model.ts';
+import { ensureScheme, prepareBody } from './wire.ts';
+
+export { ensureScheme, prepareBody } from './wire.ts';
 
 export interface SendOptions {
   /** Overall deadline for the whole exchange, redirects and body included. */
@@ -29,26 +32,6 @@ const TEXT_TYPES = /^(text\/|application\/(json|xml|javascript|ecmascript|x-www-
 
 const TLS_ERRORS = /^(DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT(_LOCALLY)?|CERT_HAS_EXPIRED|CERT_NOT_YET_VALID|CERT_UNTRUSTED|CERT_REVOKED|CERT_SIGNATURE_FAILURE|ERR_TLS_CERT_ALTNAME_INVALID|HOSTNAME_MISMATCH|INVALID_CA)\b/;
 const TLS_HINT = 'Set "plainwire.rejectUnauthorized": false to accept it (or add # @insecure above the request).';
-
-/** Normalise a body before sending: form bodies may be split over lines starting with `&`. */
-export function prepareBody(req: HttpRequest): string | undefined {
-  if (req.body === undefined) return undefined;
-  const ct = req.headers.find((h) => h.name.toLowerCase() === 'content-type')?.value ?? '';
-  if (/application\/x-www-form-urlencoded/i.test(ct)) {
-    return req.body
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .join('');
-  }
-  // multipart bodies need CRLF line endings
-  if (/multipart\//i.test(ct)) return req.body.replace(/\r?\n/g, '\r\n') + '\r\n';
-  return req.body;
-}
-
-export function ensureScheme(url: string): string {
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `http://${url}`;
-}
 
 interface Hdr {
   name: string;
