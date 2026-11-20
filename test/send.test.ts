@@ -341,3 +341,22 @@ test('self-signed HTTPS: rejected with a hint by default, accepted with rejectUn
     srv.close();
   }
 });
+
+test('User-Agent: plainwire by default (some servers answer 403 without one); the request\'s own header wins', async () => {
+  const { createServer: cs } = await import('node:http');
+  const got: (string | undefined)[] = [];
+  const srv = cs((req, res) => {
+    got.push(req.headers['user-agent']);
+    res.end('ok');
+  });
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}/`;
+  try {
+    await sendRequest({ method: 'GET', url, headers: [] });
+    await sendRequest({ method: 'GET', url, headers: [] }, { userAgent: 'plainwire/9.9.9' });
+    await sendRequest({ method: 'GET', url, headers: [{ name: 'user-agent', value: 'mine/1' }] }, { userAgent: 'plainwire/9.9.9' });
+    assert.deepEqual(got, ['plainwire', 'plainwire/9.9.9', 'mine/1']);
+  } finally {
+    srv.close();
+  }
+});

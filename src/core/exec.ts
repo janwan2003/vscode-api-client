@@ -4,6 +4,7 @@ import { parseHttpFile } from './httpFile.ts';
 import type { FileVariable, HttpFile, HttpRequest, HttpResponse, ParsedRequest } from './model.ts';
 import { bodyFileRef, normalizeBasicAuth, toWireForm } from './preview.ts';
 import { ensureScheme, sendRequest, type SendOptions } from './send.ts';
+import type { SseEvent } from './sse.ts';
 
 export { bodyFileRef, normalizeBasicAuth } from './preview.ts';
 import { referencedRequestNames, resolveRequest, resolveText, type NamedExchange, type VariableContext } from './variables.ts';
@@ -32,6 +33,30 @@ export interface ExecHost {
   onExchange?(e: { request: HttpRequest; file?: string; response?: HttpResponse; error?: string }): void | Promise<void>;
 }
 
+/** Options for one `Executor.run` call (not applied to the chained requests it sends first). */
+export interface RunOptions {
+  /** Each server-sent event of a `text/event-stream` response, as it arrives. */
+  onEvent?: (event: SseEvent) => void;
+}
+
+/**
+ * Per-request settings from metadata: `# @timeout 5000` (ms; `5s`, `2m` also work) and, for
+ * server-sent events, `# @max-events 3` (close the stream after 3 events).
+ */
+export function requestSendOptions(req: HttpRequest): Pick<SendOptions, 'timeoutMs' | 'maxEvents'> {
+  const out: Pick<SendOptions, 'timeoutMs' | 'maxEvents'> = {};
+  const t = req.meta?.['timeout'];
+  const tm = t !== undefined ? /^(\d+(?:\.\d+)?)\s*(ms|s|m)?$/i.exec(t.trim()) : null;
+  if (t !== undefined && !tm) throw new Error(`# @timeout ${t}: expected milliseconds, e.g. 5000, 5s or 2m`);
+  if (tm) out.timeoutMs = Math.round(Number(tm[1]) * ({ ms: 1, s: 1000, m: 60000 }[(tm[2] ?? 'ms').toLowerCase() as 'ms' | 's' | 'm']));
+  const n = req.meta?.['max-events'];
+  if (n !== undefined) {
+    if (!/^\d+$/.test(n.trim()) || Number(n) < 1) throw new Error(`# @max-events ${n}: expected a whole number of events, e.g. 3`);
+    out.maxEvents = Number(n);
+  }
+  return out;
+}
+
 export interface ExecResult {
   resolved: HttpRequest;
   response: HttpResponse;
@@ -58,11 +83,11 @@ export class Executor {
     return previewRequest(req, this.host, file, this.named.get(file ?? ''));
   }
 
-  async run(req: HttpRequest, file: string | undefined, signal?: AbortSignal, depth = 0): Promise<ExecResult> {
+  async run(req: HttpRequest, file: string | undefined, signal?: AbortSignal, opts: RunOptions = {}): Promise<ExecResult> {
     const key = file ?? '';
     const named = this.named.get(key) ?? new Map<string, NamedExchange>();
     this.named.set(key, named);
-    return this.runIn(req, file, named, signal, depth);
+    return this.runIn(req, file, named, signal, 0, opts);
   }
 
   /**
@@ -70,7 +95,7 @@ export class Executor {
    * imported file runs with that file's own variables, but its response is remembered in `named`
    * (the session of the file the run started from), so `resetSession` forgets it too.
    */
-  private async runIn(req: HttpRequest, file: string | undefined, named: Map<string, NamedExchange>, signal: AbortSignal | undefined, depth: number): Promise<ExecResult> {
+  private async runIn(req: HttpRequest, file: string | undefined, named: Map<string, NamedExchange>, signal: AbortSignal | undefined, depth: number, opts: RunOptions = {}): Promise<ExecResult> {
     if (depth > 5) throw new Error('Chained requests are nested too deeply (or reference each other in a loop)');
     const loaded = await loadHttpFile(this.host, file);
 
@@ -110,7 +135,7 @@ export class Executor {
     }
 
     try {
-      const response = await sendRequest(resolved, { ...this.host.sendOptions(req), signal, bodyOverride });
+      const response = await sendRequest(resolved, { ...this.host.sendOptions(req), ...requestSendOptions(req), signal, bodyOverride, onEvent: opts.onEvent });
       if (req.name) {
         named.set(req.name, {
           request: { url: resolved.url, headers: resolved.headers.map((h) => [h.name, h.value]), body: resolved.body },

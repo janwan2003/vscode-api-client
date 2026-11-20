@@ -4,6 +4,7 @@ import { isIP, type Socket } from 'node:net';
 import * as tls from 'node:tls';
 import * as zlib from 'node:zlib';
 import type { HttpRequest, HttpResponse } from './model.ts';
+import { isEventStream, SseParser, type SseEvent } from './sse.ts';
 import { ensureScheme, prepareBody } from './wire.ts';
 
 export { ensureScheme, prepareBody } from './wire.ts';
@@ -26,6 +27,12 @@ export interface SendOptions {
   proxy?: string;
   /** Hosts that bypass the proxy: exact hosts, domain suffixes (`example.com`, `.example.com`, `*.example.com`) or `*`. localhost is always bypassed. */
   noProxy?: string[];
+  /** `User-Agent` sent when the request sets none (default `plainwire`). Some servers reject requests without one. */
+  userAgent?: string;
+  /** For a `text/event-stream` response: close the stream after this many events. */
+  maxEvents?: number;
+  /** For a `text/event-stream` response: called for each event as it arrives. */
+  onEvent?: (event: SseEvent) => void;
 }
 
 const TEXT_TYPES = /^(text\/|application\/(json|xml|javascript|ecmascript|x-www-form-urlencoded|graphql|ld\+json|problem\+json|problem\+xml|soap\+xml|xhtml\+xml|yaml|x-yaml|x-ndjson|.*\+json|.*\+xml))/i;
@@ -71,6 +78,7 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
       url.password = '';
     }
     if (!hasHeader(headers, 'accept-encoding')) headers.push({ name: 'Accept-Encoding', value: 'gzip, deflate, br' });
+    if (!hasHeader(headers, 'user-agent')) headers.push({ name: 'User-Agent', value: opts.userAgent ?? 'plainwire' });
 
     const text = opts.bodyOverride ?? (method === 'GET' || method === 'HEAD' ? undefined : prepareBody(req));
     let body: Uint8Array | undefined = typeof text === 'string' ? Buffer.from(text, 'utf8') : text;
@@ -95,6 +103,13 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
         continue;
       }
 
+      const hdrs: [string, string][] = [];
+      for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) hdrs.push([res.rawHeaders[i], res.rawHeaders[i + 1]]);
+      if (isEventStream(res.headers['content-type']) && method !== 'HEAD') {
+        const s = await readEventStream(res, signal, started, opts);
+        return { status, statusText: res.statusMessage ?? '', headers: hdrs, body: s.text, bodyEncoding: 'utf8', size: s.size, timeMs: Math.round(performance.now() - started), url: url.href, events: s.events, streamEnd: s.end };
+      }
+
       const raw = await readBody(res);
       const buf = decompress(raw, res.headers['content-encoding']);
       const timeMs = Math.round(performance.now() - started);
@@ -107,8 +122,6 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
           decoded = undefined;
         }
       }
-      const hdrs: [string, string][] = [];
-      for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) hdrs.push([res.rawHeaders[i], res.rawHeaders[i + 1]]);
       return {
         status,
         statusText: res.statusMessage ?? '',
@@ -196,6 +209,59 @@ function readBody(res: http.IncomingMessage): Promise<Buffer> {
     res.on('error', reject);
     res.on('close', () => {
       if (!res.complete) reject(new Error('Connection closed before the response body was complete'));
+    });
+  });
+}
+
+/**
+ * Read a `text/event-stream` body as it arrives (decompressing on the fly), until the server closes
+ * it, `maxEvents` is reached, or the request is stopped or times out. Stopping and timing out keep
+ * what arrived: a stream has no natural end, so neither is an error.
+ */
+function readEventStream(res: http.IncomingMessage, signal: AbortSignal, started: number, opts: SendOptions): Promise<{ text: string; size: number; events: SseEvent[]; end: NonNullable<HttpResponse['streamEnd']> }> {
+  return new Promise((resolve, reject) => {
+    const parser = new SseParser();
+    const decoder = new TextDecoder('utf-8');
+    const events: SseEvent[] = [];
+    let text = '';
+    let size = 0;
+    let done = false;
+    const codings = (res.headers['content-encoding'] ?? '').split(',').map((c) => c.trim().toLowerCase()).filter((c) => c && c !== 'identity');
+    let stream: NodeJS.ReadableStream = res;
+    for (const c of codings.reverse()) {
+      const z = c === 'gzip' || c === 'x-gzip' ? zlib.createGunzip() : c === 'br' ? zlib.createBrotliDecompress() : c === 'deflate' ? zlib.createInflate() : undefined;
+      if (!z) continue;
+      stream = stream.pipe(z);
+      z.on('error', (e) => finish(undefined, e));
+    }
+    res.on('data', (c: Buffer) => (size += c.byteLength));
+    const finish = (end: NonNullable<HttpResponse['streamEnd']> | undefined, err?: Error) => {
+      if (done) return;
+      done = true;
+      signal.removeEventListener('abort', onAbort);
+      res.destroy();
+      if (err) return reject(err);
+      text += decoder.decode();
+      resolve({ text, size, events, end: end ?? 'closed' });
+    };
+    const onAbort = () => finish(signal.reason instanceof Error && signal.reason.message.startsWith('Timed out') ? 'timeout' : 'stopped');
+    if (signal.aborted) return onAbort();
+    signal.addEventListener('abort', onAbort, { once: true });
+    stream.on('data', (c: Buffer) => {
+      if (done) return;
+      const t = decoder.decode(c, { stream: true });
+      text += t;
+      for (const e of parser.feed(t, Math.round(performance.now() - started))) {
+        events.push(e);
+        opts.onEvent?.(e);
+        if (opts.maxEvents && events.length >= opts.maxEvents) return finish('max-events');
+      }
+    });
+    stream.on('end', () => finish('closed'));
+    res.on('error', (e) => finish(undefined, e));
+    // Without a decompressor every byte has been delivered by 'close'; with one, its 'end' comes last.
+    res.on('close', () => {
+      if (stream === res) finish('closed');
     });
   });
 }

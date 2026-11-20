@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 (2026-11-20)
+
+- **Server-sent events**: a response with `Content-Type: text/event-stream` is shown event by event while it arrives (time, event type, id, data), with **Stop** in place of Cancel. The stream ends when the server closes it, when you stop it, at the timeout, or after `# @max-events N` events; all four keep what arrived and count as a response. gzip/deflate/br streams are decompressed as they arrive. Parsing follows the HTML standard (multi-line `data`, comments, `id`, `retry`, CRLF split across packets). Checked against Wikimedia's public recent-changes stream.
+- **Checks on events**: `# @assert events.length == 3`, `events[0].event == tick`, `events[-1].data == "[DONE]"`, and paths into JSON data such as `events[0].data.delta`.
+- **`# @timeout 5s`** (or `5000`, `2m`) sets the time limit for one request.
+- **A default `User-Agent: plainwire/<version>`** is sent when the request sets none, like REST Client and curl do. Some servers refuse requests without one (Wikimedia's event stream answered 403).
+- CLI: rows of streaming requests show the event count and how the stream ended, e.g. `5 events (max-events)`.
+
 ## 0.6.0 (2026-11-20)
 
 - **Import another `.http` file**: `# @import ./shared.http` (also `// @import`, and JetBrains' `import ./shared.http`) makes that file's variables and `# @name` requests available. Chain to an imported login with `{{login.response.body.$.token}}`: it is sent first, with its own file's variables, once per session. The importing file's variables win over imported ones, a later import over an earlier one; nested imports work and a file is read once even in an import cycle. A missing file is a request error naming the import line. Works for Send, Run all, Copy as Code and the `plainwire` CLI. This was REST Client's most-reacted open request ([#182](https://github.com/Huachao/vscode-restclient/issues/182)).

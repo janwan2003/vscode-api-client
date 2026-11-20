@@ -13,6 +13,8 @@
     ['graphql', 'GraphQL', 'application/json'],
   ];
   const MAX_TREE = 2 * 1024 * 1024;
+  const MAX_LIVE_EVENTS = 500;
+  const STREAM_END = { closed: 'closed by the server', stopped: 'stopped', timeout: 'timed out', 'max-events': 'max events reached' };
 
   /** @type {any} */
   let S = vscode.getState() || {
@@ -155,7 +157,7 @@
           oninput: (e) => { S.request.url = e.target.value; changed(); if (S.reqTab === 'params') renderReqBody(); },
           onpaste: onUrlPaste }),
         S.sending
-          ? h('button', { class: 'primary', onclick: () => vscode.postMessage({ type: 'cancel' }) }, 'Cancel')
+          ? h('button', { class: 'primary', title: S.stream && S.stream.length ? 'Stop the event stream and keep the events received' : 'Cancel the request', onclick: () => vscode.postMessage({ type: 'cancel' }) }, S.stream && S.stream.length ? 'Stop' : 'Cancel')
           : h('button', { class: 'primary', id: 'send', title: 'Send (Ctrl/Cmd+Enter)', onclick: send }, 'Send'),
         h('button', { title: S.meta.canSave ? 'Save to ' + S.meta.sourceLabel + ' (Ctrl/Cmd+S)' : 'Save to a .http file (Ctrl/Cmd+S)', onclick: save }, 'Save'),
         h('div', { class: 'menu' },
@@ -399,6 +401,15 @@
     const res = $('#res');
     if (!res) return;
     res.replaceChildren();
+    if (S.sending && S.stream && S.stream.length) {
+      res.append(h('div', { class: 'status' }, h('div', { class: 'spinner' }), h('span', {}, 'Receiving events: ' + S.stream.length),
+        h('span', { class: 'hint' }, 'Stop keeps what arrived. Add # @max-events N to stop by itself.')));
+      const pane = h('div', { class: 'pane resp' });
+      pane.append(eventsTable(S.stream.slice(-MAX_LIVE_EVENTS)));
+      res.append(pane);
+      pane.scrollTop = pane.scrollHeight;
+      return;
+    }
     if (S.sending) {
       res.append(h('div', { class: 'empty' }, h('div', { class: 'spinner' }), 'Sending…'));
       return;
@@ -420,6 +431,7 @@
       h('div', { class: 'status' },
         h('span', { class: 'code ' + cls }, r.status + ' ' + (r.statusText || '')),
         h('span', {}, r.timeMs + ' ms'), h('span', {}, fmtSize(r.size)),
+        r.events ? h('span', { title: 'Server-sent events' }, r.events.length + ' event' + (r.events.length === 1 ? '' : 's') + ' · ' + STREAM_END[r.streamEnd || 'closed']) : null,
         tests.length ? h('button', { class: 'link tests ' + (failed ? 'fail' : 'pass'), title: 'Show test results', onclick: () => { S.resTab = 'tests'; persist(); renderResponse(); } },
           failed ? '✗ ' + failed + ' of ' + tests.length + ' checks failed' : '✓ ' + tests.length + ' checks passed') : null,
         h('span', { class: 'spacer' }),
@@ -439,6 +451,11 @@
     } else if (S.resTab === 'request') {
       const q = S.resolved;
       if (q) pane.append(h('pre', { class: 'code' }, q.method + ' ' + q.url + '\n' + q.headers.map((x) => x.name + ': ' + x.value).join('\n') + (q.body ? '\n\n' + q.body : '')));
+    } else if (r.events) {
+      pane.append(h('div', { class: 'tools' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: S.raw, onchange: (e) => { S.raw = e.target.checked; persist(); renderResponse(); } }), 'Raw stream')));
+      if (S.raw) pane.append(h('pre', { class: 'code' }, r.body || h('span', { class: 'hint' }, '(empty stream)')));
+      else if (!r.events.length) pane.append(h('p', { class: 'hint' }, 'No events received.'));
+      else pane.append(eventsTable(r.events));
     } else {
       if (r.bodyEncoding === 'base64') {
         if (/^image\//.test(ct)) pane.append(h('img', { class: 'preview', src: 'data:' + ct + ';base64,' + r.body }));
@@ -455,6 +472,17 @@
         pane.append(h('pre', { class: 'code' }, r.body || h('span', { class: 'hint' }, '(empty body)')));
       }
     }
+  }
+
+  /** Server-sent events as a table: time, event type, id and data (JSON shown compact, text as is). */
+  function eventsTable(events) {
+    return h('table', { class: 'events' },
+      h('tr', {}, h('th', {}, '#'), h('th', {}, 'ms'), h('th', {}, 'event'), h('th', {}, 'id'), h('th', {}, 'data')),
+      ...events.map((e, i) => {
+        let data = e.data;
+        if (/^\s*[[{]/.test(data)) { try { data = JSON.stringify(JSON.parse(data)); } catch {} }
+        return h('tr', {}, h('td', { class: 'num' }, String(i + 1)), h('td', { class: 'num' }, String(e.timeMs)), h('td', {}, e.event), h('td', {}, e.id || ''), h('td', { class: 'code' }, data));
+      }));
   }
 
   function prettyText(body, ct) {
@@ -517,14 +545,18 @@
       persist();
       render();
     } else if (m.type === 'sending') {
-      S.sending = true; S.error = null; render();
+      S.sending = true; S.error = null; S.stream = []; render();
+    } else if (m.type === 'events') {
+      const first = !S.stream || !S.stream.length;
+      S.stream = (S.stream || []).concat(m.events);
+      if (first) render(); else renderResponse();
     } else if (m.type === 'response') {
-      S.sending = false; S.response = m.response; S.resolved = m.resolved; S.error = null;
+      S.sending = false; S.stream = []; S.response = m.response; S.resolved = m.resolved; S.error = null;
       S.assertions = m.assertions || []; S.lastAssertions = S.assertions;
       if (S.resTab === 'tests' && !S.assertions.length) S.resTab = 'body';
       persist(); render();
     } else if (m.type === 'error') {
-      S.sending = false; S.error = m.message; persist(); render();
+      S.sending = false; S.stream = []; S.error = m.message; persist(); render();
     } else if (m.type === 'setRequest') {
       S.request = m.request; changed(); render();
     }

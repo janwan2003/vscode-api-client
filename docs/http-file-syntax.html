@@ -208,6 +208,25 @@ GET {{baseUrl}}/orders
 Authorization: Bearer {{login.response.body.$.token}}</pre>
     <p>Variables of the imported file are available, and its named requests can be chained: the login above is sent first, with <code>auth.http</code>&rsquo;s own variables, and remembered for the session. The importing file&rsquo;s own variables win over imported ones. More in <a href="import-http-file-shared-variables.html">sharing variables and a login between .http files</a>.</p>
 
+    <h2 id="request-settings">Per-request settings</h2>
+    <p>Metadata lines above the request line change how one request is sent:</p>
+<pre>### Slow report
+# @timeout 2m
+# @no-redirect
+# @insecure
+GET https://localhost:8443/report</pre>
+    <p><code># @timeout</code> takes milliseconds or <code>s</code>/<code>m</code> (<code>5000</code>, <code>5s</code>, <code>2m</code>). <code># @no-redirect</code> returns a 3xx as it is, and <code># @insecure</code> accepts a self-signed certificate.</p>
+
+    <h2 id="sse">Server-sent events</h2>
+    <p>A response with <code>Content-Type: text/event-stream</code> is shown event by event while it arrives. It ends when the server closes it, when you press Stop, at the timeout, or after <code># @max-events</code> events; all four keep what arrived. See <a href="server-sent-events-vscode.html">server-sent events in VS Code</a>.</p>
+<pre>### Stream a reply
+# @max-events 20
+# @assert events[-1].data == "[DONE]"
+POST {{baseUrl}}/v1/chat/stream
+Content-Type: application/json
+
+{ "prompt": "Say hello", "stream": true }</pre>
+
     <h2 id="summary">Quick reference</h2>
     <div class="table-wrap">
       <table>
@@ -223,6 +242,8 @@ Authorization: Bearer {{login.response.body.$.token}}</pre>
           <tr><td><code>{{var}}</code></td><td>Use a file, environment or system variable</td></tr>
           <tr><td><code>&lt; ./file</code></td><td>Body from a file</td></tr>
           <tr><td><code>{{login.response.body.$.x}}</code></td><td>Value from a named request&rsquo;s response</td></tr>
+          <tr><td><code># @timeout 5s</code></td><td>Time limit for this request</td></tr>
+          <tr><td><code># @max-events 3</code></td><td>Close a server-sent events stream after 3 events</td></tr>
           <tr><td><code># @import ./shared.http</code></td><td>Use another file&rsquo;s variables and named requests (JetBrains: <code>import ./shared.http</code>)</td></tr>
         </tbody>
       </table>

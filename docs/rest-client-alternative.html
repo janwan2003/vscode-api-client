@@ -45,7 +45,7 @@
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/724">#724</a> Sequential execution of multiple requests</td><td>62</td><td class="yes">Yes</td><td><strong>Run all</strong> sends every request in a file, folder or workspace in order, with a pass/fail report.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/267">#267</a> How to write tests on top of the requests?</td><td>59</td><td class="yes">Yes</td><td><a href="api-tests-in-http-files.html"><code># @assert status == 200</code></a>, <code># @assert $.id exists</code> and 26 other operators; httpYac&rsquo;s <code>?? status == 200</code> lines work too.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/229">#229</a> Support for rest-client.env.json and .private.env.json</td><td>53</td><td class="">Partly</td><td>Environments in <code>http-client.env.json</code> + <code>http-client.private.env.json</code> (the JetBrains file names), and your existing <code>rest-client.environmentVariables</code> setting.</td></tr>
-          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/493">#493</a> Support for text/event-stream</td><td>49</td><td class="no">No</td><td>Not yet.</td></tr>
+          <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/493">#493</a> Support for text/event-stream</td><td>49</td><td class="yes">Yes</td><td><a href="server-sent-events-vscode.html">Events appear as they arrive</a>, with a Stop button, <code># @max-events 3</code> and checks like <code>events[0].data.text == "Hi"</code>. Since 0.7.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/432">#432</a> CLI runner for the same format</td><td>44</td><td class="yes">Yes</td><td><a href="run-http-files-in-ci.html"><code>plainwire run</code></a>: one file, no dependencies, JUnit/JSON/Markdown reports, plus a GitHub Action.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/627">#627</a> Compatibility with IntelliJ&rsquo;s HTTP client</td><td>41</td><td class="">Partly</td><td>Same <code>.http</code> syntax and <code>http-client.env.json</code> files; JetBrains <code>&gt; {% %}</code> response handlers are kept in the file but not run.</td></tr>
           <tr><td><a href="https://github.com/Huachao/vscode-restclient/issues/444">#444</a> Send all requests in a file</td><td>36</td><td class="yes">Yes</td><td><strong>Run all</strong> on the file&rsquo;s CodeLens, the editor title or the sidebar.</td></tr>
@@ -74,13 +74,13 @@
 
     <h2>Switch in a minute</h2>
     <ol>
-      <li>Download <code>plainwire-0.6.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (works in VS Code, Cursor, Windsurf and VSCodium).</li>
+      <li>Download <code>plainwire-0.7.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (works in VS Code, Cursor, Windsurf and VSCodium).</li>
       <li>Open a folder with your <code>.http</code> files. Each request gets <em>Send | Open in Plainwire | Copy as Code&hellip;</em> above it, and the Plainwire sidebar lists every request in the workspace.</li>
       <li>Pick an environment in the status bar; your <code>rest-client.environmentVariables</code> are already there.</li>
     </ol>
 
     <h2>What Plainwire does not do (yet)</h2>
-    <p>Being honest about the gaps: no JavaScript scripting (by design), no server-sent events or WebSocket, no interactive OAuth login, no SOCKS proxies or client certificates. REST Client&rsquo;s Markdown-embedded requests and <code>rest-client.*</code> settings other than environments are not read. If you rely on one of these, REST Client may still be the better fit.</p>
+    <p>Being honest about the gaps: no JavaScript scripting (by design), no WebSocket, no interactive OAuth login, no SOCKS proxies or client certificates. REST Client&rsquo;s Markdown-embedded requests and <code>rest-client.*</code> settings other than environments are not read. If you rely on one of these, REST Client may still be the better fit.</p>
 
     <h2>FAQ</h2>
     <details><summary>Is REST Client abandoned?</summary><p>We cannot speak for its author. The facts: the last Marketplace release is 0.25.1 from 19 August 2022 and the repository has 528 open issues (both read on 20 November 2026). The extension still works for many people, and its 4.9-star rating is well earned.</p></details>

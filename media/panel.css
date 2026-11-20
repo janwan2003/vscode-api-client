@@ -86,6 +86,12 @@ img.preview { max-width: 100%; background: repeating-conic-gradient(#8883 0% 25%
 .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 8px; }
 .chip { font-family: var(--mono); font-size: .88em; padding: 1px 8px; border-radius: 10px; }
 table.tests { border-collapse: collapse; width: 100%; }
+table.events { border-collapse: collapse; width: 100%; font-size: .95em; }
+table.events th { text-align: left; font-weight: 600; color: var(--vscode-descriptionForeground); padding: 3px 6px; border-bottom: 1px solid var(--vscode-panel-border); }
+table.events td { padding: 3px 6px; border-bottom: 1px solid var(--vscode-panel-border); vertical-align: top; }
+table.events td.num { text-align: right; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+table.events td.code { font-family: var(--mono); white-space: pre-wrap; word-break: break-all; }
+table.events th:not(:last-child), table.events td:not(.code) { width: 1%; white-space: nowrap; padding-right: 14px; }
 table.tests td { padding: 4px 6px; border-bottom: 1px solid var(--vscode-panel-border); vertical-align: top; }
 table.tests td.code { font-family: var(--mono); white-space: pre-wrap; }
 table.tests tr.fail td:last-child { color: var(--vscode-errorForeground); }

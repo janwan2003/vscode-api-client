@@ -168,6 +168,7 @@ async function run(args: string[]): Promise<number> {
       rejectUnauthorized: !o.insecure && req.meta?.['insecure'] === undefined,
       proxy,
       noProxy,
+      userAgent: `plainwire/${VERSION}`,
     }),
   });
 
@@ -209,6 +210,7 @@ async function run(args: string[]): Promise<number> {
       row.status = response.status;
       row.timeMs = response.timeMs;
       row.assertions = assertions;
+      if (response.events) row.stream = { events: response.events.length, end: response.streamEnd ?? 'closed' };
       row.state = rowState(response.status, assertions);
       if (row.state === 'fail') row.responseBody = response.bodyEncoding === 'utf8' ? response.body.slice(0, 4000) : `(${response.size} bytes of binary data)`;
     } catch (e) {
@@ -221,7 +223,7 @@ async function run(args: string[]): Promise<number> {
         out(`\n${col.bold(row.file)}`);
         lastFile = row.file;
       }
-      const meta = [row.status !== undefined ? String(row.status) : '', row.timeMs !== undefined ? `${row.timeMs} ms` : '', row.assertions.length ? `${row.assertions.filter((a) => a.passed).length}/${row.assertions.length} checks` : '']
+      const meta = [row.status !== undefined ? String(row.status) : '', row.timeMs !== undefined ? `${row.timeMs} ms` : '', row.stream ? `${row.stream.events} event${row.stream.events === 1 ? '' : 's'} (${row.stream.end})` : '', row.assertions.length ? `${row.assertions.filter((a) => a.passed).length}/${row.assertions.length} checks` : '']
         .filter(Boolean)
         .join(' · ');
       out(`  ${ok ? col.green('✓') : col.red('✗')} ${row.method} ${row.label} ${col.dim(meta)}`);

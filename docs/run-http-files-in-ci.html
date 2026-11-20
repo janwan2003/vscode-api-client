@@ -54,9 +54,9 @@
 node plainwire.mjs run              <span class="c"># every .http / .rest file under the current folder</span>
 node plainwire.mjs run api/ --env staging --junit results.xml</pre>
     <p>To get a <code>plainwire</code> command on your PATH, install the release tarball with npm (no registry account involved):</p>
-<pre>npm install -g https://github.com/janwan2003/vscode-api-client/releases/download/v0.6.0/plainwire-cli-0.6.0.tgz</pre>
+<pre>npm install -g https://github.com/janwan2003/vscode-api-client/releases/download/v0.7.0/plainwire-cli-0.7.0.tgz</pre>
     <p>The output looks like this:</p>
-<pre>plainwire 0.6.0 · 3 requests in 1 file · environment staging from http-client.env.json
+<pre>plainwire 0.7.0 · 3 requests in 1 file · environment staging from http-client.env.json
 
 api/users.http
   ✓ POST Log in 200 · 84 ms · 2/2 checks
@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       <span class="c"># start your API here, e.g. docker compose up -d</span>
-      - uses: janwan2003/vscode-api-client@v0.6.0
+      - uses: janwan2003/vscode-api-client@v0.7.0
         with:
           files: api/
           env: ci
@@ -134,7 +134,7 @@ jobs:
 api-tests:
   image: node:22-alpine
   script:
-    - wget -q https://github.com/janwan2003/vscode-api-client/releases/download/v0.6.0/plainwire.mjs
+    - wget -q https://github.com/janwan2003/vscode-api-client/releases/download/v0.7.0/plainwire.mjs
     - node plainwire.mjs run api/ --env ci --junit api-results.xml
   artifacts:
     when: always

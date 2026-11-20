@@ -1,3 +1,4 @@
+import type { SseEvent } from '../core/sse.ts';
 import * as vscode from 'vscode';
 import { parseCurl } from '../core/curl.ts';
 import { appendRequest, parseHttpFile, replaceRequest } from '../core/httpFile.ts';
@@ -164,10 +165,24 @@ export class RequestPanel {
     const cts = new vscode.CancellationTokenSource();
     this.cts = cts;
     this.post({ type: 'sending' });
+    // Server-sent events reach the webview in batches (at most 10 messages a second), so fast streams stay responsive.
+    let batch: SseEvent[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const flush = () => {
+      timer = undefined;
+      if (batch.length && this.cts === cts) this.post({ type: 'events', events: batch });
+      batch = [];
+    };
+    const onEvent = (e: SseEvent) => {
+      batch.push(e);
+      timer ??= setTimeout(flush, 100);
+    };
     try {
-      const { resolved, response, assertions } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token);
+      const { resolved, response, assertions } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token, onEvent);
+      if (timer) clearTimeout(timer);
       if (this.cts === cts) this.post({ type: 'response', response, resolved, assertions });
     } catch (e) {
+      if (timer) clearTimeout(timer);
       if (this.cts === cts) this.post({ type: 'error', message: (e as Error).message });
     }
   }

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test server-sent events (SSE) and streaming APIs in VS Code | Plainwire</title>
+<meta name="description" content="Send a request to a text/event-stream endpoint from a .http file and watch the events arrive in VS Code, Cursor or VSCodium. Stop, max events, timeouts, and checks on event data, also in CI. Free, no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/server-sent-events-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Server-sent events (SSE) in VS Code, from a .http file">
+<meta property="og:description" content="Watch a text/event-stream arrive event by event, stop it, and test it with checks on the event data, in the editor and in CI.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/server-sent-events-vscode.html">
+<meta property="og:image" content="https://janwan2003.github.io/vscode-api-client/sse.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Server-sent events (SSE) in VS Code, from a <code>.http</code> file</h1>
+    <p>Server-sent events are how many APIs push updates over plain HTTP: live feeds, job progress, notifications, and the token-by-token replies of chat and LLM APIs. The response has <code>Content-Type: text/event-stream</code> and stays open while the server writes <code>data:</code> lines. A normal API client waits for the response to finish, so you see nothing, or a timeout. Plainwire shows each event as it arrives, lets you stop the stream, and can check the events in tests and in CI.</p>
+    <p>Support for <code>text/event-stream</code> is one of the most-reacted open requests for REST Client (<a href="https://github.com/Huachao/vscode-restclient/issues/493">issue #493</a>, 49 reactions when we read it on 20 November 2026).</p>
+
+    <figure>
+      <img src="sse.png" width="900" height="620" alt="Plainwire's response view for a streaming request: 200 OK, 10 events, closed by the server, 2 checks passed, and a table of events with time, event type, id and JSON data.">
+      <figcaption class="small">A finished stream: each event with its arrival time, type, id and data. While it streams, the Send button becomes Stop.</figcaption>
+    </figure>
+
+    <h2>Try it on a public stream</h2>
+    <p>Wikimedia publishes every edit to its wikis as a public event stream. Put this in a file such as <code>stream.http</code> and press <strong>Send</strong> above the request:</p>
+<pre>### Wikimedia recent changes
+# @max-events 5
+# @timeout 30s
+# @assert status == 200
+# @assert header content-type contains event-stream
+# @assert events.length == 5
+# @assert events[0].data.meta.domain exists
+GET https://stream.wikimedia.org/v2/stream/recentchange
+Accept: text/event-stream</pre>
+    <p>The events fill the response view as they come in. After five, Plainwire closes the stream and runs the four checks. Without <code># @max-events</code>, the stream runs until you press <strong>Stop</strong> or the timeout ends it.</p>
+
+    <h2>How a stream ends</h2>
+    <p>A stream has no natural end, so all of these keep the events that arrived and count as a response, not an error:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Ends because</th><th scope="col">Shown as</th></tr></thead>
+        <tbody>
+          <tr><td>The server closed the connection</td><td>closed by the server</td></tr>
+          <tr><td>You pressed <strong>Stop</strong></td><td>stopped</td></tr>
+          <tr><td><code># @max-events N</code> events arrived</td><td>max events reached</td></tr>
+          <tr><td>The time limit ran out: <code># @timeout 30s</code> on the request, else the <code>plainwire.timeoutMs</code> setting (60 s by default), or <code>--timeout</code> in the CLI</td><td>timed out</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Checks on events</h2>
+    <p>Add <code># @assert</code> lines with the <code>events</code> subject. Event data that is JSON is parsed, so you can reach into it with a path:</p>
+<pre>### Stream a reply
+# @max-events 50
+# @assert status == 200
+# @assert header content-type contains event-stream
+# @assert events.length > 1
+# @assert events[0].event == message
+# @assert events[0].data.delta isString
+# @assert events[-1].data == "[DONE]"
+POST {{baseUrl}}/v1/chat/stream
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "prompt": "Say hello", "stream": true }</pre>
+    <ul>
+      <li><code>events.length</code>: how many events arrived.</li>
+      <li><code>events[0]</code> is the first event, <code>events[-1]</code> the last. Each has <code>event</code> (the type, <code>message</code> by default), <code>data</code>, <code>id</code> (the last event ID so far) and <code>timeMs</code> (milliseconds after the request started).</li>
+      <li><code>data</code> lines of one event are joined with a newline, as browsers do. Comment lines (<code>: keep-alive</code>) are skipped.</li>
+      <li>All the usual operators work: <code>==</code>, <code>contains</code>, <code>matches</code>, <code>exists</code>, <code>isNumber</code> and the rest (<a href="api-tests-in-http-files.html">full list</a>).</li>
+    </ul>
+
+    <h2>In CI</h2>
+    <p>The free <code>plainwire</code> CLI handles streams the same way. Give each stream a <code># @max-events</code> or <code># @timeout</code> so the job does not wait for the full timeout:</p>
+<pre>$ plainwire run stream.http
+  ✓ GET Wikimedia recent changes 200 · 1214 ms · 5 events (max-events) · 4/4 checks</pre>
+    <p>That line is from a real run against the Wikimedia stream above. See <a href="run-http-files-in-ci.html">running .http files in CI</a> for the GitHub Action and JUnit reports.</p>
+
+    <h2>Details and limits</h2>
+    <ul>
+      <li>Any method works (<code>GET</code>, <code>POST</code> with a body, and so on); Plainwire recognises the stream by the response&rsquo;s <code>Content-Type</code>, not by the request.</li>
+      <li>Compressed streams (<code>gzip</code>, <code>deflate</code>, <code>br</code>) are decompressed as they arrive.</li>
+      <li>The <em>Raw stream</em> box shows the text exactly as received; <em>Open in editor</em> opens it in a tab.</li>
+      <li>Plainwire does not reconnect when a stream drops, and does not send <code>Last-Event-ID</code> by itself. Add the header to the request if you want to resume.</li>
+      <li>Chained variables such as <code>{{name.response.body.$.x}}</code> read the raw stream text, so JSONPath into a stream does not work; use checks on <code>events</code> instead.</li>
+      <li>WebSocket is a different protocol and is not supported yet.</li>
+    </ul>
+
+    <h2>FAQ</h2>
+    <details><summary>Does it work in Cursor, Windsurf and VSCodium?</summary><p>Yes, it is the same extension. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a>; see <a href="api-client-for-cursor-vscodium.html">installing in Cursor and VSCodium</a>.</p></details>
+    <details><summary>Is anything sent to Plainwire?</summary><p>No. There is no account and no telemetry. The extension makes no network requests except the ones you send, and the source is on <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a> (MIT).</p></details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

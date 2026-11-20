@@ -22,6 +22,12 @@ exports.run = async function run() {
     req.on('end', () => {
       seen.push({ method: req.method, url: req.url, headers: req.headers, body });
       res.setHeader('content-type', 'application/json');
+      if (req.url === '/sse') {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        let i = 0;
+        const t = setInterval(() => res.write(`event: tick\ndata: {"i": ${++i}}\n\n`), 15);
+        return res.on('close', () => clearInterval(t));
+      }
       if (req.url === '/login') return res.end(JSON.stringify({ token: 'tok-123' }));
       res.end(JSON.stringify({ ok: true, auth: req.headers.authorization || null }));
     });
@@ -194,9 +200,21 @@ exports.run = async function run() {
     const sent = seen.slice(from);
     assert.deepEqual(sent.map((x) => x.url), ['/login', '/me']);
     assert.equal(sent[0].body, '{"user": "grace"}');
+    assert.equal(sent[0].headers['user-agent'], 'plainwire/' + ext.packageJSON.version);
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(me));
     const links = await vscode.commands.executeCommand('vscode.executeLinkProvider', me);
     assert.ok(links.some((l) => l.target && l.target.fsPath === path.join(ws.fsPath, 'shared', 'auth.http')), JSON.stringify(links.map((l) => l.target && l.target.toString())));
+  });
+
+  await check('server-sent events: live events, # @max-events, events checks', async () => {
+    const f = vscode.Uri.joinPath(ws, 'sse.http');
+    fs.writeFileSync(f.fsPath, '### Ticks\n# @max-events 3\n# @assert events.length == 3\n# @assert events[-1].data.i == 3\nGET {{host}}/sse\n');
+    const reqs = api.parseHttpFileForTest(fs.readFileSync(f.fsPath, 'utf8')).requests;
+    const live = [];
+    const { response, assertions } = await api.deps.runner.run(reqs[0], { uri: f }, undefined, (e) => live.push(e.data));
+    assert.equal(response.streamEnd, 'max-events');
+    assert.deepEqual(live, ['{"i": 1}', '{"i": 2}', '{"i": 3}']);
+    assert.deepEqual(assertions.map((a) => a.passed), [true, true]);
   });
 
   await check('CodeLens offers "Run all" on files with several requests', async () => {

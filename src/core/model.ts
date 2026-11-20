@@ -1,3 +1,5 @@
+import type { SseEvent } from './sse.ts';
+
 /** One HTTP header line. `disabled` headers are kept in the GUI but written as comments. */
 export interface Header {
   name: string;
@@ -92,4 +94,11 @@ export interface HttpResponse {
   timeMs: number;
   /** The URL after redirects. */
   url: string;
+  /** Server-sent events, for a `text/event-stream` response (the raw stream is in `body`). */
+  events?: SseEvent[];
+  /**
+   * Why a `text/event-stream` response ended: the server closed it, you stopped it, the timeout ran
+   * out, or `# @max-events` was reached. A stream that ends any of these ways is still a response.
+   */
+  streamEnd?: 'closed' | 'stopped' | 'timeout' | 'max-events';
 }

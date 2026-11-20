@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { HttpRequest } from '../core/model.ts';
+import type { SseEvent } from '../core/sse.ts';
 import { Executor, type ExecResult, type PreviewResult } from '../core/exec.ts';
 import { parseDotenv } from '../core/variables.ts';
 import type { EnvironmentManager } from './environments.ts';
@@ -39,6 +40,7 @@ export class Runner {
             process.env.http_proxy ||
             undefined,
           noProxy: (process.env.NO_PROXY ?? process.env.no_proxy ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+          userAgent: `plainwire/${vscode.extensions.getExtension('plainbyte.plainwire')?.packageJSON?.version ?? ''}`.replace(/\/$/, ''),
         };
       },
       onExchange: ({ request, file, response, error }) => history.add({ request: stripPosition(request), response, error, file }),
@@ -55,11 +57,11 @@ export class Runner {
     return this.exec.preview(req, source.uri?.toString());
   }
 
-  async run(req: HttpRequest, source: RunSource, token?: vscode.CancellationToken): Promise<RunResult> {
+  async run(req: HttpRequest, source: RunSource, token?: vscode.CancellationToken, onEvent?: (e: SseEvent) => void): Promise<RunResult> {
     const abort = new AbortController();
     const sub = token?.onCancellationRequested(() => abort.abort(new Error('Cancelled')));
     try {
-      return await this.exec.run(req, source.uri?.toString(), abort.signal);
+      return await this.exec.run(req, source.uri?.toString(), abort.signal, { onEvent });
     } finally {
       sub?.dispose();
     }

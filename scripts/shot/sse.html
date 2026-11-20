@@ -1,0 +1,28 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+:root{--vscode-font-family:system-ui,-apple-system,"Segoe UI",sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;--vscode-editor-font-size:12.5px;
+--vscode-foreground:#cccccc;--vscode-editor-background:#1f1f1f;--vscode-descriptionForeground:#9d9d9d;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-button-hoverBackground:#026ec1;
+--vscode-button-secondaryBackground:#313131;--vscode-button-secondaryForeground:#ccc;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-input-border:#3c3c3c;--vscode-panel-border:#2b2b2b;
+--vscode-focusBorder:#0078d4;--vscode-textLink-foreground:#4daafc;--vscode-badge-background:#616161;--vscode-badge-foreground:#f8f8f8;--vscode-charts-green:#89d185;--vscode-charts-yellow:#cca700;--vscode-charts-blue:#3794ff;--vscode-charts-red:#f14c4c;
+--vscode-testing-iconPassed:#73c991;--vscode-panelTitle-activeBorder:#0078d4;--vscode-input-placeholderForeground:#989898}
+</style>
+<link rel="stylesheet" href="../../media/panel.css"></head><body><div id="app"></div>
+<script>
+// Server-sent events in the response view: ?live = while streaming, otherwise the finished response.
+const live = location.search.includes('live');
+const req = {method:'POST',url:'{{baseUrl}}/v1/chat/stream',title:'Stream a reply',headers:[{name:'Content-Type',value:'application/json'},{name:'Accept',value:'text/event-stream'}],
+ meta:{'max-events':'20'},asserts:['events.length > 2','events[-1].data == "[DONE]"'],body:'{"prompt": "Say hello", "stream": true}'};
+const words = ['Hello','!',' How',' can',' I',' help',' you',' today','?'];
+const events = words.map((w,i)=>({event:'message',id:String(i+1),data:JSON.stringify({delta:w,index:i}),timeMs:120+i*38}));
+events.push({event:'done',data:'[DONE]',id:'10',timeMs:500});
+const body = events.map(e=>(e.event!=='message'?'event: '+e.event+'\n':'')+'id: '+e.id+'\ndata: '+e.data+'\n\n').join('');
+const resp = {status:200,statusText:'OK',headers:[['content-type','text/event-stream'],['cache-control','no-cache']],body,bodyEncoding:'utf8',size:body.length,timeMs:503,url:'https://api.example.com/v1/chat/stream',events,streamEnd:'closed'};
+window.acquireVsCodeApi = () => ({ getState: () => null, setState(){}, postMessage(m){
+  if (m.type==='ready') { window.postMessage({type:'load',request:req,sourceLabel:'http/chat.http',canSave:true,env:'dev',envNames:['dev','prod']}, '*');
+    setTimeout(()=>{ window.postMessage({type:'sending'}, '*');
+      setTimeout(()=>{ window.postMessage({type:'events',events:events.slice(0,4)}, '*');
+        setTimeout(()=>{ window.postMessage({type:'events',events:events.slice(4,6)}, '*');
+          if (!live) setTimeout(()=>window.postMessage({type:'response',response:resp,resolved:{...req,url:resp.url},assertions:[{source:'events.length > 2',passed:true,actual:'10',message:'passed'},{source:'events[-1].data == "[DONE]"',passed:true,actual:'"[DONE]"',message:'passed'}]}, '*'), 30);
+        }, 30); }, 30); }, 30); }
+}});
+</script><script src="../../media/panel.js"></script></body></html>

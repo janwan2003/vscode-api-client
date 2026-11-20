@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { HttpResponse } from './model.ts';
+import { eventsView } from './sse.ts';
 import { jsonPath } from './variables.ts';
 
 /**
@@ -14,7 +15,8 @@ import { jsonPath } from './variables.ts';
  *   # @assert body contains "ok"
  *
  * Grammar: `<subject> <operator> [expected]`. Subjects: status, time (ms), size (bytes), body,
- * header <name>, and a JSONPath into the JSON body (`$.a.b[0]`, also written `body.$.a`).
+ * header <name>, a JSONPath into the JSON body (`$.a.b[0]`, also written `body.$.a`), and for
+ * server-sent events `events.length`, `events[0].event`, `events[-1].data.done` (JSON data is parsed).
  * The expected value is read as JSON when it parses (numbers, true/false/null, "quoted strings",
  * arrays/objects), otherwise as a plain string. Comparisons are loose: `"200" == 200` passes.
  *
@@ -61,7 +63,9 @@ const DURATION_PHASES = new Set(['firstbyte', 'download', 'wait', 'request', 'tc
 export type Subject =
   | { kind: 'status' | 'time' | 'size' | 'body' }
   | { kind: 'header'; name: string }
-  | { kind: 'json'; path: string };
+  | { kind: 'json'; path: string }
+  /** Server-sent events: `events` (the list), `events.length`, `events[0].data.text`, `events[-1].event`. */
+  | { kind: 'events'; path: string };
 
 export interface Assertion {
   source: string;
@@ -268,10 +272,12 @@ function parseCore(text: string, source: string): Assertion {
     subject = { kind: k === 'duration' ? 'time' : (k as 'status' | 'time' | 'size' | 'body') };
   } else if ((m = take(/^(?:res(?:ponse)?\.)?headers?(?:\.|\s+)([A-Za-z0-9!#$%&'*+.^_`|~-]+)(?=\s|$)/i))) {
     subject = { kind: 'header', name: m[1] };
+  } else if ((m = take(/^events((?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)/))) {
+    subject = { kind: 'events', path: '$' + m[1] };
   } else if ((m = take(/^(?:(?:res(?:ponse)?\.)?body\.)?(\$(?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)/))) {
     subject = { kind: 'json', path: m[1] };
   } else {
-    throw new Error(`Unknown assertion subject in "${source}". Use status, time, size, body, header <name> or a JSONPath like $.id`);
+    throw new Error(`Unknown assertion subject in "${source}". Use status, time, size, body, header <name>, a JSONPath like $.id, or events[0].data for server-sent events`);
   }
   return { source, subject, ...parsePredicate(rest, source) };
 }
@@ -390,6 +396,12 @@ export function evaluateAssertion(a: Assertion, res: HttpResponse): AssertionRes
       actual = headerValue(res, a.subject.name);
       found = actual !== undefined;
       break;
+    case 'events': {
+      if (!res.events) return { source: a.source, passed: false, message: 'not a server-sent events response (Content-Type is not text/event-stream)' };
+      actual = jsonPath(eventsView(res.events), a.subject.path);
+      found = actual !== undefined;
+      break;
+    }
     case 'json': {
       const parsed = parseJsonBody(res);
       if (!parsed.ok) {

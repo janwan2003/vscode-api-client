@@ -277,3 +277,21 @@ test('run: # @import shares variables and a named login across files; a missing 
   assert.equal(bad.code, 1, bad.stdout + bad.stderr);
   assert.match(bad.stdout, /Cannot import \.\/gone\.http from broken\.http: .*gone\.http could not be read/);
 });
+
+test('run: a server-sent events request with # @max-events and events checks', async () => {
+  const sse = createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    let i = 0;
+    const t = setInterval(() => res.write(`data: {"i": ${++i}}\n\n`), 10);
+    res.on('close', () => clearInterval(t));
+  });
+  await new Promise<void>((r) => sse.listen(0, '127.0.0.1', r));
+  try {
+    writeFileSync(join(dir, 'sse.http'), ['### Ticks', '# @max-events 3', '# @assert events.length == 3', '# @assert events[2].data.i == 3', `GET http://127.0.0.1:${(sse.address() as AddressInfo).port}/`, ''].join('\n'));
+    const r = await runCli(['run', 'sse.http']);
+    assert.equal(r.code, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /✓ GET Ticks 200 · \d+ ms · 3 events \(max-events\) · 2\/2 checks/);
+  } finally {
+    sse.close();
+  }
+});

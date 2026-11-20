@@ -99,6 +99,7 @@ Authorization: Bearer <span class="v">{{login.response.body.$.token}}</span></pr
           <tr><td><code>body</code></td><td>The response body as text</td><td><code>body contains "ok"</code></td></tr>
           <tr><td><code>header &lt;name&gt;</code></td><td>A response header; the name is case-insensitive and repeated headers are joined with <code>", "</code></td><td><code>header cache-control contains no-store</code></td></tr>
           <tr><td><code>$.path</code></td><td>A JSONPath into the JSON body: <code>$.id</code>, <code>$.data[0].name</code>, <code>$.items[-1]</code> (last element), <code>$['key with space']</code>, <code>$.items.length</code>. <code>body.$.id</code> also works.</td><td><code>$.data[0].name == "Ada"</code></td></tr>
+          <tr><td><code>events…</code></td><td>For a <a href="server-sent-events-vscode.html">server-sent events</a> response: <code>events.length</code>, <code>events[0].event</code>, <code>events[-1].id</code>, and <code>events[0].data</code> (JSON data is parsed, so <code>events[0].data.text</code> works)</td><td><code>events[-1].data == "[DONE]"</code></td></tr>
         </tbody>
       </table>
     </div>
