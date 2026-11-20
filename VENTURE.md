@@ -137,6 +137,11 @@ Verified 2026-11-20 (0.3.0, session 4) how:
 - CLI: `node dist/cli/plainwire.mjs run` against https://httpbin.org (1 pass, 1 deliberate fail, exit 1); the CI smoke
   file `test/action/smoke.http` against `python3 -m http.server` (2/2, exit 0; with `--var` → fail, exit 1);
   `npm install -g ./dist/plainwire-cli-0.3.0.tgz` into a temp prefix → `plainwire --version` = 0.3.0.
+- GitHub: CI run 44739349863 (Node 20 + 22: typecheck, 121 tests, package, CLI build + smoke) success; **Action smoke
+  test** run 44739356364 (on release publish: `uses: ./` downloads the v0.3.0 `plainwire.mjs`, 2/2 pass, and a forced
+  failing check fails the step) success. `releases/latest/download/plainwire.mjs` byte-identical to the local build.
+  Pages deploy 44739348640 success; `/`, `run-http-files-in-ci.html`, `thunder-client-alternative.html`,
+  `api-tests-in-http-files.html`, `sitemap.xml` → HTTP 200, landing shows v0.3 and `plainwire-0.3.0.vsix`.
 - NOT verified: the CLI on Windows/macOS; the importers against Thunder files with disabled/path params, folder-inherited
   auth or `auth.type: "inherit"` (none of the 21 real files had them); runtime Thunder semantics of quoted test values.
 
@@ -175,14 +180,12 @@ a body line starting with `###` splits the request (inherent to the format).
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
    (OPERATOR-INBOX.md). Then publish `plainwire-0.3.0.vsix` with the commands in `store/LISTING.md`. This is still the whole
    validation channel. Optional operator click: list the Action on the GitHub Marketplace (inbox has the steps).
-2. Read the result of the `Action smoke test` workflow for v0.3.0 if this session did not record it (it runs on release
-   publish and tests `uses: ./` with the released `plainwire.mjs`).
-3. Postman converter: multi-line `if { pm.expect(...) }` blocks are converted as if unconditional; make the converter skip
+2. Postman converter: multi-line `if { pm.expect(...) }` blocks are converted as if unconditional; make the converter skip
    (warn) anything inside an `if`. Then httpYac-style `?? status == 200` lines, so httpYac users' files run unchanged.
-4. A `plainwire.noProxy` setting; `--reporter tap`; a `plainwire run --watch` mode.
-5. GraphQL body mode, SSE/WebSocket.
-6. After listing: record installs/ratings weekly in `## Metrics`; Google Search Console for the Pages site (operator).
-7. Consider one relevant awesome-list PR for the CLI/Action (e.g. an API-testing tools list) once the Marketplace
+3. A `plainwire.noProxy` setting; `--reporter tap`; a `plainwire run --watch` mode.
+4. GraphQL body mode, SSE/WebSocket.
+5. After listing: record installs/ratings weekly in `## Metrics`; Google Search Console for the Pages site (operator).
+6. Consider one relevant awesome-list PR for the CLI/Action (e.g. an API-testing tools list) once the Marketplace
    listing exists: listings without a store link are usually rejected.
 
 ## Monetization plan
@@ -208,7 +211,8 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   Markdown, GitHub annotations + job summary) and a **GitHub Action**, both on one shared engine `src/core/exec.ts`; importers
   validated on 40 real GitHub exports, 9 bugs fixed; publisher → `plainbyte` (charter); new SEO guide
   `run-http-files-in-ci.html`; corrected the "Thunder sells its CLI" claim (it is on their Free plan). Evidence: 121/121
-  tests, e2e 10/10, `.vsix` installs, CLI smoke vs httpbin + local server, npm tarball install.
+  tests, e2e 10/10, `.vsix` installs, CLI smoke vs httpbin + local server, npm tarball install, CI 44739349863 +
+  Action smoke 44739356364 green, release v0.3.0 assets live, 5 Pages URLs 200.
 
 ## Metrics
 
