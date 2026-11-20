@@ -29,6 +29,54 @@ test('requestLabel, rowState, summarize, markdownReport escapes pipes', () => {
   assert.match(markdownReport('t', rows, s), /GET a\\\|b \(a\.http\)/);
 });
 
+test('Executor: an httpYac file with ?? lines runs unchanged; ?? lines are not sent as body', async () => {
+  const bodies: string[] = [];
+  const server = createServer((req, res) => {
+    let data = '';
+    req.on('data', (c) => (data += c));
+    req.on('end', () => {
+      bodies.push(data);
+      res.writeHead(201, { 'content-type': 'application/json', 'x-request-id': 'r-1' });
+      res.end(JSON.stringify({ id: 7, ...JSON.parse(data || '{}'), tags: ['a'] }));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const file = [
+    `POST ${base}/users`,
+    'Content-Type: application/json',
+    '',
+    '{"name": "Ada"}',
+    '',
+    '?? status == 201',
+    '?? header content-type includes json',
+    '?? duration < 5000',
+    '?? body $.id exists',
+    '?? js response.parsedBody.name == "Ada"',
+    '?? js response.headers[\'x-request-id\'] == r-1',
+    '?? js response.parsedBody.tags.filter(Boolean).length > 0',
+    '',
+  ].join('\n');
+  const exec = new Executor({
+    readHttpFile: async () => file,
+    readBodyFile: async () => new Uint8Array(),
+    dotenv: async () => ({}),
+    environment: () => ({}),
+    sendOptions: () => ({ timeoutMs: 5000 }),
+  });
+  try {
+    const { parseHttpFile } = await import('../src/core/httpFile.ts');
+    const r = await exec.run(parseHttpFile(file).requests[0], 'f.http');
+    assert.deepEqual(bodies, ['{"name": "Ada"}']);
+    assert.deepEqual(r.assertions.map((a) => a.passed), [true, true, true, true, true, true, false], JSON.stringify(r.assertions));
+    assert.match(r.assertions[6].message, /^unsupported httpYac assertion "\?\? js response\.parsedBody\.tags\.filter\(Boolean\)\.length > 0": /);
+    // One unsupported check fails the request, so a CI run never goes green on a check that did not run.
+    assert.equal(rowState(r.response.status, r.assertions), 'fail');
+  } finally {
+    server.close();
+  }
+});
+
 test('Executor: a request named only in an @assert line is sent first', async () => {
   const hits: string[] = [];
   const server = createServer((req, res) => {

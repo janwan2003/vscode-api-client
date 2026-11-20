@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { parseAssertion, runAssertions } from '../src/core/assert.ts';
 import { parseHttpFile, replaceRequest, serializeRequest } from '../src/core/httpFile.ts';
 import type { HttpResponse } from '../src/core/model.ts';
@@ -77,6 +78,69 @@ test('variables in expected values are resolved first', () => {
     throw new Error('Variable id is not defined');
   });
   assert.deepEqual([bad[0].passed, bad[0].message], [false, 'Variable id is not defined']);
+});
+
+test('httpYac ?? lines: every translated form', () => {
+  const sha256 = createHash('sha256').update(res.body).digest('base64');
+  const md5hex = createHash('md5').update(res.body).digest('hex');
+  for (const l of [
+    '?? status == 201', '?? status >= 200', '??   status   <   300', '?? duration < 500',
+    '?? header content-type includes json', '?? header content-type contains json', '?? header Content-Type startsWith application/json',
+    '?? header x-count == 12', '?? header x-count > 10', '?? header x-missing !exists',
+    '?? body includes Ada', '?? body $.id exists', '?? body $.name == "Ada"', '?? body $.tags[1] == y',
+    '?? js response.parsedBody.name == "Ada"', '?? js response.parsedBody.name == Ada', '?? js response.parsedBody.tags.length == 2',
+    '?? js response.parsedBody.tags[0] == x', "?? js response.parsedBody['a b'] == 1", '?? js response.parsedBody["a b"] == 1',
+    '?? js response.parsedBody.nested.ok isTrue', '?? js response.parsedBody.nested.ok isBoolean', '?? js response.parsedBody.nested.nil isNull',
+    '?? js response.parsedBody.tags isArray', '?? js response.parsedBody.name isString', '?? js response.parsedBody.id isNumber',
+    '?? js response.parsedBody.email matches @example\\.com$', '?? js response.parsedBody.email endsWith .com',
+    '?? js response.parsedBody.email startsWith ada', '?? js response.parsedBody.id != 41', '?? js response.parsedBody.id <= 42',
+    '?? js response.parsedBody exists', '?? js response.body.id isNumber', '?? js response.body includes "email"',
+    '?? js response.statusCode == 201', "?? js response.headers['content-type'] includes json", '?? js response.headers["x-count"] == 12',
+    '?? js response.headers.connection !exists',
+    `?? body sha256 ${sha256}`, `?? body md5 ${md5hex}`, `?? js response.parsedBody.name sha512 ${createHash('sha512').update('Ada').digest('base64')}`,
+  ]) {
+    const [r] = runAssertions([l], res);
+    assert.equal(r.passed, true, `${l}: ${r.message}`);
+    assert.equal(r.source, l);
+  }
+  for (const l of ['?? status == 200', '?? js response.parsedBody.nested.ok isFalse', '?? js response.parsedBody.missing exists', '?? body sha256 AAAA', '?? duration > 1000']) {
+    assert.equal(passes(l), false, l);
+  }
+  assert.equal(runAssertions(['?? status == 200'], res)[0].message, 'expected 200, got 201');
+  // isTrue / isFalse also work in # @assert lines (true/false and the strings "true"/"false" only).
+  assert.equal(passes('$.nested.ok isTrue'), true);
+  assert.equal(passes('$.id isTrue'), false);
+});
+
+test('httpYac ?? lines that are not translated fail with "unsupported httpYac assertion", never throw or pass', () => {
+  const lines = [
+    '?? js response.parsedBody.tags.map(t => t.toUpperCase()).includes("X") isTrue',
+    '?? js JSON.stringify(response.parsedBody) includes Ada',
+    '?? js response.parsedBody?.name == Ada',
+    '?? js response.parsedBody.name.toLowerCase() == ada',
+    '?? js process.exit(1)',
+    '?? js',
+    '?? xpath /root/id exists',
+    '?? md5 == abc',
+    '?? $.id exists',
+    '?? status bogus 1',
+    '?? status ==',
+    '?? header',
+    '??',
+  ];
+  const r = runAssertions(lines, res);
+  assert.equal(r.length, lines.length);
+  for (const [i, x] of r.entries()) {
+    assert.equal(x.passed, false, lines[i]);
+    assert.equal(x.source, lines[i]);
+    assert.ok(x.message.startsWith(`unsupported httpYac assertion "${lines[i].trim()}": `), x.message);
+  }
+  assert.match(r[0].message, /JavaScript is never evaluated/);
+  assert.match(r[6].message, /xpath is not supported/);
+  assert.match(r[9].message, /Unknown operator "bogus"/);
+  assert.throws(() => parseAssertion('?? xpath //a exists'), /unsupported httpYac assertion/);
+  // `??x` is not an httpYac line; it goes through the normal parser.
+  assert.match(runAssertions(['??x'], res)[0].message, /Unknown assertion subject/);
 });
 
 test('.http files: @assert lines parse in order and round-trip', () => {

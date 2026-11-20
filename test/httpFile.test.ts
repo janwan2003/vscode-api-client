@@ -122,3 +122,95 @@ test('non-standard methods round-trip', () => {
   const reqs = parseHttpFile(text).requests;
   assert.deepEqual(reqs.map((r) => [r.method, r.url]), [['PURGE', 'https://e.test/a'], ['PROPFIND', '{{host}}/dav']]);
 });
+
+// httpYac test lines. httpYac recognises `?? ...` by its prefix anywhere in a request; REST Client
+// has no such syntax (it would send them as body text).
+const yacFile = [
+  '### Directly after the request line',
+  'GET http://x.test/a',
+  '  ?page=2',
+  '?? status == 200',
+  '',
+  '### After headers, no blank line',
+  '# @assert time < 500',
+  'GET http://x.test/b',
+  'Accept: application/json',
+  '?? header content-type includes json',
+  "?? js response.headers['x-a'] == \"b:c\"",
+  '',
+  '### After the body, blank line between',
+  'POST http://x.test/c',
+  'Content-Type: application/json',
+  '',
+  '{',
+  '  "name": "Ada"',
+  '}',
+  '',
+  '?? status == 201',
+  "?? js response.parsedBody['a b']  ==  \"x y\"",
+  '',
+  '### After the body, no blank line',
+  'POST http://x.test/d',
+  '',
+  'name=Ada',
+  '?? body $.id exists',
+  '',
+  '### Blank line, no body',
+  'DELETE http://x.test/e',
+  '',
+  '?? status == 204',
+  '',
+  '### Not httpYac lines',
+  'POST http://x.test/f',
+  '',
+  '??no-space stays in the body',
+  'a ?? b',
+  '',
+].join('\n');
+
+test('httpYac ?? lines are parsed as asserts in every position, never as body, headers or URL', () => {
+  const r = parseHttpFile(yacFile).requests;
+  assert.equal(r.length, 6);
+  assert.deepEqual([r[0].url, r[0].headers, r[0].body, r[0].asserts], ['http://x.test/a?page=2', [], undefined, ['?? status == 200']]);
+  assert.deepEqual([r[1].headers, r[1].body, r[1].asserts], [
+    [{ name: 'Accept', value: 'application/json' }],
+    undefined,
+    ['time < 500', '?? header content-type includes json', "?? js response.headers['x-a'] == \"b:c\""],
+  ]);
+  assert.deepEqual([r[2].body, r[2].asserts], ['{\n  "name": "Ada"\n}', ['?? status == 201', "?? js response.parsedBody['a b']  ==  \"x y\""]]);
+  assert.deepEqual([r[3].body, r[3].asserts], ['name=Ada', ['?? body $.id exists']]);
+  assert.deepEqual([r[4].body, r[4].asserts], [undefined, ['?? status == 204']]);
+  assert.deepEqual([r[5].body, r[5].asserts], ['??no-space stays in the body\na ?? b', undefined]);
+});
+
+test('httpYac ?? lines round-trip: serialize keeps them verbatim, replaceRequest keeps other blocks byte-for-byte', () => {
+  const f = parseHttpFile(yacFile);
+  const strip = (r: object) => {
+    const { startLine, endLine, requestLine, ...rest } = r as Record<string, unknown>;
+    return rest;
+  };
+  // parse → serialize → parse gives the same requests.
+  assert.deepEqual(parseHttpFile(serializeHttpFile(f.variables, f.requests)).requests.map(strip), f.requests.map(strip));
+  // The usual httpYac layouts serialize back to exactly what was written.
+  const block = (i: number) => yacFile.split('\n').slice(f.requests[i].startLine, f.requests[i].endLine).join('\n').replace(/\n+$/, '');
+  for (const i of [1, 2]) assert.equal(serializeRequest(f.requests[i]), block(i), `request ${i}`);
+  // Canonical form of the other layouts (only applies to a block that is edited; the ?? lines
+  // themselves are unchanged): `?page=2` joined into the URL, a blank line after a body and none
+  // after headers.
+  assert.equal(serializeRequest(f.requests[0]), '### Directly after the request line\nGET http://x.test/a?page=2\n?? status == 200');
+  assert.equal(serializeRequest(f.requests[3]), '### After the body, no blank line\nPOST http://x.test/d\n\nname=Ada\n\n?? body $.id exists');
+  assert.equal(serializeRequest(f.requests[4]), '### Blank line, no body\nDELETE http://x.test/e\n?? status == 204');
+  // Editing one request (as the GUI does) leaves every other byte alone...
+  const out = replaceRequest(yacFile, 3, { ...f.requests[3], url: 'http://x.test/d2' });
+  const before = yacFile.split('\n');
+  const after = out.split('\n');
+  assert.deepEqual(after.slice(0, f.requests[3].startLine), before.slice(0, f.requests[3].startLine));
+  assert.deepEqual(after.slice(f.requests[3].endLine + 1), before.slice(f.requests[3].endLine));
+  // ...and the edited block keeps its ?? line as an assert, outside the body.
+  const g = parseHttpFile(out).requests[3];
+  assert.deepEqual([g.url, g.body, g.asserts], ['http://x.test/d2', 'name=Ada', ['?? body $.id exists']]);
+  // Editing the body of a request with ?? lines after it: the lines stay after the new body.
+  const out2 = replaceRequest(yacFile, 2, { ...f.requests[2], body: '{"name":"Bob"}' });
+  assert.match(out2, /\n\{"name":"Bob"\}\n\n\?\? status == 201\n\?\? js response\.parsedBody\['a b'\]  ==  "x y"\n\n### After the body, no blank line/);
+  assert.equal(parseHttpFile(out2).requests[2].body, '{"name":"Bob"}');
+});

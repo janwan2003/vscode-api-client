@@ -130,67 +130,227 @@ function jsJsonPath(expr: string, jsonVars: Set<string>): string | undefined {
   return '$' + m[2].replace(/\[(['"])([^'"]*)\1\]/g, "['$2']");
 }
 
-/** Split on `;` outside strings and brackets. */
-function splitTopLevel(line: string): string[] {
-  const out: string[] = [];
+/** One statement of a test script, with the `pm.test` it is in and whether it only runs sometimes. */
+interface Statement {
+  text: string;
+  /** Name of the enclosing `pm.test(...)`, if any. */
+  test?: string;
+  /** Inside an if/else/loop/switch/try/callback block, after a braceless `if (...)`, or in `a && b` / `a ? b : c`. */
+  conditional: boolean;
+}
+
+interface Frame {
+  /** test: a pm.test callback; cond: a block that may run zero or many times; object: any other `{...}`. */
+  kind: 'top' | 'test' | 'cond' | 'object';
+  test?: string;
+  cond: boolean;
+  buf: string;
+  paren: number;
+  /** The previous statement was a braceless `if (...)` / `else` / loop header: the next one is its body. */
+  pending: boolean;
+}
+
+/** Stands in for a `{...}` block already split into its own statements (test, condition, callback). */
+const BLOCK = '\u0001';
+/** Stands in for any other `{...}` (object literal); its contents are never converted. */
+const OBJECT = '\u0002';
+
+const TEST_OPEN = /^pm\.test\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*,\s*(?:(?:async\s+)?function\s*[\w$]*\s*\(\s*\)|(?:async\s+)?\(\s*\)\s*=>)$/;
+const TEST_EXPR = /^pm\.test\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*,\s*(?:async\s+)?\(\s*\)\s*=>\s*([\s\S]+)\)$/;
+const CHECK = /\bpm\.expect\s*\(|\bpm\.response\.to\b|(?:^|[^\w$.])expect\s*\(/;
+
+const unescapeName = (s: string) => s.replace(/\\(.)/g, '$1');
+
+/** Index of the `(` matching the `)` at `close`, or -1. */
+function openParen(t: string, close: number): number {
+  for (let i = close, d = 0; i >= 0; i--) {
+    if (t[i] === ')') d++;
+    else if (t[i] === '(' && --d === 0) return i;
+  }
+  return -1;
+}
+
+/** Index of the `)` matching the `(` at `open`, or -1. */
+function closeParen(t: string, open: number): number {
+  for (let i = open, d = 0; i < t.length; i++) {
+    if (t[i] === '(') d++;
+    else if (t[i] === ')' && --d === 0) return i;
+  }
+  return -1;
+}
+
+/** What a `{` opens, judged by the statement text before it. */
+function classifyBlock(before: string, pending: boolean): { kind: Frame['kind']; test?: string } {
+  const t = before.trim();
+  const m = TEST_OPEN.exec(t);
+  if (m) return { kind: 'test', test: unescapeName(m[2]) };
+  if (pending && t === '') return { kind: 'cond' };
+  if (/(?:^|[^\w$.])(?:else|try|finally|do)$/.test(t) || t.endsWith('=>')) return { kind: 'cond' };
+  if (t.endsWith(')')) {
+    const head = t.slice(0, openParen(t, t.length - 1)).trimEnd();
+    if (/(?:^|[^\w$.])(?:if|for|while|switch|catch|with|function\s*\*?\s*[\w$]*)$/.test(head) || /(?:^|[^\w$.])function$/.test(head)) return { kind: 'cond' };
+  }
+  return { kind: 'object' };
+}
+
+/** `a && pm.expect(..)`, `a || ..`, `a ? .. : ..` (outside parentheses and strings). */
+function shortCircuit(t: string): boolean {
   let depth = 0;
   let quote = '';
-  let start = 0;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
     if (quote) {
       if (c === '\\') i++;
       else if (c === quote) quote = '';
     } else if (c === '"' || c === "'" || c === '`') quote = c;
-    else if (c === '(' || c === '[' || c === '{') depth++;
-    else if (c === ')' || c === ']' || c === '}') depth--;
-    else if (c === ';' && depth <= 0) {
-      out.push(line.slice(start, i));
-      start = i + 1;
-    }
+    else if (c === '(' || c === '[') depth++;
+    else if (c === ')' || c === ']') depth--;
+    else if (depth === 0 && (t.startsWith('&&', i) || t.startsWith('||', i) || (c === '?' && t[i + 1] !== '.'))) return true;
   }
-  out.push(line.slice(start));
-  return out;
+  return false;
 }
 
-const PM_TEST_OPEN = /^pm\.test\(\s*(['"`])(?:\\.|(?!\1).)*\1\s*,\s*(?:(?:async\s+)?function\s*\w*\s*\(\s*\)|(?:async\s+)?\(\s*\)\s*=>)\s*/;
-
 /**
- * A test script as a list of statements. `pm.test(...)` wrappers are unwrapped, also when the
- * whole test is on one line (`pm.test("ok", () => pm.response.to.have.status(200));` or
- * `pm.test("ok", function () { a; b; });`), and `;`-separated statements on a line are split.
+ * A test script as a list of statements, split on `;` and line ends outside strings, comments and
+ * brackets. `pm.test(...)` callbacks are unwrapped (also one-liners such as
+ * `pm.test("ok", () => pm.response.to.have.status(200));`); statements inside if/else, loops,
+ * switch, try/catch or any other callback (`forEach(x => {...})`) are marked conditional, as are
+ * the bodies of braceless `if (x) pm.expect(...)`.
  */
-function postmanStatements(code: string): string[] {
-  const out: string[] = [];
-  for (const raw of code.split(/\r?\n/)) {
-    let line = raw.trim();
-    if (!line || line.startsWith('//')) continue;
-    const m = PM_TEST_OPEN.exec(line);
-    if (m) {
-      const rest = line.slice(m[0].length);
-      if (rest.startsWith('{')) line = rest.slice(1).replace(/\}\s*\)\s*;?\s*$/, '');
-      else line = rest.replace(/\)\s*;?\s*$/, ''); // expression arrow: drop pm.test's own ")"
+function postmanStatements(code: string): Statement[] {
+  const out: Statement[] = [];
+  const stack: Frame[] = [{ kind: 'top', cond: false, buf: '', paren: 0, pending: false }];
+  let f = stack[0];
+
+  const emit = (fr: Frame, raw: string) => {
+    const t = raw.trim();
+    if (!t || fr.kind === 'object') return;
+    const pending = fr.pending;
+    fr.pending = false;
+    // Test wrappers and blocks were split up already; what is left of them is not a check.
+    if (t.includes(BLOCK)) return;
+    const cond = fr.cond || pending;
+    let m: RegExpExecArray | null;
+    // Braceless control flow: what follows the header (here or on the next line) is conditional.
+    if ((m = /^(?:else\s+)?(?:if|for|while)\s*\(/.exec(t))) {
+      const rest = t.slice(closeParen(t, m[0].length - 1) + 1).trim();
+      if (!rest || closeParen(t, m[0].length - 1) < 0) fr.pending = true;
+      else out.push({ text: rest, test: fr.test, conditional: true });
+      return;
     }
-    for (const st of splitTopLevel(line)) {
-      const t = st.trim();
-      if (t && !t.startsWith('//')) out.push(t);
+    if ((m = /^(?:else|do)\b\s*([\s\S]*)$/.exec(t))) {
+      if (!m[1]) fr.pending = true;
+      else out.push({ text: m[1], test: fr.test, conditional: true });
+      return;
     }
+    if ((m = TEST_EXPR.exec(t))) {
+      const inner = m[3].trim();
+      out.push({ text: inner, test: unescapeName(m[2]), conditional: cond || shortCircuit(inner) });
+      return;
+    }
+    out.push({ text: t, test: fr.test, conditional: cond || shortCircuit(t) });
+  };
+
+  const lastSignificant = (s: string) => s.trimEnd().slice(-1);
+  for (let i = 0; i < code.length; i++) {
+    const c = code[i];
+    // Strings: copied as they are (only template literals may span lines).
+    if (c === '"' || c === "'" || c === '`') {
+      let j = i + 1;
+      while (j < code.length && code[j] !== c && (c === '`' || code[j] !== '\n')) j += code[j] === '\\' ? 2 : 1;
+      f.buf += code.slice(i, j + 1);
+      i = j;
+      continue;
+    }
+    if (c === '/' && code[i + 1] === '/') {
+      while (i + 1 < code.length && code[i + 1] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && code[i + 1] === '*') {
+      const end = code.indexOf('*/', i + 2);
+      i = end < 0 ? code.length : end + 1;
+      f.buf += ' ';
+      continue;
+    }
+    // A regex literal (after an operator or opening bracket): copied as is, so `{` in it is not a block.
+    if (c === '/' && /^$|[(,=:[!&|?{};]$/.test(lastSignificant(f.buf))) {
+      let j = i + 1;
+      let cls = false;
+      while (j < code.length && code[j] !== '\n' && (cls || code[j] !== '/')) {
+        if (code[j] === '\\') j++;
+        else if (code[j] === '[') cls = true;
+        else if (code[j] === ']') cls = false;
+        j++;
+      }
+      if (code[j] === '/') {
+        f.buf += code.slice(i, j + 1);
+        i = j;
+        continue;
+      }
+    }
+    if (c === '(' || c === '[') f.paren++;
+    else if (c === ')' || c === ']') f.paren--;
+    if (c === '{') {
+      const { kind, test } = classifyBlock(f.buf, f.pending);
+      if (kind !== 'object') f.pending = false;
+      f = { kind, test: test ?? f.test, cond: f.cond || kind === 'cond', buf: '', paren: 0, pending: false };
+      stack.push(f);
+      continue;
+    }
+    if (c === '}') {
+      if (stack.length === 1) continue; // unbalanced: ignore
+      emit(f, f.buf);
+      const done = stack.pop()!;
+      f = stack[stack.length - 1];
+      f.buf += done.kind === 'object' ? OBJECT : BLOCK;
+      continue;
+    }
+    if (c === ';' && f.paren <= 0) {
+      emit(f, f.buf);
+      f.buf = '';
+      continue;
+    }
+    if ((c === '\n' || c === '\r') && f.paren <= 0) {
+      // A line starting with `.` continues the previous one (`pm.expect(x)\n  .to.eql(1)`).
+      let j = i + 1;
+      while (j < code.length && /\s/.test(code[j])) j++;
+      if (code[j] === '.' || /(?:&&|\|\||[,+=?:])$/.test(f.buf.trimEnd())) {
+        i = j - 1;
+        continue;
+      }
+      emit(f, f.buf);
+      f.buf = '';
+      continue;
+    }
+    f.buf += c === '\n' || c === '\r' ? ' ' : c;
+  }
+  while (stack.length) {
+    const fr = stack.pop()!;
+    emit(fr, fr.buf);
   }
   return out;
 }
 
 /**
  * Convert the common Postman test snippets (the ones Postman's own "Snippets" sidebar inserts)
- * into @assert lines. Anything else in the script is counted as skipped.
+ * into @assert lines. Anything else in the script is counted as skipped. A check that only runs
+ * under a condition or in a loop (`if (pm.response.code === 200) { pm.expect(...) }`) is never
+ * converted, because an @assert always runs; it is reported per test instead.
  */
 export function convertPostmanTests(code: string): ConvertedTests {
   const out: ConvertedTests = { asserts: [], skipped: [] };
   const jsonVars = new Set<string>();
   for (const m of code.matchAll(/(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*pm\.response\.json\(\)/g)) jsonVars.add(m[1]);
   let unhandled = 0;
-  for (const line of postmanStatements(code)) {
-    if (/^\}\)?\)?$/.test(line)) continue;
+  const conditional = new Map<string, number>();
+  for (const st of postmanStatements(code)) {
+    const line = st.text;
     if (/^(?:var|let|const)\s+[A-Za-z_$][\w$]*\s*=\s*pm\.response\.json\(\)$/.test(line)) continue;
+    if (st.conditional) {
+      if (CHECK.test(line)) conditional.set(st.test ?? '', (conditional.get(st.test ?? '') ?? 0) + 1);
+      else unhandled++;
+      continue;
+    }
     let m: RegExpExecArray | null;
     const push = (a: string) => out.asserts.push(a);
     if ((m = /^pm\.response\.to\.have\.status\((\d{3})\)$/.exec(line))) push(`status == ${m[1]}`);
@@ -227,6 +387,9 @@ export function convertPostmanTests(code: string): ConvertedTests {
       const op = { above: '>', greaterThan: '>', below: '<', lessThan: '<', 'at.least': '>=', 'at.most': '<=' }[m[2]];
       push(`${jsJsonPath(m[1], jsonVars)} ${op} ${m[3]}`);
     } else unhandled++;
+  }
+  for (const [name, n] of conditional) {
+    out.skipped.push(`skipped ${n === 1 ? 'conditional check' : `${n} conditional checks`} ${name ? `in test '${name}'` : 'outside any pm.test'}`);
   }
   if (unhandled) out.skipped.push(`${unhandled} script statement(s)`);
   return out;

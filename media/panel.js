@@ -364,9 +364,9 @@
       h('div', { class: 'assert-row assert-new' }, h('span', { class: 'mark' }, '+'), add),
       h('div', { class: 'chips' }, h('span', { class: 'hint' }, 'Quick add: '), ...ASSERT_EXAMPLES.filter((x) => !list.includes(x)).map((x) =>
         h('button', { class: 'chip', onclick: () => { list.push(x); commit(true); } }, x))),
-      h('p', { class: 'hint' }, 'Checks run after every send and in "Run all". Saved in the .http file as "# @assert …" lines. ',
+      h('p', { class: 'hint' }, 'Checks run after every send and in "Run all". Saved in the .http file as "# @assert …" lines (httpYac "?? …" lines are kept as written, after the request). ',
         'Subjects: status, time, size, body, header <name>, or a JSONPath like $.data[0].id. ',
-        'Operators: == != < <= > >= contains !contains startsWith endsWith matches exists !exists isEmpty isNumber isString isArray isObject isNull. ',
+        'Operators: == != < <= > >= contains !contains startsWith endsWith matches exists !exists isEmpty isNumber isString isArray isObject isNull isTrue isFalse md5 sha256 sha512. ',
         'Values can use {{variables}}.'),
     );
   }
