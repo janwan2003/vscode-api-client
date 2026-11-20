@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { importThunder, importThunderWorkspace } from '../src/core/importers/thunder.ts';
 import { MULTIPART_BOUNDARY } from '../src/core/curl.ts';
 import { parseHttpFile, serializeHttpFile } from '../src/core/httpFile.ts';
+import { toGraphqlHttp } from '../src/core/graphql.ts';
 import type { HttpRequest, ImportedCollection } from '../src/core/model.ts';
 
 const load = (f: string): unknown => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8'));
@@ -76,7 +77,10 @@ test('formdata with file; inherit picks folder basic auth; none means no auth', 
 
 test('graphql body; lower-case method normalized; unknown fields ignored', () => {
   const g = find(col, 'Products (GraphQL)');
-  assert.deepEqual(JSON.parse(g.body!), { query: '{ products { id title } }', variables: {} });
+  // REST Client GraphQL form; empty variables are left out.
+  assert.equal(g.body, '{ products { id title } }');
+  assert.ok(g.headers.some((h) => h.name === 'X-REQUEST-TYPE' && h.value === 'GraphQL'), JSON.stringify(g.headers));
+  assert.deepEqual(JSON.parse(toGraphqlHttp(g).body!), { query: '{ products { id title } }', variables: {} });
   const s = find(col, 'Status');
   assert.equal(s.method, 'GET');
   assert.equal(s.body, undefined);

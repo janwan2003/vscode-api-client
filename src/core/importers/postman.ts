@@ -3,6 +3,7 @@ import { METHODS } from '../httpFile.ts';
 import { convertPostmanTests } from './tests.ts';
 import { basicAuthValue, buildMultipartBody, filePath, formEncode, multipartContentType } from '../curl.ts';
 import type { MultipartPart } from '../curl.ts';
+import { isGraphqlRequest, joinGraphqlBody } from '../graphql.ts';
 
 /**
  * Postman Collection v2.0 / v2.1 importer.
@@ -113,18 +114,23 @@ export function appendQuery(url: string, pair: string): string {
   return base + (base.includes('?') ? '&' : '?') + pair + frag;
 }
 
-/** Build a JSON GraphQL body. `variables` is JSON text that may contain `{{vars}}`. */
-export function graphqlBody(query: string, variables: string): string {
-  const v = variables.trim();
-  let varsText = '{}';
-  if (v) {
-    try {
-      varsText = JSON.stringify(JSON.parse(v), null, 2).replace(/\n/g, '\n  ');
-    } catch {
-      varsText = v; // e.g. contains {{placeholders}}; valid JSON once they are substituted
-    }
+/**
+ * Write a GraphQL body in REST Client's form (`X-REQUEST-TYPE: GraphQL`, the query, a blank line,
+ * the variables JSON), which Plainwire sends as `{"query", "variables"}` JSON (see core/graphql.ts).
+ * `variables` is JSON text that may contain `{{vars}}`; it is pretty-printed when it parses, and
+ * left out when empty or `{}`.
+ */
+export function applyGraphqlBody(req: HttpRequest, query: string, variables: string): void {
+  let v = variables.trim();
+  try {
+    const parsed: unknown = JSON.parse(v);
+    v = isObj(parsed) && !Object.keys(parsed).length ? '' : JSON.stringify(parsed, null, 2);
+  } catch {
+    // e.g. contains {{placeholders}}; valid JSON once they are substituted
   }
-  return `{\n  "query": ${JSON.stringify(query)},\n  "variables": ${varsText}\n}`;
+  req.body = joinGraphqlBody(query, v);
+  if (!hasHeader(req.headers, 'Content-Type')) req.headers.push({ name: 'Content-Type', value: 'application/json' });
+  if (!isGraphqlRequest(req)) req.headers.push({ name: 'X-REQUEST-TYPE', value: 'GraphQL' });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -341,8 +347,7 @@ function applyBody(body: unknown, req: HttpRequest, label: string, warnings: str
     case 'graphql': {
       const g = isObj(body.graphql) ? body.graphql : {};
       const vars = typeof g.variables === 'string' ? g.variables : g.variables ? JSON.stringify(g.variables) : '';
-      req.body = graphqlBody(str(g.query), vars);
-      setType('application/json');
+      applyGraphqlBody(req, str(g.query), vars);
       return;
     }
     case 'file': {

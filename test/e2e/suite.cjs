@@ -101,6 +101,24 @@ exports.run = async function run() {
     assert.deepEqual(assertions.map((a) => [a.source, a.passed]), [['status == 200', true], ['$.token exists', true]]);
   });
 
+  await check('GraphQL (X-REQUEST-TYPE: GraphQL) is sent as JSON and copied as cURL with the JSON body', async () => {
+    const gql = vscode.Uri.joinPath(ws, 'graphql.http');
+    const text = '### Pet\nPOST {{host}}/graphql\nX-REQUEST-TYPE: GraphQL\n\nquery Pet($id: ID!) {\n  pet(id: $id) { id }\n}\n\n{"id": "{{envName}}"}\n';
+    fs.writeFileSync(gql.fsPath, text);
+    const before = seen.length;
+    await api.deps.runner.run(api.parseHttpFileForTest(text).requests[0], { uri: gql });
+    const got = seen[before];
+    assert.equal(got.url, '/graphql');
+    assert.equal(got.headers['content-type'], 'application/json');
+    assert.equal(got.headers['x-request-type'], undefined);
+    assert.deepEqual(JSON.parse(got.body), { query: 'query Pet($id: ID!) {\n  pet(id: $id) { id }\n}', variables: { id: 'local' }, operationName: 'Pet' });
+    await vscode.commands.executeCommand('plainwire.copyCurlAt', { uri: gql, index: 0 });
+    const curl = await vscode.env.clipboard.readText();
+    assert.ok(curl.includes(`--data-raw '{"query":"query Pet($id: ID!) {\\n  pet(id: $id) { id }\\n}","variables":{"id":"{{envName}}"},"operationName":"Pet"}'`), curl);
+    assert.ok(!/X-REQUEST-TYPE/i.test(curl), curl);
+    assert.equal(fs.readFileSync(gql.fsPath, 'utf8'), text);
+  });
+
   // HTTPS with a self-signed certificate (needs openssl) on a port Node's fetch refuses (10080).
   let tlsServer;
   let tlsPort = 0;

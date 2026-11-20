@@ -10,6 +10,7 @@
     ['text', 'Text', 'text/plain'],
     ['xml', 'XML', 'application/xml'],
     ['form', 'Form URL-encoded', 'application/x-www-form-urlencoded'],
+    ['graphql', 'GraphQL', 'application/json'],
   ];
   const MAX_TREE = 2 * 1024 * 1024;
 
@@ -84,7 +85,41 @@
     const q = params.filter((p) => p.name).map((p) => (p.value === '' ? p.name : p.name + '=' + p.value));
     return q.length ? base + '?' + q.join('&') : base;
   }
+  // GraphQL in REST Client's form: header X-REQUEST-TYPE: GraphQL, body = query, blank line, variables JSON.
+  // Same rules as src/core/graphql.ts (isGraphqlRequest / splitGraphqlBody / joinGraphqlBody), which does the sending.
+  function isGraphql() {
+    return (header('x-request-type')?.value || '').trim().toLowerCase() === 'graphql';
+  }
+  function splitGql(body) {
+    const lines = body.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim() !== '') continue;
+      const rest = lines.slice(i + 1).join('\n').trim();
+      if (/^\{(\s*["}]|\{)/.test(rest)) return { query: lines.slice(0, i).join('\n').trim(), variables: rest };
+    }
+    return { query: body.trim(), variables: '' };
+  }
+  function joinGql(query, variables) {
+    const q = query.replace(/\s+$/, '');
+    const v = variables.trim();
+    return v ? q + '\n\n' + v : q;
+  }
+  /** GraphQL body → pretty {"query", "variables"} JSON, or null when the variables are not JSON yet. */
+  function gqlToJson(body) {
+    const { query, variables } = splitGql(body);
+    try { return JSON.stringify({ query, variables: variables ? JSON.parse(variables) : {} }, null, 2); } catch { return null; }
+  }
+  /** {"query": "...", "variables": {...}} JSON → GraphQL body, or null when the body is not such JSON. */
+  function jsonToGql(body) {
+    try {
+      const j = JSON.parse(body);
+      if (!j || typeof j.query !== 'string') return null;
+      const v = j.variables && typeof j.variables === 'object' && Object.keys(j.variables).length ? JSON.stringify(j.variables, null, 2) : '';
+      return joinGql(j.query, v);
+    } catch { return null; }
+  }
   function bodyType() {
+    if (isGraphql()) return 'graphql';
     const ct = (header('content-type')?.value || '').toLowerCase();
     if (ct.includes('json')) return 'json';
     if (ct.includes('xml')) return 'xml';
@@ -205,17 +240,57 @@
         h('datalist', { id: 'hdrs' }, ...['Accept', 'Authorization', 'Content-Type', 'Cookie', 'User-Agent', 'Cache-Control', 'If-None-Match', 'Origin', 'X-API-Key', 'X-Request-Id'].map((x) => h('option', { value: x }))),
         kvTable(S.request.headers, (rows) => { S.request.headers = rows; changed(); }, { namePh: 'header', list: 'hdrs' }),
         h('p', { class: 'hint' }, 'Unchecked headers are saved as # comments and not sent.'),
+        ...(isGraphql() ? [h('p', { class: 'hint' }, 'X-REQUEST-TYPE: GraphQL makes this a GraphQL request (see the Body tab); it is not sent.')] : []),
       );
     } else if (S.reqTab === 'body') {
       const type = bodyType();
       const typeSel = h('div', { class: 'radio' }, ...BODY_TYPES.map(([id, label, ct]) =>
         h('label', {}, h('input', { type: 'radio', name: 'bt', checked: id === type, onchange: () => {
+          if (type === 'graphql') {
+            setHeader('X-REQUEST-TYPE', null);
+            const j = id === 'json' ? gqlToJson(S.request.body || '') : null;
+            if (j !== null) S.request.body = j;
+          }
           if (id === 'none') { S.request.body = undefined; setHeader('Content-Type', null); }
           else setHeader('Content-Type', ct);
+          if (id === 'graphql') {
+            setHeader('X-REQUEST-TYPE', 'GraphQL');
+            const g = jsonToGql(S.request.body || '');
+            if (g !== null) S.request.body = g;
+          }
           changed(); render();
         } }), label)));
       pane.append(typeSel);
-      if (type === 'form') {
+      if (type === 'graphql') {
+        const parts = splitGql(S.request.body || '');
+        let query = parts.query;
+        let vars = parts.variables;
+        const err = h('span', { class: 'err' });
+        const check = () => {
+          err.textContent = '';
+          if (!vars.trim() || vars.includes('{{')) return; // {{variables}} are substituted before the JSON is checked
+          try {
+            const v = JSON.parse(vars);
+            if (!v || typeof v !== 'object' || Array.isArray(v)) err.textContent = 'Variables must be a JSON object.';
+          } catch (e) { err.textContent = 'Not valid JSON: ' + e.message; }
+        };
+        const update = () => { S.request.body = joinGql(query, vars); changed(); check(); };
+        const q = h('textarea', { class: 'code gql-query', spellcheck: 'false', placeholder: 'query Pet($id: ID!) {\n  pet(id: $id) { id name }\n}', value: query,
+          oninput: (e) => { query = e.target.value; update(); }, onkeydown: tabKey });
+        const v = h('textarea', { class: 'code gql-vars', spellcheck: 'false', placeholder: '{\n  "id": "{{petId}}"\n}', value: vars,
+          oninput: (e) => { vars = e.target.value; update(); }, onkeydown: tabKey });
+        pane.append(
+          h('div', { class: 'gql-label' }, 'Query'), q,
+          h('div', { class: 'tools gql-label' }, h('span', {}, 'Variables (JSON)'),
+            h('button', { class: 'link', onclick: () => {
+              try { vars = JSON.stringify(JSON.parse(vars || '{}'), null, 2); /** @type {any} */ (v).value = vars; update(); }
+              catch (e) { err.textContent = 'Not valid JSON (maybe {{variables}} outside strings): ' + e.message; }
+            } }, 'Format'), err),
+          v,
+          h('p', { class: 'hint' }, 'Sent as JSON {"query", "variables"} with Content-Type: application/json; the X-REQUEST-TYPE: GraphQL header marks the request and is not sent. ',
+            'Saved in REST Client\'s format: the query, a blank line, then the variables. {{variables}} work in both.'));
+        check();
+      } else if (type === 'form') {
         const rows = (S.request.body || '').split(/\n?&|\n/).filter(Boolean).map((p) => { const i = p.indexOf('='); return i < 0 ? { name: p, value: '' } : { name: p.slice(0, i), value: p.slice(i + 1) }; });
         pane.append(kvTable(rows, (rs) => { S.request.body = rs.filter((r) => !r.disabled && r.name).map((r) => r.name + '=' + r.value).join('\n&'); changed(); }, { noToggle: true, namePh: 'field' }),
           h('p', { class: 'hint' }, 'Values are sent as written; URL-encode special characters yourself (e.g. %20).'));

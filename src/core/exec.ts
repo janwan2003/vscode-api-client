@@ -1,4 +1,5 @@
 import { runAssertions, type AssertionResult } from './assert.ts';
+import { isGraphqlRequest, toGraphqlHttp } from './graphql.ts';
 import { parseHttpFile } from './httpFile.ts';
 import type { HttpFile, HttpRequest, HttpResponse } from './model.ts';
 import { sendRequest, type SendOptions } from './send.ts';
@@ -67,7 +68,7 @@ export class Executor {
       processEnv: process.env,
       dotenv: await this.host.dotenv(file),
     };
-    const resolved = resolveRequest(req, ctx);
+    let resolved = resolveRequest(req, ctx);
     normalizeBasicAuth(resolved);
 
     let bodyOverride: Uint8Array | undefined;
@@ -76,6 +77,14 @@ export class Executor {
       const bytes = await this.host.readBodyFile(ref.path, file);
       if (ref.resolveVariables) resolved.body = resolveText(new TextDecoder().decode(bytes), ctx);
       else bodyOverride = bytes;
+    }
+    // X-REQUEST-TYPE: GraphQL → JSON {query, variables}; after {{var}} substitution, so both can use variables.
+    if (isGraphqlRequest(resolved)) {
+      if (bodyOverride) {
+        resolved.body = new TextDecoder().decode(bodyOverride);
+        bodyOverride = undefined;
+      }
+      resolved = toGraphqlHttp(resolved);
     }
 
     try {

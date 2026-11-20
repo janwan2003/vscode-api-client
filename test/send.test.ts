@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync, brotliCompressSync } from 'node:zlib';
 import { bypassProxy, sendRequest } from '../src/core/send.ts';
+import { toGraphqlHttp } from '../src/core/graphql.ts';
 
 let server: Server;
 let base = '';
@@ -83,6 +84,22 @@ test('sends method, headers and body; returns status, headers, timing', async ()
 test('form bodies split over & lines are joined', async () => {
   const res = await sendRequest({ method: 'POST', url: `${base}/echo`, headers: [{ name: 'Content-Type', value: 'application/x-www-form-urlencoded' }], body: 'a=1\n&b=2' });
   assert.equal(JSON.parse(res.body).body, 'a=1&b=2');
+});
+
+test('a GraphQL request (X-REQUEST-TYPE: GraphQL) reaches the server as a JSON {query, variables} body', async () => {
+  const req = toGraphqlHttp({
+    method: 'POST',
+    url: `${base}/graphql`,
+    headers: [{ name: 'Authorization', value: 'Bearer t' }, { name: 'X-REQUEST-TYPE', value: 'GraphQL' }],
+    body: 'query Pet($id: ID!) {\n  pet(id: $id) { id }\n}\n\n{"id": "42"}',
+  });
+  const echo = JSON.parse((await sendRequest(req)).body);
+  assert.equal(echo.method, 'POST');
+  assert.equal(echo.headers['content-type'], 'application/json');
+  assert.equal(echo.headers['x-request-type'], undefined);
+  assert.equal(echo.headers.authorization, 'Bearer t');
+  assert.equal(echo.headers['content-length'], String(Buffer.byteLength(echo.body)));
+  assert.deepEqual(JSON.parse(echo.body), { query: 'query Pet($id: ID!) {\n  pet(id: $id) { id }\n}', variables: { id: '42' }, operationName: 'Pet' });
 });
 
 test('redirects follow by default and can be disabled', async () => {
