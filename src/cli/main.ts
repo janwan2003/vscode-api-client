@@ -1,3 +1,4 @@
+import { CookieJar } from '../core/cookies.ts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -35,6 +36,8 @@ Run options:
   -k, --insecure            Accept self-signed / invalid TLS certificates
       --proxy <url>         HTTP proxy (default: HTTPS_PROXY / HTTP_PROXY; NO_PROXY is honoured)
       --no-redirect         Do not follow redirects
+      --no-cookie-jar       Do not remember cookies between requests (default: cookies set by a
+                            response are sent with later requests of the run, like a browser)
       --junit <file>        Write a JUnit XML report
       --json <file>         Write a JSON report
       --markdown <file>     Write a Markdown report
@@ -97,6 +100,7 @@ async function run(args: string[]): Promise<number> {
       insecure: { type: 'boolean', short: 'k' },
       proxy: { type: 'string' },
       'no-redirect': { type: 'boolean' },
+      'no-cookie-jar': { type: 'boolean' },
       junit: { type: 'string' },
       json: { type: 'string' },
       markdown: { type: 'string' },
@@ -165,6 +169,7 @@ async function run(args: string[]): Promise<number> {
       return {};
     },
     environment: () => environment,
+    cookieJar: o['no-cookie-jar'] ? undefined : new CookieJar(),
     sendOptions: (req) => ({
       timeoutMs,
       followRedirects: !o['no-redirect'] && req.meta?.['no-redirect'] === undefined,

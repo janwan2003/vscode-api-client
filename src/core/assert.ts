@@ -1,3 +1,4 @@
+import { parseSetCookie } from './cookies.ts';
 import { createHash } from 'node:crypto';
 import type { HttpResponse } from './model.ts';
 import { eventsView } from './sse.ts';
@@ -15,7 +16,7 @@ import { jsonPath } from './variables.ts';
  *   # @assert body contains "ok"
  *
  * Grammar: `<subject> <operator> [expected]`. Subjects: status, time (ms), size (bytes), body,
- * header <name>, a JSONPath into the JSON body (`$.a.b[0]`, also written `body.$.a`), and for
+ * header <name>, cookie <name> (a cookie this response sets with Set-Cookie), a JSONPath into the JSON body (`$.a.b[0]`, also written `body.$.a`), and for
  * server-sent events `events.length`, `events[0].event`, `events[-1].data.done` (JSON data is parsed).
  * The expected value is read as JSON when it parses (numbers, true/false/null, "quoted strings",
  * arrays/objects), otherwise as a plain string. Comparisons are loose: `"200" == 200` passes.
@@ -63,6 +64,8 @@ const DURATION_PHASES = new Set(['firstbyte', 'download', 'wait', 'request', 'tc
 export type Subject =
   | { kind: 'status' | 'time' | 'size' | 'body' }
   | { kind: 'header'; name: string }
+  /** A cookie set by this response's `Set-Cookie` headers (a deleting `Set-Cookie` counts as not set). */
+  | { kind: 'cookie'; name: string }
   | { kind: 'json'; path: string }
   /** Server-sent events: `events` (the list), `events.length`, `events[0].data.text`, `events[-1].event`. */
   | { kind: 'events'; path: string };
@@ -272,12 +275,14 @@ function parseCore(text: string, source: string): Assertion {
     subject = { kind: k === 'duration' ? 'time' : (k as 'status' | 'time' | 'size' | 'body') };
   } else if ((m = take(/^(?:res(?:ponse)?\.)?headers?(?:\.|\s+)([A-Za-z0-9!#$%&'*+.^_`|~-]+)(?=\s|$)/i))) {
     subject = { kind: 'header', name: m[1] };
+  } else if ((m = take(/^(?:res(?:ponse)?\.)?cookies?(?:\.|\s+)([A-Za-z0-9!#$%&'*+.^_`|~-]+)(?=\s|$)/i))) {
+    subject = { kind: 'cookie', name: m[1] };
   } else if ((m = take(/^events((?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)/))) {
     subject = { kind: 'events', path: '$' + m[1] };
   } else if ((m = take(/^(?:(?:res(?:ponse)?\.)?body\.)?(\$(?:\.[^\s.[\]]+|\[\s*(?:-?\d+|'[^']*'|"[^"]*")\s*\])*)(?=\s|$)/))) {
     subject = { kind: 'json', path: m[1] };
   } else {
-    throw new Error(`Unknown assertion subject in "${source}". Use status, time, size, body, header <name>, a JSONPath like $.id, or events[0].data for server-sent events`);
+    throw new Error(`Unknown assertion subject in "${source}". Use status, time, size, body, header <name>, cookie <name>, a JSONPath like $.id, or events[0].data for server-sent events`);
   }
   return { source, subject, ...parsePredicate(rest, source) };
 }
@@ -313,6 +318,16 @@ function parseExpected(text: string): unknown {
   } catch {
     return text;
   }
+}
+
+function cookieValue(res: HttpResponse, name: string): string | undefined {
+  let value: string | undefined;
+  for (const [k, v] of res.headers) {
+    if (k.toLowerCase() !== 'set-cookie') continue;
+    const c = parseSetCookie(v);
+    if (c?.name === name) value = c.expired ? undefined : c.value;
+  }
+  return value;
 }
 
 function headerValue(res: HttpResponse, name: string): string | undefined {
@@ -394,6 +409,10 @@ export function evaluateAssertion(a: Assertion, res: HttpResponse): AssertionRes
       break;
     case 'header':
       actual = headerValue(res, a.subject.name);
+      found = actual !== undefined;
+      break;
+    case 'cookie':
+      actual = cookieValue(res, a.subject.name);
       found = actual !== undefined;
       break;
     case 'events': {

@@ -335,12 +335,18 @@
       pane.append(
         h('label', { class: 'field' }, 'Title', h('input', { value: S.request.title || '', placeholder: 'Shown in the sidebar (### Title)', oninput: (e) => { S.request.title = e.target.value || undefined; changed(); } })),
         h('label', { class: 'field' }, 'Name', h('input', { value: S.request.name || '', spellcheck: 'false', placeholder: 'For chaining: {{name.response.body.$.id}}', oninput: (e) => { S.request.name = e.target.value.replace(/[^\w-]/g, '') || undefined; changed(); } })),
-        h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!(S.request.meta && 'no-redirect' in S.request.meta), onchange: (e) => {
-          S.request.meta = { ...(S.request.meta || {}) };
-          if (e.target.checked) S.request.meta['no-redirect'] = ''; else delete S.request.meta['no-redirect'];
-          changed(); } }), 'Do not follow redirects (# @no-redirect)'),
+        flag('no-redirect', 'Do not follow redirects (# @no-redirect)'),
+        flag('no-cookie-jar', 'Do not send or store cookies (# @no-cookie-jar)'),
       );
     }
+  }
+
+  /** A checkbox for a `# @flag` metadata line. */
+  function flag(key, label) {
+    return h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!(S.request.meta && key in S.request.meta), onchange: (e) => {
+      S.request.meta = { ...(S.request.meta || {}) };
+      if (e.target.checked) S.request.meta[key] = ''; else delete S.request.meta[key];
+      changed(); } }), label);
   }
 
   const ASSERT_EXAMPLES = ['status == 200', 'time < 1000', 'header content-type contains json', '$.id exists', '$.items.length > 0', 'body contains "ok"'];
@@ -425,6 +431,8 @@
     }
     const ct = (r.headers.find(([k]) => k.toLowerCase() === 'content-type') || [, ''])[1];
     const tests = S.assertions || [];
+    const setCookies = r.headers.filter(([k]) => k.toLowerCase() === 'set-cookie').map(([, v]) => parseSetCookie(v));
+    if (S.resTab === 'cookies' && !setCookies.length && !r.sentCookie) S.resTab = 'body';
     const failed = tests.filter((t) => !t.passed).length;
     const cls = r.status >= 500 ? 's5' : r.status >= 400 ? 's4' : r.status >= 300 ? 's3' : 's2';
     res.append(
@@ -437,7 +445,7 @@
         h('span', { class: 'spacer' }),
         h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'openBody', body: r.bodyEncoding === 'utf8' ? prettyText(r.body, ct) : r.body, contentType: ct }) }, 'Open in editor'),
         h('button', { class: 'link', onclick: () => navigator.clipboard.writeText(r.body) }, 'Copy')),
-      h('div', { class: 'tabs' }, ...[['body', 'Body'], ['headers', 'Headers (' + r.headers.length + ')'], ...(tests.length ? [['tests', 'Tests (' + (tests.length - failed) + '/' + tests.length + ')']] : []), ['request', 'Sent request']].map(([id, label]) =>
+      h('div', { class: 'tabs' }, ...[['body', 'Body'], ['headers', 'Headers (' + r.headers.length + ')'], ...(setCookies.length || r.sentCookie ? [['cookies', 'Cookies (' + setCookies.length + ')']] : []), ...(tests.length ? [['tests', 'Tests (' + (tests.length - failed) + '/' + tests.length + ')']] : []), ['request', 'Sent request']].map(([id, label]) =>
         h('button', { class: 'tab' + (S.resTab === id ? ' active' : ''), onclick: () => { S.resTab = id; persist(); renderResponse(); } }, label))),
     );
     const pane = h('div', { class: 'pane resp' });
@@ -446,6 +454,17 @@
       pane.append(h('table', { class: 'tests' }, ...tests.map((t) => h('tr', { class: t.passed ? 'pass' : 'fail' },
         h('td', { class: 'mark' }, t.passed ? '✓' : '✗'), h('td', { class: 'code' }, t.source),
         h('td', {}, t.passed ? (t.actual !== undefined ? 'actual: ' + t.actual : 'passed') : t.message)))));
+    } else if (S.resTab === 'cookies') {
+      if (setCookies.length) {
+        pane.append(h('table', { class: 'hdrs cookies' },
+          h('tr', {}, ...['Name', 'Value', 'Domain', 'Path', 'Expires', ''].map((x) => h('th', {}, x))),
+          ...setCookies.map((c) => h('tr', { class: c.deleted ? 'deleted' : '' },
+            h('td', {}, c.name), h('td', { class: 'code' }, c.value), h('td', {}, c.attrs.domain || '(this host)'), h('td', {}, c.attrs.path || '(default)'),
+            h('td', {}, c.deleted ? 'deleted' : c.attrs['max-age'] ? 'in ' + fmtSeconds(Number(c.attrs['max-age'])) : c.attrs.expires || 'session'),
+            h('td', {}, [c.attrs.secure !== undefined ? 'Secure' : '', c.attrs.httponly !== undefined ? 'HttpOnly' : '', c.attrs.samesite ? 'SameSite=' + c.attrs.samesite : ''].filter(Boolean).join(' '))))));
+      } else pane.append(h('p', { class: 'hint' }, 'This response set no cookies.'));
+      if (r.sentCookie) pane.append(h('p', { class: 'hint' }, 'Sent with this request (from the cookie jar and the Cookie header):'), h('pre', { class: 'code' }, r.sentCookie));
+      pane.append(h('p', { class: 'hint' }, 'Cookies are remembered per workspace and sent with later requests to the same site. Plainwire: Manage Cookies… lists or deletes them; # @no-cookie-jar above a request skips the jar.'));
     } else if (S.resTab === 'headers') {
       pane.append(h('table', { class: 'hdrs' }, ...r.headers.map(([k, v]) => h('tr', {}, h('td', {}, k), h('td', {}, v)))));
     } else if (S.resTab === 'request') {
@@ -475,6 +494,25 @@
   }
 
   /** Server-sent events as a table: time, event type, id and data (JSON shown compact, text as is). */
+  function fmtSeconds(n) {
+    return n < 120 ? n + ' s' : n < 7200 ? Math.round(n / 60) + ' min' : n < 172800 ? Math.round(n / 3600) + ' h' : Math.round(n / 86400) + ' days';
+  }
+
+  /** A Set-Cookie header for display: name, value, lower-case attributes, deleted when Max-Age <= 0 or Expires is past. */
+  function parseSetCookie(v) {
+    const parts = v.split(';');
+    const first = parts.shift() || '';
+    const i = first.indexOf('=');
+    const attrs = {};
+    for (const p of parts) {
+      const j = p.indexOf('=');
+      attrs[(j < 0 ? p : p.slice(0, j)).trim().toLowerCase()] = j < 0 ? '' : p.slice(j + 1).trim();
+    }
+    const exp = attrs.expires ? Date.parse(attrs.expires) : NaN;
+    const deleted = attrs['max-age'] !== undefined ? Number(attrs['max-age']) <= 0 : !isNaN(exp) && exp < Date.now();
+    return { name: (i < 0 ? first : first.slice(0, i)).trim(), value: i < 0 ? '' : first.slice(i + 1).trim(), attrs, deleted };
+  }
+
   function eventsTable(events) {
     return h('table', { class: 'events' },
       h('tr', {}, h('th', {}, '#'), h('th', {}, 'ms'), h('th', {}, 'event'), h('th', {}, 'id'), h('th', {}, 'data')),

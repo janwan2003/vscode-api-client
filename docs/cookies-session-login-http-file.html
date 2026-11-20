@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cookies and session logins in .http files (VS Code API client) | Plainwire</title>
+<meta name="description" content="Log in once and the session cookie is sent with every later request: a cookie jar for .http files in VS Code, Cursor and VSCodium, and in the CLI for CI. See, check and clear cookies. Free, no login.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/cookies-session-login-http-file.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Cookies and session logins in .http files">
+<meta property="og:description" content="A cookie jar for .http files: log in once, and later requests send the session cookie. In VS Code and in CI.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/cookies-session-login-http-file.html">
+<meta property="og:image" content="https://janwan2003.github.io/vscode-api-client/cookies.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+    <h1>Cookies and session logins in <code>.http</code> files</h1>
+    <p>Many web apps and APIs log you in with a cookie, not a token: <code>POST /login</code> answers with <code>Set-Cookie: session=…</code>, often with a redirect, and every later request has to send that cookie back. Browsers do it without asking. Since 0.9, Plainwire does too: it keeps a <strong>cookie jar</strong>, so you send the login request once and the requests after it are logged in. Django, Rails, Laravel, Express sessions and CSRF cookies all work this way.</p>
+
+    <figure>
+      <img src="cookies.png" width="1100" height="420" alt="Plainwire's response view after a login: 200 OK, 2 checks passed, and a Cookies tab listing the session and csrftoken cookies the response set, with domain, path, expiry and flags, plus the Cookie header sent with the request.">
+      <figcaption class="small">The <strong>Cookies</strong> tab: what this response set (a deleted cookie is struck through) and the <code>Cookie</code> header that was sent.</figcaption>
+    </figure>
+
+    <h2>Try it</h2>
+    <p>httpbin.org has endpoints that set and delete cookies and echo back the ones you send. Put this in <code>cookies.http</code> and press <strong>Send</strong> on each request, or <strong>Run all</strong>:</p>
+<pre>### Log in (sets a cookie, then redirects)
+# @assert status == 200
+# @assert $.cookies.session == abc123
+GET https://httpbin.org/cookies/set?session=abc123
+
+### A later request sends it
+# @assert $.cookies.session == abc123
+GET https://httpbin.org/cookies
+
+### Without the jar
+# @no-cookie-jar
+# @assert $.cookies.session !exists
+GET https://httpbin.org/cookies
+
+### Log out (deletes it)
+GET https://httpbin.org/cookies/delete?session
+
+### Gone
+# @assert $.cookies.session !exists
+GET https://httpbin.org/cookies</pre>
+    <p>The first request gets a <code>Set-Cookie</code> together with a <code>302</code> redirect. Plainwire stores the cookie <em>before</em> following the redirect, so the page it lands on already sees it, as in a browser. The same file run in a terminal with the free CLI:</p>
+<pre>$ plainwire run cookies.http
+  ✓ GET Log in (sets a cookie, then redirects) 200 · 778 ms · 2/2 checks
+  ✓ GET A later request sends it 200 · 338 ms · 1/1 checks
+  ✓ GET Without the jar 200 · 335 ms · 1/1 checks
+  ✓ GET Log out (deletes it) 200 · 690 ms
+  ✓ GET Gone 200 · 355 ms · 1/1 checks
+
+5 passed, 0 failed (5 requests, 2504 ms)</pre>
+    <p>That is a real run of the file above (20 November 2026). With <code>--no-cookie-jar</code> the same file gives 3 passed, 2 failed, which is what a client without a cookie jar does.</p>
+
+    <h2>A typical login</h2>
+<pre>### Log in
+# @name login
+# @assert status == 200
+# @assert cookie sessionid exists
+POST {{baseUrl}}/accounts/login/
+Content-Type: application/x-www-form-urlencoded
+
+username={{user}}&amp;password={{$dotenv APP_PASSWORD}}
+
+### My orders (sends the session cookie)
+# @assert status == 200
+GET {{baseUrl}}/api/orders/</pre>
+    <p><code># @assert cookie &lt;name&gt;</code> checks a cookie that <em>this response</em> sets; the usual operators work (<code>exists</code>, <code>==</code>, <code>startsWith</code>, <code>matches</code>&hellip;, see <a href="api-tests-in-http-files.html">tests in .http files</a>). If a later request needs the cookie&rsquo;s value somewhere else, for example a CSRF token in a header, read it from the login response: <code>X-CSRFToken: {{login.response.headers.X-CSRFToken}}</code> or from the body with <code>{{login.response.body.$.csrf}}</code>.</p>
+
+    <h2>How the jar works</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Rule</th><th scope="col">What Plainwire does</th></tr></thead>
+        <tbody>
+          <tr><td>Which requests get a cookie</td><td>The ones whose host and path match it, as in a browser (RFC 6265): a cookie without <code>Domain</code> goes back to the same host only; <code>Domain=example.com</code> also covers <code>api.example.com</code>; <code>Path=/app</code> covers <code>/app</code> and below.</td></tr>
+          <tr><td><code>Secure</code> cookies</td><td>Sent over <code>https://</code>, and also to <code>localhost</code> and <code>127.0.0.1</code> over plain http, so local development works.</td></tr>
+          <tr><td>Expiry</td><td><code>Max-Age</code> and <code>Expires</code> are honoured; <code>Max-Age=0</code> or a past date deletes the cookie. Session cookies stay until you clear them.</td></tr>
+          <tr><td>Redirects</td><td>Cookies set on every hop are stored, and each hop sends the cookies that match it.</td></tr>
+          <tr><td>Your own <code>Cookie:</code> header</td><td>Sent as you wrote it. Jar cookies are added unless your header already has a cookie of that name, so yours wins.</td></tr>
+          <tr><td>Where it is kept</td><td>Extension: one jar per workspace, saved in VS Code&rsquo;s workspace storage, so a login survives a window reload. CLI: one jar per <code>plainwire run</code>, in memory only.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Turning it off, seeing and clearing cookies</h2>
+    <ul>
+      <li><code># @no-cookie-jar</code> above a request: that request neither sends nor stores jar cookies. Same spelling as REST Client and the JetBrains HTTP Client, so existing files keep working. It is also a checkbox on the request editor&rsquo;s <strong>Info</strong> tab.</li>
+      <li>Setting <code>"plainwire.rememberCookies": false</code> turns the jar off in the extension.</li>
+      <li><code>plainwire run --no-cookie-jar</code> turns it off in the CLI.</li>
+      <li><strong>Plainwire: Manage Cookies…</strong> (Command Palette) lists every stored cookie with its domain, path and expiry; pick one to delete it, or clear them all. <strong>Plainwire: Clear Cookies</strong> clears them in one step.</li>
+      <li>The response view&rsquo;s <strong>Cookies</strong> tab shows what that response set and the <code>Cookie</code> header that was sent.</li>
+    </ul>
+
+    <h2>Compared with other clients</h2>
+    <p>REST Client and the JetBrains HTTP Client also keep cookies between requests and use <code># @no-cookie-jar</code>; Plainwire follows them, so a file moves between the three without edits. Plainwire adds the Cookies tab, the <code>cookie</code> check, and the same jar in the <a href="run-http-files-in-ci.html">CLI and GitHub Action</a>, where a login-then-test file runs unchanged. Copy as cURL and the other <a href="http-file-to-curl.html">code snippets</a> do not include jar cookies, so the snippet is the request exactly as written.</p>
+
+    <h2>FAQ</h2>
+    <details><summary>Does it work in Cursor, Windsurf and VSCodium?</summary><p>Yes, it is the same extension. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a>; see <a href="api-client-for-cursor-vscodium.html">installing in Cursor and VSCodium</a>.</p></details>
+    <details><summary>Are my cookies sent anywhere else?</summary><p>No. They are stored locally in the workspace and sent only to the sites that set them, with your own requests. There is no account and no telemetry; the source is on <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a> (MIT).</p></details>
+    <details><summary>Can the CLI keep cookies between two separate runs?</summary><p>Not yet: each <code>plainwire run</code> starts with an empty jar. Put the login and the requests that need it in the same run (one file, or several files in one command).</p></details>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

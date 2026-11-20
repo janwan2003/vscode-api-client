@@ -6,6 +6,7 @@ import type { HttpRequest } from '../core/model.ts';
 import { RequestCodeLens } from './codelens.ts';
 import { ImportLinkProvider } from './links.ts';
 import { CodeCopier } from './copyCode.ts';
+import { CookieStore } from './cookies.ts';
 import { EnvironmentManager } from './environments.ts';
 import { History, type HistoryEntry } from './history.ts';
 import { importFromFiles, importFromUrl, importOpenApi, writeCollections } from './importer.ts';
@@ -23,7 +24,8 @@ interface At {
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
   const envs = new EnvironmentManager(context.workspaceState);
   const history = new History(context.workspaceState);
-  const runner = new Runner(envs, history);
+  const cookies = new CookieStore(context.workspaceState);
+  const runner = new Runner(envs, history, cookies);
   const copier = new CodeCopier(runner, context.globalState);
   const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier };
   const output = vscode.window.createOutputChannel('Plainwire');
@@ -96,6 +98,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       RequestPanel.show(deps, e.request, { kind: 'scratch' }, e.response);
       void uri;
     }),
+    vscode.commands.registerCommand('plainwire.manageCookies', guard(() => cookies.manage())),
+    vscode.commands.registerCommand('plainwire.clearCookies', guard(async () => {
+      const n = cookies.jar.size;
+      await cookies.clear();
+      void vscode.window.showInformationMessage(`Plainwire: ${n} cookie${n === 1 ? '' : 's'} cleared.`);
+    })),
     vscode.commands.registerCommand('plainwire.clearHistory', guard(async () => {
       const ok = await vscode.window.showWarningMessage('Clear Plainwire request history for this workspace?', { modal: true }, 'Clear');
       if (ok) await history.clear();
@@ -147,6 +155,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     deps,
     importUrlForTest: (url: string) => importFromUrl(url, output),
     historyForTest: history,
+    cookiesForTest: cookies,
     parseHttpFileForTest: parseHttpFile,
     importTextForTest: (text: string, name: string, out: vscode.OutputChannel) => writeCollections(detectAndImport(text, name), out),
   };

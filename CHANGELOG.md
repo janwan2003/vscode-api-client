@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 (2026-11-20)
+
+- **Cookie jar**: cookies a response sets (`Set-Cookie`) are kept and sent with later requests to the same site, like a browser, so a login that sets a session cookie works for the requests after it. Cookies set on a redirect hop are stored before the redirect is followed (login → 302 → dashboard works). Domain, path, `Secure` (also allowed for localhost over http), `Max-Age`/`Expires` and deletion follow RFC 6265; `__Secure-`/`__Host-` prefixes are enforced. A `Cookie:` header you write yourself is sent as written and wins over a jar cookie of the same name. In 0.8.0 no cookie was ever carried from one request to the next.
+- One jar per workspace, saved in workspace storage (survives a reload). **Plainwire: Manage Cookies…** lists them (pick one to delete, or clear all); **Plainwire: Clear Cookies**. Setting `plainwire.rememberCookies` (default on).
+- `# @no-cookie-jar` above a request (same spelling as REST Client and the JetBrains HTTP Client; also a checkbox on the Info tab): the request neither sends nor stores jar cookies.
+- Response view: a **Cookies** tab with the cookies the response set (domain, path, expiry, flags; deletions struck through) and the `Cookie` header that was sent.
+- Checks: `# @assert cookie <name> …` on a cookie this response sets, e.g. `cookie sessionid exists`.
+- CLI: one jar per `plainwire run`; `--no-cookie-jar` turns it off. Checked against httpbin.org's cookie endpoints: 5/5 with the jar, 3 passed / 2 failed without.
+
 ## 0.8.0 (2026-11-20)
 
 - **Import OpenAPI / Swagger from a URL**: the *Import OpenAPI / Swagger…* command now asks *From a file…* or *From a URL…*, and `plainwire import` accepts `https://…` URLs (redirects followed, proxy and `--insecure` honoured). A relative server URL such as `/api/v3` now resolves against the definition's URL, as the OpenAPI specification says (Swagger 2.0: a missing `host` is the host serving the definition), instead of falling back to `http://localhost`. Checked with the public Petstore 3 definition: imported from its URL, two requests then passed against the live server without setting `baseUrl`.

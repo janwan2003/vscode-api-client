@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy policy | Plainwire</title>
-<meta name="description" content="Plainwire collects nothing: no telemetry, no account, no analytics. History stays in local VS Code storage and requests go only to the URLs you send them to.">
+<meta name="description" content="Plainwire collects nothing: no telemetry, no account, no analytics. History and cookies stay in local VS Code storage and requests go only to the URLs you send them to.">
 <link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/privacy.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Plainwire">
@@ -43,6 +43,7 @@
       <li><strong>No network calls of its own.</strong> The only network traffic Plainwire creates is the HTTP requests you send, and they go only to the URLs in those requests. There is no update check, no ping, and no proxy or relay operated by us in between.</li>
       <li><strong>Your files stay yours.</strong> Requests are saved as <code>.http</code> files in your workspace, where you put them. Imports (Thunder Client, Postman, cURL) are converted locally from the file or text you choose and are not uploaded anywhere.</li>
       <li><strong>History is stored locally.</strong> The list of requests you have sent is kept in VS Code&rsquo;s storage for the extension on your own computer. It is not synced or uploaded by Plainwire. It may contain URLs, headers and bodies you sent, so treat it like any other local data on your machine.</li>
+      <li><strong>Cookies are stored locally.</strong> Cookies that the servers you call set are kept in the same local VS Code storage, per workspace, and sent back only to those servers with your own requests. <em>Plainwire: Clear Cookies</em> deletes them; the <code>plainwire.rememberCookies</code> setting turns this off.</li>
       <li><strong>Secrets.</strong> Values in <code>http-client.private.env.json</code> or <code>.env</code> files are read locally when a request uses them and sent only as part of that request. Keep those files out of git (add them to <code>.gitignore</code>).</li>
     </ul>
 

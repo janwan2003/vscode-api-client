@@ -4,6 +4,7 @@ import type { SseEvent } from '../core/sse.ts';
 import { Executor, type ExecResult, type PreviewResult } from '../core/exec.ts';
 import type { SendOptions } from '../core/send.ts';
 import { parseDotenv } from '../core/variables.ts';
+import type { CookieStore } from './cookies.ts';
 import type { EnvironmentManager } from './environments.ts';
 import type { History } from './history.ts';
 
@@ -18,7 +19,7 @@ export type RunResult = ExecResult;
 export class Runner {
   private readonly exec: Executor;
 
-  constructor(envs: EnvironmentManager, history: History) {
+  constructor(envs: EnvironmentManager, history: History, cookies?: CookieStore) {
     this.exec = new Executor({
       readHttpFile: (file) => readText(vscode.Uri.parse(file)),
       resolveImport: (p, file) => resolveBodyPath(p, vscode.Uri.parse(file)).toString(),
@@ -26,7 +27,13 @@ export class Runner {
       dotenv: (file) => loadDotenv(file ? vscode.Uri.parse(file) : undefined),
       environment: () => envs.variables(),
       sendOptions: (req) => vscodeSendOptions(req),
-      onExchange: ({ request, file, response, error }) => history.add({ request: stripPosition(request), response, error, file }),
+      get cookieJar() {
+        return cookies?.enabled ? cookies.jar : undefined;
+      },
+      onExchange: async ({ request, file, response, error }) => {
+        if (cookies?.enabled) await cookies.save();
+        await history.add({ request: stripPosition(request), response, error, file });
+      },
     });
   }
 

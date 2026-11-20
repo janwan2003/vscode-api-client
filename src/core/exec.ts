@@ -1,4 +1,5 @@
 import { runAssertions, type AssertionResult } from './assert.ts';
+import type { CookieJar } from './cookies.ts';
 import { isGraphqlRequest, toGraphqlHttp } from './graphql.ts';
 import { parseHttpFile } from './httpFile.ts';
 import type { FileVariable, HttpFile, HttpRequest, HttpResponse, ParsedRequest } from './model.ts';
@@ -29,6 +30,11 @@ export interface ExecHost {
   environment(): Record<string, string>;
   /** Timeout, TLS, proxy and redirect settings for this request (`req.meta` holds its `# @flags`). */
   sendOptions(req: HttpRequest): SendOptions;
+  /**
+   * Cookie jar shared by every request this executor sends (chained ones included). A request with
+   * `# @no-cookie-jar` neither sends nor stores cookies. Without a jar, cookies are not remembered.
+   */
+  cookieJar?: CookieJar;
   /** Called after every exchange, including chained dependencies (history, logging). */
   onExchange?(e: { request: HttpRequest; file?: string; response?: HttpResponse; error?: string }): void | Promise<void>;
 }
@@ -135,7 +141,8 @@ export class Executor {
     }
 
     try {
-      const response = await sendRequest(resolved, { ...this.host.sendOptions(req), ...requestSendOptions(req), signal, bodyOverride, onEvent: opts.onEvent });
+      const cookieJar = req.meta?.['no-cookie-jar'] === undefined ? this.host.cookieJar : undefined;
+      const response = await sendRequest(resolved, { ...this.host.sendOptions(req), ...requestSendOptions(req), signal, bodyOverride, onEvent: opts.onEvent, cookieJar });
       if (req.name) {
         named.set(req.name, {
           request: { url: resolved.url, headers: resolved.headers.map((h) => [h.name, h.value]), body: resolved.body },

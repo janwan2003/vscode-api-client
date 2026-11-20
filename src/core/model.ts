@@ -101,4 +101,6 @@ export interface HttpResponse {
    * out, or `# @max-events` was reached. A stream that ends any of these ways is still a response.
    */
   streamEnd?: 'closed' | 'stopped' | 'timeout' | 'max-events';
+  /** The `Cookie` header sent on the last hop when a cookie jar was used (the request's own cookies + the jar's). */
+  sentCookie?: string;
 }

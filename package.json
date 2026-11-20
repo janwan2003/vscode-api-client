@@ -2,7 +2,7 @@
   "name": "plainwire",
   "displayName": "Plainwire — API Client (no login, plain .http files)",
   "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible), with GraphQL, tests, a collection runner, copy as code and a free CLI for CI. One-click import from Thunder Client, Postman and cURL.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "plainbyte",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -99,6 +99,16 @@
         "title": "Clear History",
         "category": "Plainwire",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "plainwire.manageCookies",
+        "title": "Manage Cookies…",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.clearCookies",
+        "title": "Clear Cookies",
+        "category": "Plainwire"
       },
       {
         "command": "plainwire.sendAtCursor",
@@ -382,6 +392,11 @@
           "type": "boolean",
           "default": true,
           "description": "Follow HTTP redirects. Per request: add `# @no-redirect`."
+        },
+        "plainwire.rememberCookies": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Keep cookies that responses set (`Set-Cookie`) and send them with later requests to the same site, like a browser, so a login's session cookie works for the requests after it. Stored per workspace; see **Plainwire: Manage Cookies…**. Add `# @no-cookie-jar` above a request to send it without the jar."
         },
         "plainwire.codeLens": {
           "type": "boolean",

@@ -30,6 +30,15 @@ exports.run = async function run() {
       }
       if (req.url === '/spec.json') return res.end(JSON.stringify({ openapi: '3.0.3', info: { title: 'Url API', version: '1' }, servers: [{ url: 'http://127.0.0.1:1' }], paths: { '/things': { get: { tags: ['things'], operationId: 'listThings', summary: 'List things', responses: { 200: { description: 'ok' } } } } } }));
       if (req.url === '/login') return res.end(JSON.stringify({ token: 'tok-123' }));
+      if (req.url === '/session-login') {
+        res.writeHead(302, { location: '/session', 'set-cookie': 'sid=e2e-sid; Path=/; HttpOnly' });
+        return res.end('{}');
+      }
+      if (req.url === '/session') {
+        const ok = /(?:^|; )sid=e2e-sid(?:;|$)/.test(req.headers.cookie || '');
+        res.statusCode = ok ? 200 : 401;
+        return res.end(JSON.stringify({ ok, cookie: req.headers.cookie || null }));
+      }
       res.end(JSON.stringify({ ok: true, auth: req.headers.authorization || null }));
     });
   });
@@ -226,6 +235,34 @@ exports.run = async function run() {
     assert.match(fs.readFileSync(files[0].fsPath, 'utf8'), /# @name listThings\n(?:#.*\n)*GET \{\{baseUrl\}\}\/things/);
     const all = await vscode.commands.getCommands(true);
     assert.ok(all.includes('plainwire.importOpenApi'));
+  });
+
+  await check('cookies: a login\'s session cookie (set on a redirect) is sent by later requests, kept per workspace, off by setting; Clear Cookies', async () => {
+    const all = await vscode.commands.getCommands(true);
+    for (const c of ['plainwire.manageCookies', 'plainwire.clearCookies']) assert.ok(all.includes(c), c);
+    const f = vscode.Uri.joinPath(ws, 'session.http');
+    fs.writeFileSync(f.fsPath, '### Log in\n# @assert status == 200\nPOST {{host}}/session-login\n\n### Session\n# @assert $.ok == true\nGET {{host}}/session\n\n### No jar\n# @no-cookie-jar\n# @assert status == 401\nGET {{host}}/session\n');
+    const summary = await vscode.commands.executeCommand('plainwire.runFile', f);
+    const { timeMs, ...rest } = summary;
+    assert.deepEqual(rest, { total: 3, passed: 3, failed: 0, errors: 0, skipped: 0 });
+    const jar = api.cookiesForTest.jar;
+    assert.equal(jar.cookieHeader(`http://127.0.0.1:${port}/x`), 'sid=e2e-sid');
+    // Saved in workspace state, so it survives a window reload.
+    const saved = api.cookiesForTest.state.get('plainwire.cookies');
+    assert.deepEqual(saved.map((c) => `${c.name}=${c.value} ${c.domain}${c.path}`), ['sid=e2e-sid 127.0.0.1/']);
+    // plainwire.rememberCookies = false: nothing sent.
+    const cfg = vscode.workspace.getConfiguration('plainwire');
+    await cfg.update('rememberCookies', false, vscode.ConfigurationTarget.Workspace);
+    const reqs = api.parseHttpFileForTest(fs.readFileSync(f.fsPath, 'utf8')).requests;
+    const off = await api.deps.runner.run(reqs[1], { uri: f });
+    assert.equal(off.response.status, 401);
+    await cfg.update('rememberCookies', undefined, vscode.ConfigurationTarget.Workspace);
+    const on = await api.deps.runner.run(reqs[1], { uri: f });
+    assert.equal(on.response.status, 200);
+    assert.equal(on.response.sentCookie, 'sid=e2e-sid');
+    await vscode.commands.executeCommand('plainwire.clearCookies');
+    assert.equal(jar.size, 0);
+    assert.equal((await api.deps.runner.run(reqs[1], { uri: f })).response.status, 401);
   });
 
   await check('CodeLens offers "Run all" on files with several requests', async () => {

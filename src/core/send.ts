@@ -4,6 +4,7 @@ import { isIP, type Socket } from 'node:net';
 import * as tls from 'node:tls';
 import * as zlib from 'node:zlib';
 import type { HttpRequest, HttpResponse } from './model.ts';
+import { mergeCookieHeader, type CookieJar } from './cookies.ts';
 import { isEventStream, SseParser, type SseEvent } from './sse.ts';
 import { ensureScheme, prepareBody } from './wire.ts';
 
@@ -33,6 +34,11 @@ export interface SendOptions {
   maxEvents?: number;
   /** For a `text/event-stream` response: called for each event as it arrives. */
   onEvent?: (event: SseEvent) => void;
+  /**
+   * Cookies: `Set-Cookie` of every hop (redirects included) is stored here, and matching cookies
+   * are added to each hop's `Cookie` header (a cookie the request sets itself is not overridden).
+   */
+  cookieJar?: CookieJar;
 }
 
 const TEXT_TYPES = /^(text\/|application\/(json|xml|javascript|ecmascript|x-www-form-urlencoded|graphql|ld\+json|problem\+json|problem\+xml|soap\+xml|xhtml\+xml|yaml|x-yaml|x-ndjson|.*\+json|.*\+xml))/i;
@@ -62,7 +68,13 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
     let url = new URL(ensureScheme(req.url));
     let method = req.method.toUpperCase();
     let headers: Hdr[] = [];
+    // The request's own Cookie header(s); jar cookies are merged in per hop.
+    let ownCookie: string | undefined;
     for (const h of req.headers) {
+      if (!h.disabled && opts.cookieJar && /^cookie$/i.test(h.name)) {
+        ownCookie = ownCookie ? `${ownCookie}; ${h.value}` : h.value;
+        continue;
+      }
       if (h.disabled || !h.name) continue;
       // Computed per hop (Content-Length) or managed by node (Connection).
       if (/^(content-length|connection)$/i.test(h.name)) continue;
@@ -84,9 +96,17 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
     let body: Uint8Array | undefined = typeof text === 'string' ? Buffer.from(text, 'utf8') : text;
 
     const maxRedirects = opts.maxRedirects ?? 10;
+    let sentCookie: string | undefined;
     for (let hop = 0; ; hop++) {
-      const res = await exchange(url, method, headers, body, opts, signal);
+      let hopHeaders = headers;
+      if (opts.cookieJar) {
+        sentCookie = mergeCookieHeader(ownCookie, opts.cookieJar.cookieHeader(url));
+        if (sentCookie) hopHeaders = [...headers, { name: 'Cookie', value: sentCookie }];
+      }
+      const res = await exchange(url, method, hopHeaders, body, opts, signal);
       const status = res.statusCode ?? 0;
+      const setCookie = res.headers['set-cookie'];
+      if (opts.cookieJar && setCookie?.length) opts.cookieJar.setFromResponse(url, setCookie);
       const location = res.headers.location;
       if (opts.followRedirects !== false && [301, 302, 303, 307, 308].includes(status) && location) {
         res.destroy();
@@ -98,7 +118,10 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
           body = undefined;
           headers = headers.filter((h) => !/^(content-type|content-encoding|transfer-encoding)$/i.test(h.name));
         }
-        if (next.host !== url.host) headers = headers.filter((h) => !/^(authorization|host)$/i.test(h.name));
+        if (next.host !== url.host) {
+          headers = headers.filter((h) => !/^(authorization|host)$/i.test(h.name));
+          ownCookie = undefined; // like Authorization: the request's own cookies are for its host only
+        }
         url = next;
         continue;
       }
@@ -107,7 +130,7 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
       for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) hdrs.push([res.rawHeaders[i], res.rawHeaders[i + 1]]);
       if (isEventStream(res.headers['content-type']) && method !== 'HEAD') {
         const s = await readEventStream(res, signal, started, opts);
-        return { status, statusText: res.statusMessage ?? '', headers: hdrs, body: s.text, bodyEncoding: 'utf8', size: s.size, timeMs: Math.round(performance.now() - started), url: url.href, events: s.events, streamEnd: s.end };
+        return { status, statusText: res.statusMessage ?? '', headers: hdrs, body: s.text, bodyEncoding: 'utf8', size: s.size, timeMs: Math.round(performance.now() - started), url: url.href, events: s.events, streamEnd: s.end, ...(sentCookie ? { sentCookie } : {}) };
       }
 
       const raw = await readBody(res);
@@ -132,6 +155,7 @@ export async function sendRequest(req: HttpRequest, opts: SendOptions = {}): Pro
         size: raw.byteLength,
         timeMs,
         url: url.href,
+        ...(sentCookie ? { sentCookie } : {}),
       };
     }
   } catch (err) {

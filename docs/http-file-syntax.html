@@ -213,9 +213,10 @@ Authorization: Bearer {{login.response.body.$.token}}</pre>
 <pre>### Slow report
 # @timeout 2m
 # @no-redirect
+# @no-cookie-jar
 # @insecure
 GET https://localhost:8443/report</pre>
-    <p><code># @timeout</code> takes milliseconds or <code>s</code>/<code>m</code> (<code>5000</code>, <code>5s</code>, <code>2m</code>). <code># @no-redirect</code> returns a 3xx as it is, and <code># @insecure</code> accepts a self-signed certificate.</p>
+    <p><code># @timeout</code> takes milliseconds or <code>s</code>/<code>m</code> (<code>5000</code>, <code>5s</code>, <code>2m</code>). <code># @no-redirect</code> returns a 3xx as it is, <code># @no-cookie-jar</code> sends the request without the <a href="cookies-session-login-http-file.html">cookie jar</a> (cookies set by earlier responses are otherwise sent, like in a browser), and <code># @insecure</code> accepts a self-signed certificate.</p>
 
     <h2 id="sse">Server-sent events</h2>
     <p>A response with <code>Content-Type: text/event-stream</code> is shown event by event while it arrives. It ends when the server closes it, when you press Stop, at the timeout, or after <code># @max-events</code> events; all four keep what arrived. See <a href="server-sent-events-vscode.html">server-sent events in VS Code</a>.</p>
