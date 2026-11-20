@@ -295,3 +295,32 @@ test('run: a server-sent events request with # @max-events and events checks', a
     sse.close();
   }
 });
+
+test('import: an OpenAPI definition from a URL (redirect followed); a 404 is a clear error', async () => {
+  const spec = readFileSync(fileURLToPath(new URL('./fixtures/openapi/shop-3.1.json', import.meta.url)), 'utf8');
+  const srv = createServer((req, res) => {
+    if (req.url === '/docs/spec') {
+      res.writeHead(302, { location: '/v3/shop.json' });
+      return res.end();
+    }
+    if (req.url === '/v3/shop.json') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(spec);
+    }
+    res.writeHead(404);
+    res.end('nope');
+  });
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  const at = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+  try {
+    const r = await runCli(['import', `${at}/docs/spec`, '--out', 'from-url']);
+    assert.equal(r.code, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /Imported \d+ requests? into \d+ files?/);
+    assert.ok(existsSync(join(dir, 'from-url')));
+    const bad = await runCli(['import', `${at}/missing.json`]);
+    assert.equal(bad.code, 2);
+    assert.match(bad.stderr, /GET http:\/\/127\.0\.0\.1:\d+\/missing\.json returned 404/);
+  } finally {
+    srv.close();
+  }
+});

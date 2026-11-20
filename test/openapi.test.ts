@@ -166,3 +166,20 @@ test('operations in other files: method + path kept, one summary warning; <param
   assert.equal(c.warnings.length, 1);
   assert.match(c.warnings[0], /^1 operation\(s\) are defined in other files.*bundle/i);
 });
+
+test('relative server URLs resolve against the URL the definition came from', () => {
+  const v3 = { openapi: '3.0.3', info: { title: 'Rel', version: '1' }, servers: [{ url: '/api/v3' }], paths: { '/pets': { get: { responses: { 200: { description: 'ok' } } } } } };
+  const fromUrl = importOpenApi(v3, { sourceUrl: 'https://pets.example.com/api/v3/openapi.json' });
+  assert.equal(fromUrl.environments['$shared'].baseUrl, 'https://pets.example.com/api/v3');
+  assert.ok(!fromUrl.warnings.some((w) => /relative/.test(w)), fromUrl.warnings.join('\n'));
+  // A server URL without a leading slash is relative to the definition's folder.
+  const dir = importOpenApi({ ...v3, servers: [{ url: 'v2' }] }, { sourceUrl: 'https://x.example.com/specs/openapi.yaml' });
+  assert.equal(dir.environments['$shared'].baseUrl, 'https://x.example.com/specs/v2');
+  // Swagger 2.0 without host: the host that serves the definition.
+  const v2 = importOpenApi({ swagger: '2.0', info: { title: 'Old', version: '1' }, basePath: '/v2', paths: { '/a': { get: { responses: { 200: { description: 'ok' } } } } } }, { sourceUrl: 'http://old.example.com:8080/swagger.json' });
+  assert.equal(v2.environments['$shared'].baseUrl, 'http://old.example.com:8080/v2');
+  // From a file there is nothing to resolve against: localhost and a warning, as before.
+  const local = importOpenApi(v3);
+  assert.equal(local.environments['$shared'].baseUrl, 'http://localhost/api/v3');
+  assert.ok(local.warnings.some((w) => /is relative/.test(w)));
+});

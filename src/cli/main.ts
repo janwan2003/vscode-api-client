@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFil
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Executor, requestLabel, rowState, summarize, markdownReport } from '../core/exec.ts';
+import { fetchText } from '../core/fetchText.ts';
 import { parseHttpFile } from '../core/httpFile.ts';
 import { attachEnvironments, collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
 import { importThunderWorkspace } from '../core/importers/thunder.ts';
@@ -19,9 +20,10 @@ const HELP = `plainwire ${VERSION}: run and test .http files from the command li
 
 Usage:
   plainwire run [files, folders or "globs"...] [options]   Send every request in order and check its # @assert lines
-  plainwire import <export.json | openapi.yaml | thunder-tests/>... [--out dir]
+  plainwire import <export.json | openapi.yaml | https://… | thunder-tests/>... [--out dir]
                                                           Convert Thunder Client / Postman exports, OpenAPI / Swagger
-                                                          definitions or a curl command file to .http files
+                                                          definitions (a file or a URL) or a curl command file to
+                                                          .http files
 
 Run options:
   -e, --env <name>          Environment from http-client.env.json / http-client.private.env.json / .vscode/settings.json
@@ -48,6 +50,7 @@ Examples:
   plainwire run api/ --env staging --junit results.xml
   plainwire run "tests/**/*.http" --var token=$API_TOKEN --bail
   plainwire import postman_collection.json --out http/
+  plainwire import https://petstore3.swagger.io/api/v3/openapi.json --out petstore/
 `;
 
 class UsageError extends Error {}
@@ -267,12 +270,19 @@ async function run(args: string[]): Promise<number> {
 }
 
 async function importCmd(args: string[]): Promise<number> {
-  const { values: o, positionals } = parseArgs({ args, allowPositionals: true, options: { out: { type: 'string', short: 'o' }, force: { type: 'boolean' } } });
-  if (!positionals.length) throw new UsageError('import needs at least one file: a Postman or Thunder Client export (.json), an OpenAPI / Swagger definition (.json, .yaml), a thunder-tests/ folder, or a file with a curl command');
+  const { values: o, positionals } = parseArgs({ args, allowPositionals: true, options: { out: { type: 'string', short: 'o' }, force: { type: 'boolean' }, insecure: { type: 'boolean', short: 'k' }, proxy: { type: 'string' } } });
+  if (!positionals.length) throw new UsageError('import needs at least one file: a Postman or Thunder Client export (.json), an OpenAPI / Swagger definition (.json, .yaml, or its https:// URL), a thunder-tests/ folder, or a file with a curl command');
   const cwd = process.cwd();
   const outDir = resolve(cwd, o.out ?? 'http');
   let collections: ImportedCollection[] = [];
   for (const p of positionals) {
+    if (/^https?:\/\//i.test(p)) {
+      const proxy = o.proxy || process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || undefined;
+      const noProxy = (process.env.NO_PROXY ?? process.env.no_proxy ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      const { text, fileName, url } = await fetchText(p, { rejectUnauthorized: !o.insecure, proxy, noProxy, userAgent: `plainwire/${VERSION}` });
+      collections.push(...detectAndImport(text, fileName, url));
+      continue;
+    }
     const abs = resolve(cwd, p);
     if (!existsSync(abs)) throw new UsageError(`Not found: ${p}`);
     if (statSync(abs).isDirectory()) collections.push(...importThunderDir(abs));

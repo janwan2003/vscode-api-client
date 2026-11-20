@@ -28,6 +28,7 @@ exports.run = async function run() {
         const t = setInterval(() => res.write(`event: tick\ndata: {"i": ${++i}}\n\n`), 15);
         return res.on('close', () => clearInterval(t));
       }
+      if (req.url === '/spec.json') return res.end(JSON.stringify({ openapi: '3.0.3', info: { title: 'Url API', version: '1' }, servers: [{ url: 'http://127.0.0.1:1' }], paths: { '/things': { get: { tags: ['things'], operationId: 'listThings', summary: 'List things', responses: { 200: { description: 'ok' } } } } } }));
       if (req.url === '/login') return res.end(JSON.stringify({ token: 'tok-123' }));
       res.end(JSON.stringify({ ok: true, auth: req.headers.authorization || null }));
     });
@@ -215,6 +216,16 @@ exports.run = async function run() {
     assert.equal(response.streamEnd, 'max-events');
     assert.deepEqual(live, ['{"i": 1}', '{"i": 2}', '{"i": 3}']);
     assert.deepEqual(assertions.map((a) => a.passed), [true, true]);
+  });
+
+  await check('OpenAPI import from a URL writes .http files', async () => {
+    const out = vscode.window.createOutputChannel('u');
+    await api.importUrlForTest(`http://127.0.0.1:${port}/spec.json`);
+    const files = await vscode.workspace.findFiles('http/**/things*.http');
+    assert.ok(files.length >= 1, 'no things.http written');
+    assert.match(fs.readFileSync(files[0].fsPath, 'utf8'), /# @name listThings\n(?:#.*\n)*GET \{\{baseUrl\}\}\/things/);
+    const all = await vscode.commands.getCommands(true);
+    assert.ok(all.includes('plainwire.importOpenApi'));
   });
 
   await check('CodeLens offers "Run all" on files with several requests', async () => {

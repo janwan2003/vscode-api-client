@@ -108,16 +108,19 @@ Authorization: Bearer {{token}}</code></pre>
 }</code></pre>
 
     <h2>In VS Code, Cursor or VSCodium</h2>
-    <p>With the <a href="./">Plainwire</a> extension, run <strong>Plainwire: Import OpenAPI / Swagger&hellip;</strong> and pick the file: the <code>.http</code> files are written into your workspace and open in a form editor with a response viewer, environments and a test runner. No account, no request limits, nothing leaves your machine except the requests you send.</p>
+    <p>With the <a href="./">Plainwire</a> extension, run <strong>Plainwire: Import OpenAPI / Swagger&hellip;</strong> and pick a file or paste the definition&rsquo;s URL (such as <code>https://petstore3.swagger.io/api/v3/openapi.json</code>): the <code>.http</code> files are written into your workspace and open in a form editor with a response viewer, environments and a test runner. No account, no request limits, nothing leaves your machine except the requests you send.</p>
     <p>In a terminal or CI, the free <a href="run-http-files-in-ci.html">CLI</a> does the same and can then run every request with its status check:</p>
 <pre><code>plainwire import openapi.yaml --out http/
 plainwire run http/ --var baseUrl=https://staging.example.com --junit report.xml</code></pre>
+    <p><code>plainwire import</code> also takes the URL of a definition. A relative server URL such as <code>/api/v3</code> then resolves against that URL, so the requests point at the right host straight away:</p>
+<pre><code>plainwire import https://petstore3.swagger.io/api/v3/openapi.json --out petstore/
+plainwire run petstore/ --grep "Finds Pets by status"</code></pre>
 
     <h2>FAQ</h2>
     <details><summary>Is my API definition sent anywhere?</summary><p>No. The converter is a script on this page (<a href="https://github.com/janwan2003/vscode-api-client/tree/main/src/web">source</a>). It parses the YAML or JSON in memory and lets you copy or download the result. Nothing is uploaded and nothing is stored after you close the tab.</p></details>
     <details><summary>Why are values like <code>"string"</code> or <code>1</code> in the bodies?</summary><p>When an operation has no example, the body is generated from its schema: strings become <code>"string"</code> (or a sample matching the <code>format</code>, such as an email, a date or a UUID), numbers <code>1</code>, booleans <code>true</code>. Add <code>example</code>s to your definition and they are used instead.</p></details>
     <details><summary>Where do I put my token?</summary><p>In <code>http-client.env.json</code> (the converter creates the empty <code>token</code>, <code>apiKey</code> or <code>accessToken</code> entries), or better in <code>http-client.private.env.json</code>, which you keep out of git. Values there override the shared ones.</p></details>
-    <details><summary>Why is my server URL <code>http://localhost/...</code>?</summary><p>The definition uses a relative server URL such as <code>/api/v3</code>, which only means something relative to where the file was served from. Set <code>baseUrl</code> in <code>http-client.env.json</code> to the real host.</p></details>
+    <details><summary>Why is my server URL <code>http://localhost/...</code>?</summary><p>The definition uses a relative server URL such as <code>/api/v3</code>, which only means something relative to where the file was served from. Set <code>baseUrl</code> in <code>http-client.env.json</code> to the real host, or import the definition from its URL in the extension or with <code>plainwire import https://&hellip;</code>, which resolves the relative URL for you.</p></details>
     <details><summary>Can it convert Postman or Thunder Client collections too?</summary><p>Yes, on the <a href="convert-to-http-file.html">Postman, Thunder Client &amp; cURL converter</a>. Going the other way, the <a href="http-file-to-curl.html">.http to cURL and code converter</a> turns requests into cURL, fetch, Python and 8 more.</p></details>
   </div>
 </main>

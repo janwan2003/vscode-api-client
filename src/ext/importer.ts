@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import { attachEnvironments, collectionsToFiles, detectAndImport } from '../core/importers/index.ts';
 import { importThunderWorkspace } from '../core/importers/thunder.ts';
+import { fetchText } from '../core/fetchText.ts';
 import type { ImportedCollection } from '../core/model.ts';
+import { vscodeSendOptions } from './runner.ts';
 
 async function readJson(uri: vscode.Uri): Promise<unknown> {
   return JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)));
@@ -55,6 +57,33 @@ const DIALOG = {
   postman: { filters: { 'JSON export': ['json'] }, title: 'Postman collection v2.0/v2.1 or environment export (.json)' },
   openapi: { filters: { 'OpenAPI / Swagger': ['json', 'yaml', 'yml'] }, title: 'OpenAPI 3.x or Swagger 2.0 definition (.json, .yaml)' },
 };
+
+/** Ask where an OpenAPI definition comes from: a file (the usual dialog) or a URL. */
+export async function importOpenApi(output: vscode.OutputChannel): Promise<void> {
+  const pick = await vscode.window.showQuickPick(
+    [
+      { label: '$(file) From a file…', id: 'file', detail: 'A .json, .yaml or .yml definition on disk' },
+      { label: '$(globe) From a URL…', id: 'url', detail: 'For example https://petstore3.swagger.io/api/v3/openapi.json' },
+    ],
+    { placeHolder: 'Import an OpenAPI 3.x or Swagger 2.0 definition' },
+  );
+  if (!pick) return;
+  if (pick.id === 'file') return importFromFiles('openapi', output);
+  const url = await vscode.window.showInputBox({
+    prompt: 'URL of an OpenAPI / Swagger definition (JSON or YAML). Plainwire sends one GET request to it.',
+    placeHolder: 'https://api.example.com/openapi.json',
+    ignoreFocusOut: true,
+    validateInput: (v) => (/^https?:\/\/\S+$/i.test(v.trim()) ? undefined : 'Enter an http:// or https:// URL'),
+  });
+  if (!url) return;
+  await importFromUrl(url, output);
+}
+
+/** Download a definition or collection export and import it (the URL's file name names the collection). */
+export async function importFromUrl(url: string, output: vscode.OutputChannel): Promise<void> {
+  const got = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Plainwire: downloading ${url}` }, () => fetchText(url, vscodeSendOptions()));
+  await writeCollections(detectAndImport(got.text, got.fileName, got.url), output);
+}
 
 export async function importFromFiles(kind: 'thunder' | 'postman' | 'openapi', output: vscode.OutputChannel): Promise<void> {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri;

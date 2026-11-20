@@ -8,7 +8,7 @@ import { ImportLinkProvider } from './links.ts';
 import { CodeCopier } from './copyCode.ts';
 import { EnvironmentManager } from './environments.ts';
 import { History, type HistoryEntry } from './history.ts';
-import { importFromFiles, writeCollections } from './importer.ts';
+import { importFromFiles, importFromUrl, importOpenApi, writeCollections } from './importer.ts';
 import { detectAndImport } from '../core/importers/index.ts';
 import { RequestPanel, type PanelDeps } from './panel.ts';
 import { readText, Runner } from './runner.ts';
@@ -132,7 +132,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     })),
     vscode.commands.registerCommand('plainwire.importThunder', guard(() => importFromFiles('thunder', output))),
     vscode.commands.registerCommand('plainwire.importPostman', guard(() => importFromFiles('postman', output))),
-    vscode.commands.registerCommand('plainwire.importOpenApi', guard(() => importFromFiles('openapi', output))),
+    vscode.commands.registerCommand('plainwire.importOpenApi', guard(() => importOpenApi(output))),
     vscode.commands.registerCommand('plainwire.importCurl', guard(async () => {
       const clip = (await vscode.env.clipboard.readText()).trim();
       const value = /^curl\s/i.test(clip) ? clip : '';
@@ -145,6 +145,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   // Exposed for the integration tests in test/e2e.
   return {
     deps,
+    importUrlForTest: (url: string) => importFromUrl(url, output),
     historyForTest: history,
     parseHttpFileForTest: parseHttpFile,
     importTextForTest: (text: string, name: string, out: vscode.OutputChannel) => writeCollections(detectAndImport(text, name), out),

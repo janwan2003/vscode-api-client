@@ -40,7 +40,8 @@ function emptyCollection(name: string): ImportedCollection {
  * environments, Thunder Client collection exports, the legacy `thunder-tests/*.json` files, and
  * a pasted curl command. Throws a readable Error for anything else.
  */
-export function detectAndImport(text: string, fileName?: string): ImportedCollection[] {
+/** `sourceUrl`: where `text` was downloaded from (OpenAPI relative server URLs resolve against it). */
+export function detectAndImport(text: string, fileName?: string, sourceUrl?: string): ImportedCollection[] {
   const trimmed = text.replace(/^﻿/, '').trim();
   if (/^(\$\s+)?(\S*[\\/])?curl(\.exe)?\s/i.test(trimmed)) {
     const req = parseCurl(trimmed);
@@ -62,14 +63,14 @@ export function detectAndImport(text: string, fileName?: string): ImportedCollec
       } catch (ye) {
         throw new Error(`${fileName ?? 'Input'} is not valid YAML: ${(ye as Error).message}`);
       }
-      if (isOpenApi(doc)) return [importOpenApi(doc)];
+      if (isOpenApi(doc)) return [importOpenApi(doc, { sourceUrl })];
       throw new Error(`${fileName ?? 'This YAML file'} is not an OpenAPI 3.x or Swagger 2.0 definition (no "openapi"/"swagger" version or no "paths").`);
     }
     throw new Error(`${fileName ?? 'Input'} is not valid JSON (${(e as Error).message}), nor a curl command.`);
   }
 
   if (isPostmanCollection(json)) return [importPostman(json)];
-  if (isOpenApi(json)) return [importOpenApi(json)];
+  if (isOpenApi(json)) return [importOpenApi(json, { sourceUrl })];
   if (isPostmanEnvironment(json)) {
     const environments = importPostmanEnvironment(json);
     const c = emptyCollection(baseName(fileName).replace(/\.postman_(environment|globals)$/, '') || Object.keys(environments)[0] || 'environment');

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0 (2026-11-20)
+
+- **Import OpenAPI / Swagger from a URL**: the *Import OpenAPI / Swagger…* command now asks *From a file…* or *From a URL…*, and `plainwire import` accepts `https://…` URLs (redirects followed, proxy and `--insecure` honoured). A relative server URL such as `/api/v3` now resolves against the definition's URL, as the OpenAPI specification says (Swagger 2.0: a missing `host` is the host serving the definition), instead of falling back to `http://localhost`. Checked with the public Petstore 3 definition: imported from its URL, two requests then passed against the live server without setting `baseUrl`.
+
 ## 0.7.0 (2026-11-20)
 
 - **Server-sent events**: a response with `Content-Type: text/event-stream` is shown event by event while it arrives (time, event type, id, data), with **Stop** in place of Cancel. The stream ends when the server closes it, when you stop it, at the timeout, or after `# @max-events N` events; all four keep what arrived and count as a response. gzip/deflate/br streams are decompressed as they arrive. Parsing follows the HTML standard (multi-line `data`, comments, `id`, `retry`, CRLF split across packets). Checked against Wikimedia's public recent-changes stream.

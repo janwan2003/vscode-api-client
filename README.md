@@ -12,6 +12,7 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
 - **Response viewer**: status, time, size, collapsible JSON, headers, the exact request that was sent, image preview, open the body in an editor tab.
 - **Plain files**: requests live in `.http` / `.rest` files. *Send · Open in Plainwire · Copy as Code…* above every request; `Ctrl/Cmd+Alt+Enter` sends the request under the cursor.
 - **Variables and environments**: `@var = value`, `{{var}}`, environments from `http-client.env.json` + `http-client.private.env.json` or the `rest-client.environmentVariables` setting, system variables (`{{$guid}}`, `{{$timestamp}}`, `{{$randomInt 1 10}}`, `{{$datetime iso8601}}`, `{{$processEnv NAME}}`, `{{$dotenv NAME}}`), and request chaining (`{{login.response.body.$.token}}` sends `login` first if needed).
+- **OpenAPI from a URL** (new in 0.8): *Plainwire: Import OpenAPI / Swagger…* → *From a URL…*, or `plainwire import https://…/openapi.json`. Relative server URLs (`/api/v3`) resolve against the definition's URL.
 - **Server-sent events** (new in 0.7): `text/event-stream` responses show event by event as they arrive, with Stop, `# @max-events 3`, `# @timeout 30s`, and checks such as `# @assert events[-1].data == "[DONE]"` or `events[0].data.text == Hi` (JSON data is parsed). The CLI prints the event count.
 - **Shared files** (new in 0.6): `# @import ../shared/auth.http` (httpYac) or `import ../shared/auth.http` (JetBrains) makes another file's variables and named requests available, so one login request serves every file. The importing file's own variables win; nested imports and cycles are handled. Works in the editor, Run all and the CLI.
 - **Import**: Thunder Client collection exports and the `thunder-tests` workspace folder, Postman v2.0/v2.1 collections and environments, **OpenAPI 3.0/3.1 and Swagger 2.0** definitions in YAML or JSON (one file per tag, example bodies, auth, a status check per request), cURL commands (or paste a cURL command into the URL box). Export any request as cURL.
@@ -49,7 +50,7 @@ Authorization: Bearer {{login.response.body.$.token}}
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.7.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.8.0.vsix`; same for `cursor` / `codium`).
 
 ## Run the same files in CI
 
@@ -61,7 +62,7 @@ node plainwire.mjs run api/ --env staging --junit results.xml
 ```yaml
 # .github/workflows/api-tests.yml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.7.0
+- uses: janwan2003/vscode-api-client@v0.8.0
   with:
     files: api/
     env: ci

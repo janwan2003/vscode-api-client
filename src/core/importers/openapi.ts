@@ -34,6 +34,8 @@ interface Ctx {
   shared: Record<string, string>;
   /** Warnings that should appear once per import, not once per request. */
   once: Set<string>;
+  /** Where the definition was downloaded from: relative server URLs resolve against it. */
+  sourceUrl?: string;
 }
 
 function warnOnce(ctx: Ctx, msg: string): void {
@@ -425,6 +427,15 @@ function serverUrl(server: Obj): string {
 
 function absolute(ctx: Ctx, url: string): string {
   if (/^[a-z][\w+.-]*:\/\//i.test(url) || url.startsWith('{{')) return url;
+  // OpenAPI 3: a relative server URL is relative to where the definition is served; Swagger 2.0: no
+  // host means the host that serves the definition.
+  if (ctx.sourceUrl) {
+    try {
+      return new URL(url || '/', ctx.sourceUrl).href.replace(/\/+$/, '');
+    } catch {
+      /* fall through to the warning */
+    }
+  }
   warnOnce(ctx, `The server URL "${url || '/'}" is relative; baseUrl was set to http://localhost${url}. Change it in http-client.env.json.`);
   return `http://localhost${url.startsWith('/') || !url ? '' : '/'}${url}`;
 }
@@ -478,9 +489,9 @@ function successAssert(op: Obj): string | undefined {
   return codes.length === 1 ? `status == ${codes[0]}` : undefined;
 }
 
-export function importOpenApi(doc: unknown): ImportedCollection {
+export function importOpenApi(doc: unknown, opts: { sourceUrl?: string } = {}): ImportedCollection {
   if (!isOpenApi(doc)) throw new Error('Not an OpenAPI 3.x or Swagger 2.0 document (no "openapi"/"swagger" version or no "paths").');
-  const ctx: Ctx = { root: doc, v2: !doc.openapi, warnings: [], shared: {}, once: new Set() };
+  const ctx: Ctx = { root: doc, v2: !doc.openapi, warnings: [], shared: {}, once: new Set(), sourceUrl: opts.sourceUrl };
   const info = isObj(doc.info) ? doc.info : {};
   const name = str(info.title).trim() || 'OpenAPI';
 

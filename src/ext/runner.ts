@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { HttpRequest } from '../core/model.ts';
 import type { SseEvent } from '../core/sse.ts';
 import { Executor, type ExecResult, type PreviewResult } from '../core/exec.ts';
+import type { SendOptions } from '../core/send.ts';
 import { parseDotenv } from '../core/variables.ts';
 import type { EnvironmentManager } from './environments.ts';
 import type { History } from './history.ts';
@@ -24,25 +25,7 @@ export class Runner {
       readBodyFile: async (p, file) => vscode.workspace.fs.readFile(resolveBodyPath(p, file ? vscode.Uri.parse(file) : undefined)),
       dotenv: (file) => loadDotenv(file ? vscode.Uri.parse(file) : undefined),
       environment: () => envs.variables(),
-      sendOptions: (req) => {
-        const cfg = vscode.workspace.getConfiguration('plainwire');
-        return {
-          timeoutMs: cfg.get<number>('timeoutMs', 60000),
-          followRedirects: req.meta?.['no-redirect'] === undefined && cfg.get<boolean>('followRedirects', true),
-          rejectUnauthorized: req.meta?.['insecure'] === undefined && cfg.get<boolean>('rejectUnauthorized', true),
-          // plainwire.proxy, else VS Code's http.proxy, else HTTPS_PROXY / HTTP_PROXY (either case).
-          proxy:
-            cfg.get<string>('proxy') ||
-            vscode.workspace.getConfiguration('http').get<string>('proxy') ||
-            process.env.HTTPS_PROXY ||
-            process.env.https_proxy ||
-            process.env.HTTP_PROXY ||
-            process.env.http_proxy ||
-            undefined,
-          noProxy: (process.env.NO_PROXY ?? process.env.no_proxy ?? '').split(',').map((s) => s.trim()).filter(Boolean),
-          userAgent: `plainwire/${vscode.extensions.getExtension('plainbyte.plainwire')?.packageJSON?.version ?? ''}`.replace(/\/$/, ''),
-        };
-      },
+      sendOptions: (req) => vscodeSendOptions(req),
       onExchange: ({ request, file, response, error }) => history.add({ request: stripPosition(request), response, error, file }),
     });
   }
@@ -66,6 +49,28 @@ export class Runner {
       sub?.dispose();
     }
   }
+}
+
+
+/** Timeout, redirects, TLS, proxy and User-Agent from Plainwire's settings (and the request's `# @flags`). */
+export function vscodeSendOptions(req?: HttpRequest): SendOptions {
+  const cfg = vscode.workspace.getConfiguration('plainwire');
+  return {
+    timeoutMs: cfg.get<number>('timeoutMs', 60000),
+    followRedirects: req?.meta?.['no-redirect'] === undefined && cfg.get<boolean>('followRedirects', true),
+    rejectUnauthorized: req?.meta?.['insecure'] === undefined && cfg.get<boolean>('rejectUnauthorized', true),
+    // plainwire.proxy, else VS Code's http.proxy, else HTTPS_PROXY / HTTP_PROXY (either case).
+    proxy:
+      cfg.get<string>('proxy') ||
+      vscode.workspace.getConfiguration('http').get<string>('proxy') ||
+      process.env.HTTPS_PROXY ||
+      process.env.https_proxy ||
+      process.env.HTTP_PROXY ||
+      process.env.http_proxy ||
+      undefined,
+    noProxy: (process.env.NO_PROXY ?? process.env.no_proxy ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    userAgent: `plainwire/${vscode.extensions.getExtension('plainbyte.plainwire')?.packageJSON?.version ?? ''}`.replace(/\/$/, ''),
+  };
 }
 
 function stripPosition(req: HttpRequest): HttpRequest {
