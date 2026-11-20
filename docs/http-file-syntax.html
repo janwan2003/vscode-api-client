@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>.http file syntax cheat sheet (REST Client and JetBrains format) | Plainwire</title>
+<meta name="description" content="A practical reference for the .http file format: requests, headers, bodies, file variables, environments, system variables like {{$guid}}, request chaining, comments and file bodies.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/http-file-syntax.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content=".http file syntax cheat sheet">
+<meta property="og:description" content="Requests, headers, bodies, variables, environments, system variables, chaining and comments in the .http format.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/http-file-syntax.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html" aria-current="page">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>.http file syntax cheat sheet</h1>
+    <p>A <code>.http</code> (or <code>.rest</code>) file is a plain-text list of HTTP requests. The format is shared by the REST Client extension for VS Code and the JetBrains HTTP Client, and it is the format Plainwire reads and writes. This page is a working reference: every snippet below is a valid file you can paste and send.</p>
+    <p class="small">If something on this page does not behave as described in Plainwire, that is a bug or a gap; please <a href="support.html#report">report it</a>.</p>
+
+    <nav class="toc" aria-label="On this page">
+      <ul>
+        <li><a href="#requests">Requests and separators</a></li>
+        <li><a href="#comments">Comments</a></li>
+        <li><a href="#headers">Headers and auth</a></li>
+        <li><a href="#bodies">Bodies</a></li>
+        <li><a href="#file-bodies">Bodies from files</a></li>
+        <li><a href="#variables">File variables</a></li>
+        <li><a href="#environments">Environments</a></li>
+        <li><a href="#system">System variables</a></li>
+        <li><a href="#chaining">Request chaining</a></li>
+        <li><a href="#summary">Quick reference</a></li>
+      </ul>
+    </nav>
+
+    <h2 id="requests">Requests and separators</h2>
+    <p>A request starts with a request line: method, URL and an optional HTTP version. If you leave out the method, it is <code>GET</code>. Separate requests in the same file with a line starting with <code>###</code>; any text after the hashes becomes the request&rsquo;s title.</p>
+<pre>GET https://api.example.com/users/1
+
+### Create a user
+POST https://api.example.com/users HTTP/1.1
+
+### Method omitted means GET
+https://api.example.com/health</pre>
+    <p>Long query strings can be split over several lines. Each continuation line starts with <code>?</code> or <code>&amp;</code>, indented under the request line:</p>
+<pre>GET https://api.example.com/orders
+    ?status=open
+    &amp;page=2
+    &amp;pageSize=50</pre>
+
+    <h2 id="comments">Comments</h2>
+    <p>Lines starting with <code>#</code> or <code>//</code> are comments. A comment of the form <code># @name value</code> is metadata for the request below it; the most useful is <code>@name</code>, which you need for <a href="#chaining">chaining</a>.</p>
+<pre># Fetch the current user. Needs a token.
+// This is also a comment
+# @name me
+GET https://api.example.com/me</pre>
+
+    <h2 id="headers">Headers and auth</h2>
+    <p>Headers follow the request line, one <code>Name: value</code> per line, until the first blank line.</p>
+<pre>GET https://api.example.com/reports
+Accept: application/json
+Accept-Language: en
+Authorization: Bearer {{token}}</pre>
+    <p>Basic auth is an <code>Authorization</code> header with <code>user:password</code> encoded in base64. The encoded form below (for <code>user:pass</code>) works in every client; REST Client also accepts <code>Basic user:pass</code> and encodes it for you.</p>
+<pre>GET https://api.example.com/admin
+Authorization: Basic dXNlcjpwYXNz</pre>
+
+    <h2 id="bodies">Bodies</h2>
+    <p>The body starts after the blank line that ends the headers and runs until the next <code>###</code>. Set <code>Content-Type</code> to say what it is.</p>
+    <h3>JSON</h3>
+<pre>POST https://api.example.com/users
+Content-Type: application/json
+
+{
+  "name": "Ada Lovelace",
+  "roles": ["admin"]
+}</pre>
+    <h3>Plain text or XML</h3>
+<pre>PUT https://api.example.com/notes/7
+Content-Type: text/plain
+
+Remember to rotate the staging keys.</pre>
+    <h3>URL-encoded form</h3>
+    <p>Write the fields as one string, or one per line with each extra line starting with <code>&amp;</code>:</p>
+<pre>POST https://api.example.com/login
+Content-Type: application/x-www-form-urlencoded
+
+username=ada
+&amp;password={{password}}
+&amp;remember=true</pre>
+
+    <h2 id="file-bodies">Bodies from files</h2>
+    <p>A body line starting with <code>&lt;</code> followed by a path sends that file&rsquo;s contents. Relative paths are resolved from the <code>.http</code> file&rsquo;s folder. REST Client additionally supports <code>&lt;@</code>, which replaces <code>{{variables}}</code> inside the file before sending.</p>
+<pre>POST https://api.example.com/import
+Content-Type: application/json
+
+&lt; ./fixtures/new-order.json
+
+### Variables inside the file are substituted (REST Client)
+POST https://api.example.com/import
+Content-Type: application/json
+
+&lt;@ ./fixtures/order-template.json</pre>
+
+    <h2 id="variables">File variables</h2>
+    <p>Define a variable on its own line with <code>@name = value</code> and use it anywhere with <code>{{name}}</code>. Variables can reference other variables. They apply to the whole file, so they are usually placed at the top.</p>
+<pre>@host = https://api.example.com
+@apiVersion = v2
+@baseUrl = {{host}}/{{apiVersion}}
+
+###
+GET {{baseUrl}}/products</pre>
+
+    <h2 id="environments">Environments</h2>
+    <p>Environments hold values that differ between local, staging and production. Plainwire reads three sources.</p>
+    <h3><code>http-client.env.json</code> (commit this)</h3>
+    <p>The JetBrains layout: one object per environment name. Put it next to your <code>.http</code> files.</p>
+<pre>{
+  "local": {
+    "baseUrl": "http://localhost:3000",
+    "user": "dev@example.com"
+  },
+  "staging": {
+    "baseUrl": "https://staging.example.com",
+    "user": "qa@example.com"
+  }
+}</pre>
+    <h3><code>http-client.private.env.json</code> (gitignore this)</h3>
+    <p>Same shape, for secrets. Values here are merged into the environment of the same name. Add the file to <code>.gitignore</code>.</p>
+<pre>{
+  "local":   { "password": "local-only-password" },
+  "staging": { "password": "replace-me" }
+}</pre>
+    <h3>The <code>rest-client.environmentVariables</code> setting</h3>
+    <p>REST Client keeps environments in VS Code settings (for a project, <code>.vscode/settings.json</code>). Values under <code>$shared</code> are available in every environment.</p>
+<pre>{
+  "rest-client.environmentVariables": {
+    "$shared": { "apiVersion": "v2" },
+    "local":   { "baseUrl": "http://localhost:3000" },
+    "staging": { "baseUrl": "https://staging.example.com" }
+  }
+}</pre>
+
+    <h2 id="system">System variables</h2>
+    <p>Built-in dynamic values start with <code>$</code>. Arguments follow REST Client&rsquo;s syntax.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Variable</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td><code>{{$guid}}</code></td><td>A new random UUID on each send.</td></tr>
+          <tr><td><code>{{$timestamp}}</code></td><td>The current Unix time in seconds.</td></tr>
+          <tr><td><code>{{$randomInt 1 100}}</code></td><td>A random integer from the first number up to (not including) the second.</td></tr>
+          <tr><td><code>{{$datetime iso8601}}</code></td><td>The current UTC date and time; <code>rfc1123</code> is the other standard format.</td></tr>
+          <tr><td><code>{{$processEnv HOME}}</code></td><td>An environment variable of the editor process.</td></tr>
+          <tr><td><code>{{$dotenv API_KEY}}</code></td><td>A value from a <code>.env</code> file next to the <code>.http</code> file.</td></tr>
+        </tbody>
+      </table>
+    </div>
+<pre>POST {{baseUrl}}/events
+Content-Type: application/json
+X-Request-Id: {{$guid}}
+X-Api-Key: {{$dotenv API_KEY}}
+
+{ "at": "{{$datetime iso8601}}", "seq": {{$randomInt 1 1000}} }</pre>
+
+    <h2 id="chaining">Request chaining</h2>
+    <p>Name a request with <code># @name</code>, send it, then read its response in later requests with <code>{{name.response.body.$.path}}</code>. The part after <code>body.</code> is a JSONPath expression into the JSON response.</p>
+<pre>### Log in
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{user}}", "password": "{{password}}" }
+
+### Use the token
+GET {{baseUrl}}/orders
+Authorization: Bearer {{login.response.body.$.token}}
+
+### Use a nested value
+GET {{baseUrl}}/users/{{login.response.body.$.user.id}}
+Authorization: Bearer {{login.response.body.$.token}}</pre>
+    <p>The named request must have been sent at least once in the session before the dependent one, so send <em>Log in</em> first.</p>
+
+    <h2 id="summary">Quick reference</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Syntax</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>###</code> / <code>### Title</code></td><td>Start a new request, optionally titled</td></tr>
+          <tr><td><code>METHOD url HTTP/1.1</code></td><td>Request line; method and version optional</td></tr>
+          <tr><td><code>?a=1</code>, <code>&amp;b=2</code></td><td>Query continuation lines</td></tr>
+          <tr><td><code>Name: value</code></td><td>Header (until the first blank line)</td></tr>
+          <tr><td><code>#</code>, <code>//</code></td><td>Comment</td></tr>
+          <tr><td><code># @name login</code></td><td>Name a request for chaining</td></tr>
+          <tr><td><code>@var = value</code></td><td>File variable</td></tr>
+          <tr><td><code>{{var}}</code></td><td>Use a file, environment or system variable</td></tr>
+          <tr><td><code>&lt; ./file</code></td><td>Body from a file</td></tr>
+          <tr><td><code>{{login.response.body.$.x}}</code></td><td>Value from a named request&rsquo;s response</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Coming from another tool? See <a href="curl-to-http-file.html">cURL to .http</a>, <a href="postman-collection-to-http-file.html">Postman to .http</a> and <a href="import-thunder-client-to-http-files.html">Thunder Client to .http</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

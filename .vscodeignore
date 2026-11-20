@@ -1,0 +1,12 @@
+src/**
+test/**
+scripts/**
+docs/**
+store/**
+.test-out/**
+node_modules/**
+tsconfig.json
+VENTURE.md
+**/*.map
+media/icon.svg
+pnpm-lock.yaml

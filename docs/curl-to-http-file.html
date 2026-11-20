@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convert cURL to a .http file (and back) | Plainwire</title>
+<meta name="description" content="How to turn a cURL command into a .http request and a .http request back into cURL, with the .http equivalent of every common flag: -X, -H, -d, --data-binary, -F, -u, -G, --json and more.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/curl-to-http-file.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Convert cURL to a .http file (and back)">
+<meta property="og:description" content="The .http equivalent of every common cURL flag, with examples.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/curl-to-http-file.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Convert cURL to a <code>.http</code> file (and back)</h1>
+    <p>API docs, browser DevTools and colleagues hand you requests as cURL commands. A <code>.http</code> file is easier to keep: one request per block, headers on their own lines, variables instead of pasted tokens, and it can be sent with one click from VS Code. This page shows both directions and the <code>.http</code> equivalent of each common cURL flag.</p>
+
+    <h2>The quick way with Plainwire</h2>
+    <ol class="steps">
+      <li>Copy the cURL command. From browser DevTools, use <em>Copy as cURL (bash)</em>; the Windows <em>cmd</em> variant uses <code>^</code> escapes that are harder to read.</li>
+      <li>Run <strong>Plainwire: Import cURL Command…</strong> and paste the command (it is pre-filled when a cURL command is on your clipboard). You can also paste a cURL command straight into the URL box of a request tab.</li>
+      <li>Plainwire turns it into a request you can save in a <code>.http</code> file. Replace any pasted tokens with a <code>{{variable}}</code> before committing.</li>
+    </ol>
+    <p>For the other direction, use Plainwire&rsquo;s <strong>copy as cURL</strong> on any request to put a cURL command on the clipboard, ready for a terminal, a bug report or a CI script.</p>
+
+    <h2>A full example</h2>
+    <p>This command:</p>
+<pre>curl -X POST 'https://api.example.com/v1/orders?notify=true' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer eyJhbGciOi...' \
+  -H 'X-Request-Id: 7f3c' \
+  -d '{"sku":"TSHIRT-M","quantity":2}'</pre>
+    <p>is this request:</p>
+<pre>### Create order
+POST https://api.example.com/v1/orders?notify=true
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Request-Id: {{$guid}}
+
+{"sku":"TSHIRT-M","quantity":2}</pre>
+    <p>The token moved to an environment variable (<code>{{token}}</code>, defined in <code>http-client.private.env.json</code>), and the hand-typed request id became a fresh <code>{{$guid}}</code> on every send.</p>
+
+    <h2>Flag-by-flag mapping</h2>
+    <p>Use this table to convert by hand or to check a conversion.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>cURL</th><th><code>.http</code> equivalent</th></tr></thead>
+        <tbody>
+          <tr><td><code>curl URL</code></td><td><code>GET URL</code></td></tr>
+          <tr><td><code>-X</code>, <code>--request PUT</code></td><td>Method on the request line: <code>PUT URL</code></td></tr>
+          <tr><td><code>-H</code>, <code>--header 'Name: value'</code></td><td>A <code>Name: value</code> line</td></tr>
+          <tr><td><code>-d</code>, <code>--data</code>, <code>--data-raw 'body'</code></td><td>Body after a blank line; method becomes <code>POST</code> unless <code>-X</code> says otherwise; add <code>Content-Type: application/x-www-form-urlencoded</code> if no type was given (cURL&rsquo;s default)</td></tr>
+          <tr><td><code>--json '{...}'</code></td><td><code>POST</code>, <code>Content-Type: application/json</code>, <code>Accept: application/json</code>, and the JSON body</td></tr>
+          <tr><td><code>--data-binary @file.json</code></td><td>Body line <code>&lt; ./file.json</code></td></tr>
+          <tr><td><code>--data-urlencode 'q=hello world'</code></td><td>Form body with the value encoded: <code>q=hello%20world</code></td></tr>
+          <tr><td><code>-G</code> with <code>-d 'a=1'</code></td><td>Query string instead of body: <code>GET URL?a=1</code></td></tr>
+          <tr><td><code>-u</code>, <code>--user user:pass</code></td><td><code>Authorization: Basic</code> + base64 of <code>user:pass</code></td></tr>
+          <tr><td><code>--oauth2-bearer TOKEN</code></td><td><code>Authorization: Bearer TOKEN</code></td></tr>
+          <tr><td><code>-A</code>, <code>--user-agent 'x'</code></td><td><code>User-Agent: x</code></td></tr>
+          <tr><td><code>-e</code>, <code>--referer URL</code></td><td><code>Referer: URL</code></td></tr>
+          <tr><td><code>-b</code>, <code>--cookie 'a=1; b=2'</code></td><td><code>Cookie: a=1; b=2</code></td></tr>
+          <tr><td><code>-I</code>, <code>--head</code></td><td><code>HEAD URL</code></td></tr>
+          <tr><td><code>-F</code>, <code>--form</code></td><td>A <code>multipart/form-data</code> body with a boundary; check multipart requests carefully after converting</td></tr>
+          <tr><td><code>-L</code>, <code>-k</code>, <code>--compressed</code>, <code>-s</code>, <code>-v</code>, <code>-o</code>, <code>--max-time</code></td><td>Client behaviour rather than part of the request; no line in the file</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small"><code>-k</code> (skip TLS verification) has no Plainwire equivalent yet; see <a href="support.html#troubleshooting">support</a> for self-signed certificates.</p>
+
+    <h2>More examples</h2>
+    <h3>Basic auth and a query built with <code>-G</code></h3>
+<pre>curl -G https://api.example.com/search \
+  -u ada:s3cret \
+  --data-urlencode 'q=red shirts' \
+  -d limit=20</pre>
+<pre>GET https://api.example.com/search?q=red%20shirts&amp;limit=20
+Authorization: Basic YWRhOnMzY3JldA==</pre>
+    <p><code>YWRhOnMzY3JldA==</code> is base64 for <code>ada:s3cret</code>. In a shared file, keep the password in an environment instead.</p>
+
+    <h3>Form post</h3>
+<pre>curl https://api.example.com/login \
+  -d 'username=ada' -d 'password=s3cret'</pre>
+<pre>POST https://api.example.com/login
+Content-Type: application/x-www-form-urlencoded
+
+username=ada&amp;password={{password}}</pre>
+    <p>cURL joins several <code>-d</code> values with <code>&amp;</code>, which is why both fields end up in one body.</p>
+
+    <h3>Body from a file</h3>
+<pre>curl -X PUT https://api.example.com/config \
+  -H 'Content-Type: application/json' \
+  --data-binary @config.json</pre>
+<pre>PUT https://api.example.com/config
+Content-Type: application/json
+
+&lt; ./config.json</pre>
+    <p>The path is relative to the <code>.http</code> file. Plain <code>-d @file</code> strips newlines from the file before sending, while <code>--data-binary</code> and <code>&lt;</code> send it unchanged.</p>
+
+    <h3>Cookies and a custom user agent</h3>
+<pre>curl https://shop.example.com/cart \
+  -b 'session=abc123; theme=dark' \
+  -A 'my-script/1.0'</pre>
+<pre>GET https://shop.example.com/cart
+Cookie: session={{session}}; theme=dark
+User-Agent: my-script/1.0</pre>
+
+    <h2>From <code>.http</code> back to cURL</h2>
+    <p>Going the other way, variables are resolved first using the selected environment, then each part becomes a flag. This request:</p>
+<pre>@baseUrl = https://api.example.com
+
+### Update user
+PATCH {{baseUrl}}/users/42
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{"name":"Ada"}</pre>
+    <p>becomes a command like:</p>
+<pre>curl -X PATCH 'https://api.example.com/users/42' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer &lt;value of token&gt;' \
+  --data-raw '{"name":"Ada"}'</pre>
+    <p>Because the result contains resolved secrets, check it before pasting it into a public issue or chat.</p>
+
+    <h2>Why convert at all?</h2>
+    <ul>
+      <li><strong>Readable diffs.</strong> One header per line reviews far better than a 400-character shell command.</li>
+      <li><strong>Variables.</strong> Hosts and tokens live in <code>http-client.env.json</code> and its private counterpart, so the same file works against local, staging and production.</li>
+      <li><strong>Chaining.</strong> A login request can feed its token into the next request with <a href="http-file-syntax.html#chaining"><code>{{login.response.body.$.token}}</code></a>, something a list of shell commands needs extra tooling for.</li>
+    </ul>
+    <p>Related: <a href="http-file-syntax.html">.http syntax cheat sheet</a>, <a href="postman-collection-to-http-file.html">Postman to .http</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

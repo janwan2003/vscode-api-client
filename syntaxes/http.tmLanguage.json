@@ -1,0 +1,72 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "HTTP (Plainwire)",
+  "scopeName": "source.http.plainwire",
+  "patterns": [
+    { "include": "#separator" },
+    { "include": "#metadata" },
+    { "include": "#comment" },
+    { "include": "#fileVariable" },
+    { "include": "#requestLine" },
+    { "include": "#query" },
+    { "include": "#header" },
+    { "include": "#jsonBody" },
+    { "include": "#variable" }
+  ],
+  "repository": {
+    "separator": { "match": "^###.*$", "name": "markup.heading.separator.http" },
+    "metadata": {
+      "match": "^\\s*(#|//)\\s*(@[\\w-]+)(.*)$",
+      "captures": { "1": { "name": "comment.line.http" }, "2": { "name": "keyword.other.metadata.http" }, "3": { "name": "string.unquoted.metadata.http" } }
+    },
+    "comment": { "match": "^\\s*(#|//).*$", "name": "comment.line.http" },
+    "fileVariable": {
+      "match": "^\\s*(@)([\\w.-]+)\\s*(=)\\s*(.*)$",
+      "captures": {
+        "1": { "name": "punctuation.definition.variable.http" },
+        "2": { "name": "variable.other.http" },
+        "3": { "name": "keyword.operator.assignment.http" },
+        "4": { "patterns": [{ "include": "#variable" }, { "match": ".+", "name": "string.unquoted.http" }] }
+      }
+    },
+    "requestLine": {
+      "match": "^\\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT)\\s+(\\S.*?)(\\s+HTTP/[\\d.]+)?\\s*$",
+      "captures": {
+        "1": { "name": "keyword.control.method.http" },
+        "2": { "patterns": [{ "include": "#variable" }, { "match": "[^{]+|\\{", "name": "string.unquoted.url.http" }] },
+        "3": { "name": "constant.language.version.http" }
+      }
+    },
+    "query": {
+      "match": "^\\s*([?&])([^=\\s]+)(=)?(.*)$",
+      "captures": {
+        "1": { "name": "punctuation.separator.query.http" },
+        "2": { "name": "variable.parameter.query.http" },
+        "3": { "name": "keyword.operator.http" },
+        "4": { "patterns": [{ "include": "#variable" }, { "match": ".+", "name": "string.unquoted.http" }] }
+      }
+    },
+    "header": {
+      "match": "^([A-Za-z0-9!#$%&'*+.^_`|~-]+)(:)\\s?(.*)$",
+      "captures": {
+        "1": { "name": "entity.name.tag.header.http" },
+        "2": { "name": "punctuation.separator.key-value.http" },
+        "3": { "patterns": [{ "include": "#variable" }, { "match": ".+", "name": "string.unquoted.header.http" }] }
+      }
+    },
+    "jsonBody": {
+      "begin": "^\\s*(?=[\\[{])",
+      "end": "^(?=###)",
+      "contentName": "meta.embedded.block.json",
+      "patterns": [{ "include": "#variable" }, { "include": "source.json" }]
+    },
+    "variable": {
+      "match": "(\\{\\{)\\s*([^{}]+?)\\s*(\\}\\})",
+      "captures": {
+        "1": { "name": "punctuation.definition.template-expression.begin.http" },
+        "2": { "name": "variable.other.readwrite.http" },
+        "3": { "name": "punctuation.definition.template-expression.end.http" }
+      }
+    }
+  }
+}

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support and troubleshooting | Plainwire</title>
+<meta name="description" content="Get help with Plainwire: report bugs on GitHub, fix common problems with certificates, proxies, environments and .http files, and find where history is stored.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/support.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Support and troubleshooting | Plainwire">
+<meta property="og:description" content="Report bugs on GitHub and fix common Plainwire problems.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/support.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html" aria-current="page">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Support</h1>
+    <p>Plainwire is supported through GitHub issues. Search the <a href="https://github.com/janwan2003/vscode-api-client/issues?q=is%3Aissue">existing issues</a> first; if nothing matches, <a href="https://github.com/janwan2003/vscode-api-client/issues/new">open a new one</a>. Questions, bug reports and feature requests are all welcome there.</p>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+
+    <h3>&ldquo;self-signed certificate&rdquo; or &ldquo;unable to verify the first certificate&rdquo;</h3>
+    <p>Plainwire v0.1 does not yet support self-signed certificates or an option to skip certificate verification. Requests to servers with an untrusted certificate fail with a TLS error. Options until support lands:</p>
+    <ul>
+      <li>Use plain <code>http://</code> for local development servers where that is possible.</li>
+      <li>Use a certificate signed by a locally trusted CA (for example one created with a tool such as mkcert).</li>
+      <li>For a corporate CA, Node reads extra root certificates from the <code>NODE_EXTRA_CA_CERTS</code> environment variable when a process starts. Starting your editor from a shell where it points to your CA file <em>may</em> help; we have not tested this in every editor.</li>
+    </ul>
+    <p>If you need this, add a thumbs-up or your use case to the relevant issue so it gets prioritised.</p>
+
+    <h3>Requests behind a proxy</h3>
+    <p>Plainwire has no proxy settings of its own yet. Requests are sent by Node in the editor&rsquo;s extension host, so they follow Node&rsquo;s defaults and whatever proxy support your editor provides to extensions. If requests fail behind a corporate proxy, open an issue with your editor name and version and how the proxy is configured (without credentials).</p>
+
+    <h3>Where is my history stored?</h3>
+    <p>History of sent requests (the last 100 by default, setting <code>plainwire.historySize</code>) is kept locally in VS Code&rsquo;s per-workspace extension storage, inside your editor&rsquo;s user data folder (for VS Code on Linux that is under <code>~/.config/Code/User/workspaceStorage/</code>; on macOS <code>~/Library/Application Support/Code/User/</code>; on Windows <code>%APPDATA%\Code\User\</code>; Cursor, Windsurf and VSCodium use their own folder names). It never leaves your machine through Plainwire. To clear it, use the <em>Clear History</em> button in the History view. Your saved requests are not in history: they are the <code>.http</code> files in your workspace.</p>
+
+    <h3>A variable shows up literally as <code>{{name}}</code></h3>
+    <ul>
+      <li>Check that an environment is selected and that it defines the variable, in <code>http-client.env.json</code>, <code>http-client.private.env.json</code> or the <code>rest-client.environmentVariables</code> setting.</li>
+      <li>File variables (<code>@name = value</code>) must be defined in the same file.</li>
+      <li>For chained values like <code>{{login.response.body.$.token}}</code>, send the named request (<code># @name login</code>) first.</li>
+    </ul>
+
+    <h3>My file does not appear in the sidebar</h3>
+    <p>Collections list files ending in <code>.http</code> or <code>.rest</code> inside the open workspace folder. Files outside the workspace, or excluded by your editor&rsquo;s file exclusion settings, may not be listed.</p>
+
+    <h3>An import came out wrong</h3>
+    <p>Scripts and tests from Thunder Client or Postman are not imported, because Plainwire does not run scripts yet. If a request, header or body is missing or wrong, please report it with a <em>minimal, secret-free</em> copy of the exported file.</p>
+
+    <h2 id="report">How to report a bug</h2>
+    <ol>
+      <li>Update to the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and check the problem still happens.</li>
+      <li>Open a <a href="https://github.com/janwan2003/vscode-api-client/issues/new">new issue</a> and include:
+        <ul>
+          <li>the Plainwire version and your editor and version (VS Code: <strong>Help &rarr; About</strong>), and your operating system;</li>
+          <li>the smallest <code>.http</code> snippet, cURL command or import file that shows the problem;</li>
+          <li>what you expected, and what happened instead (the error message, or the response status);</li>
+          <li>any errors from <strong>Help &rarr; Toggle Developer Tools &rarr; Console</strong> or the <strong>Output</strong> panel.</li>
+        </ul>
+      </li>
+      <li><strong>Remove secrets first.</strong> Replace tokens, passwords, API keys, cookies and private hostnames with placeholders. Issues are public.</li>
+    </ol>
+    <p>Security problems should not be reported in a public issue with exploit details; open an issue asking for a private contact channel instead, without the details.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html" aria-current="page">Support</a>
+  </div>
+</footer>
+</body>
+</html>

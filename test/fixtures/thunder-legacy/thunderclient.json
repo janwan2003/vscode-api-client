@@ -1,0 +1,27 @@
+[
+  {
+    "_id": "req-1", "colId": "col-1", "containerId": "fold-inv", "name": "List invoices",
+    "url": "{{host}}/invoices", "method": "GET", "sortNum": 10000,
+    "created": "2025-03-01T08:00:00.000Z", "modified": "2025-03-01T08:00:00.000Z",
+    "headers": [{ "name": "Accept", "value": "application/json" }], "params": [], "tests": []
+  },
+  {
+    "_id": "req-2", "colId": "col-1", "containerId": "fold-pdf", "name": "Download PDF",
+    "url": "{{host}}/invoices/:id/pdf", "method": "GET", "sortNum": 10000,
+    "headers": [{ "name": "Accept", "value": "application/pdf" }],
+    "params": [{ "name": "id", "value": "INV-1", "isPath": true }],
+    "tests": [{ "type": "res-code", "custom": "", "action": "equal", "value": "200" }]
+  },
+  {
+    "_id": "req-3", "colId": "col-2", "containerId": "", "name": "Echo",
+    "url": "https://echo.example.com/post", "method": "POST", "sortNum": 10000,
+    "headers": [{ "name": "Content-Type", "value": "text/plain" }],
+    "body": { "type": "text", "raw": "hello\nworld", "form": [] }
+  },
+  {
+    "_id": "req-4", "colId": "col-gone", "containerId": "", "name": "Orphan",
+    "url": "https://example.com/orphan", "method": "DELETE", "sortNum": 10000
+  },
+  { "_id": "req-5", "colId": "col-2", "name": "Broken request without url" },
+  "not even an object"
+]

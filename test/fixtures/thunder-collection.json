@@ -1,0 +1,88 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "Shop API",
+  "collectionId": "c0a1b2c3-0000-4000-8000-00000000c001",
+  "dateExported": "2026-11-10T09:30:00.000Z",
+  "version": "1.2",
+  "folders": [
+    { "_id": "f-orders", "name": "Orders", "containerId": "", "created": "2026-10-01T10:00:00.000Z", "sortNum": 20000 },
+    { "_id": "f-users", "name": "Users", "containerId": "", "created": "2026-10-01T10:00:00.000Z", "sortNum": 10000,
+      "settings": { "auth": { "type": "basic", "basic": { "username": "admin", "password": "hunter2" } } } },
+    { "_id": "f-refunds", "name": "Refunds", "containerId": "f-orders", "created": "2026-10-02T10:00:00.000Z", "sortNum": 30000 }
+  ],
+  "requests": [
+    {
+      "_id": "r-create-order", "colId": "c0a1b2c3-0000-4000-8000-00000000c001", "containerId": "f-orders",
+      "name": "Create order", "url": "{{baseUrl}}/orders", "method": "POST", "sortNum": 20000,
+      "created": "2026-10-01T10:00:00.000Z", "modified": "2026-10-05T10:00:00.000Z",
+      "headers": [
+        { "name": "Accept", "value": "application/json" },
+        { "name": "X-Trace", "value": "on", "isDisabled": true }
+      ],
+      "params": [],
+      "body": { "type": "json", "raw": "{\n  \"sku\": \"ABC-1\",\n  \"qty\": 2\n}", "form": [] },
+      "tests": [
+        { "type": "res-code", "custom": "", "action": "equal", "value": "201" },
+        { "type": "set-env-var", "custom": "json.id", "action": "setto", "value": "{{orderId}}" }
+      ]
+    },
+    {
+      "_id": "r-list-orders", "colId": "c0a1b2c3-0000-4000-8000-00000000c001", "containerId": "f-orders",
+      "name": "List orders", "url": "{{baseUrl}}/orders?page=1", "method": "GET", "sortNum": 10000,
+      "headers": [],
+      "params": [
+        { "name": "page", "value": "1", "isPath": false },
+        { "name": "status", "value": "open", "isDisabled": true, "isPath": false }
+      ],
+      "tests": []
+    },
+    {
+      "_id": "r-refund", "colId": "c0a1b2c3-0000-4000-8000-00000000c001", "containerId": "f-refunds",
+      "name": "Refund order", "url": "{{baseUrl}}/orders/{orderId}/refund", "method": "POST", "sortNum": 10000,
+      "headers": [],
+      "params": [{ "name": "orderId", "value": "{{orderId}}", "isPath": true }],
+      "body": {
+        "type": "formencoded", "raw": "",
+        "form": [
+          { "name": "reason", "value": "damaged item" },
+          { "name": "notify", "value": "true", "isDisabled": true }
+        ]
+      },
+      "auth": { "type": "bearer", "bearer": "{{adminToken}}", "bearerPrefix": "Token" }
+    },
+    {
+      "_id": "r-avatar", "colId": "c0a1b2c3-0000-4000-8000-00000000c001", "containerId": "f-users",
+      "name": "Upload avatar", "url": "{{baseUrl}}/users/me/avatar", "method": "PUT", "sortNum": 20000,
+      "headers": [],
+      "body": {
+        "type": "formdata", "raw": "",
+        "form": [{ "name": "alt", "value": "My face" }],
+        "files": [{ "name": "file", "value": "./avatar.png" }]
+      },
+      "auth": { "type": "inherit" }
+    },
+    {
+      "_id": "r-me", "colId": "c0a1b2c3-0000-4000-8000-00000000c001", "containerId": "f-users",
+      "name": "Get me", "url": "{{baseUrl}}/users/me", "method": "GET", "sortNum": 10000,
+      "headers": [{ "name": "Accept", "value": "application/json" }],
+      "auth": { "type": "none" }
+    },
+    {
+      "_id": "r-gql", "colId": "c0a1b2c3-0000-4000-8000-00000000c001", "containerId": "",
+      "name": "Products (GraphQL)", "url": "{{baseUrl}}/graphql", "method": "POST", "sortNum": 5000,
+      "headers": [],
+      "body": { "type": "graphql", "raw": "", "form": [], "graphql": { "query": "{ products { id title } }", "variables": "" } }
+    },
+    {
+      "_id": "r-status", "colId": "c0a1b2c3-0000-4000-8000-00000000c001", "containerId": "",
+      "name": "Status", "url": "https://shop.example.com/status", "method": "get", "sortNum": 1000,
+      "body": { "type": "none", "raw": "", "form": [] },
+      "someFutureField": { "x": 1 }
+    }
+  ],
+  "settings": {
+    "auth": { "type": "bearer", "bearer": "{{token}}" },
+    "options": { "baseUrl": "" },
+    "envId": "env-dev"
+  }
+}

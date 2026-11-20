@@ -1,0 +1,19 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+:root{--vscode-font-family:system-ui,-apple-system,"Segoe UI",sans-serif;--vscode-font-size:13px;--vscode-editor-font-family:"DejaVu Sans Mono",monospace;--vscode-editor-font-size:12.5px;
+--vscode-foreground:#cccccc;--vscode-editor-background:#1f1f1f;--vscode-descriptionForeground:#9d9d9d;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-button-hoverBackground:#026ec1;
+--vscode-button-secondaryBackground:#313131;--vscode-button-secondaryForeground:#ccc;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-input-border:#3c3c3c;--vscode-panel-border:#2b2b2b;
+--vscode-focusBorder:#0078d4;--vscode-textLink-foreground:#4daafc;--vscode-badge-background:#616161;--vscode-badge-foreground:#f8f8f8;--vscode-charts-green:#89d185;--vscode-charts-yellow:#cca700;--vscode-charts-blue:#3794ff;--vscode-charts-red:#f14c4c;
+--vscode-testing-iconPassed:#73c991;--vscode-panelTitle-activeBorder:#0078d4;--vscode-input-placeholderForeground:#989898}
+</style>
+<link rel="stylesheet" href="../../media/panel.css"></head><body><div id="app"></div>
+<script>
+const req = {method:'POST',url:'{{host}}/users?notify=true',title:'Create user',name:'createUser',headers:[{name:'Content-Type',value:'application/json'},{name:'Authorization',value:'Bearer {{login.response.body.$.token}}'},{name:'X-Debug',value:'1',disabled:true}],
+ body:'{\n  "name": "Ada Lovelace",\n  "email": "ada@example.com",\n  "roles": ["admin"]\n}'};
+const resp = {status:201,statusText:'Created',headers:[['content-type','application/json; charset=utf-8'],['location','/users/42'],['x-request-id','9f1c2e']],
+ body:JSON.stringify({id:42,name:'Ada Lovelace',email:'ada@example.com',roles:['admin'],createdAt:'2026-11-20T12:00:00Z',settings:{theme:'dark',notifications:{email:true,push:false}}}),bodyEncoding:'utf8',size:214,timeMs:87,url:'https://api.example.com/users'};
+window.acquireVsCodeApi = () => ({ getState: () => null, setState(){}, postMessage(m){
+  if (m.type==='ready') { window.postMessage({type:'load',request:req,sourceLabel:'http/users.http',canSave:true,env:'dev',envNames:['dev','prod']}, '*');
+    setTimeout(()=>{ window.postMessage({type:'response',response:resp,resolved:{...req,url:'https://api.example.com/users?notify=true'}}, '*'); setTimeout(()=>{ const t=[...document.querySelectorAll('.tab')].find(b=>b.textContent.startsWith('Body')); t&&t.click(); },50); }, 50); }
+}});
+</script><script src="../../media/panel.js"></script></body></html>

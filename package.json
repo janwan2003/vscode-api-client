@@ -1,0 +1,347 @@
+{
+  "name": "plainwire",
+  "displayName": "Plainwire — API Client (no login, plain .http files)",
+  "description": "A GUI API client for VS Code, Cursor and VSCodium. No login, no limits, no telemetry. Requests are plain .http files in your repo (REST Client compatible). One-click import from Thunder Client, Postman and cURL.",
+  "version": "0.1.0",
+  "publisher": "plainwire",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "homepage": "https://janwan2003.github.io/vscode-api-client/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/janwan2003/vscode-api-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/janwan2003/vscode-api-client/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Testing",
+    "Other"
+  ],
+  "keywords": [
+    "api client",
+    "rest client",
+    "http",
+    "postman",
+    "thunder client",
+    "curl",
+    "rest",
+    "api",
+    "http client",
+    "api testing"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/*.http",
+    "workspaceContains:**/*.rest",
+    "onLanguage:http",
+    "onView:plainwire.collections"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "plainwire.newRequest",
+        "title": "New Request",
+        "category": "Plainwire",
+        "icon": "$(add)"
+      },
+      {
+        "command": "plainwire.importThunder",
+        "title": "Import from Thunder Client…",
+        "category": "Plainwire",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "plainwire.importPostman",
+        "title": "Import Postman Collection…",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.importCurl",
+        "title": "Import cURL Command…",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.selectEnvironment",
+        "title": "Select Environment",
+        "category": "Plainwire",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "plainwire.createEnvFile",
+        "title": "Create Environment File (http-client.env.json)",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.refresh",
+        "title": "Refresh",
+        "category": "Plainwire",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "plainwire.clearHistory",
+        "title": "Clear History",
+        "category": "Plainwire",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "plainwire.sendAtCursor",
+        "title": "Send Request at Cursor",
+        "category": "Plainwire",
+        "icon": "$(play)"
+      },
+      {
+        "command": "plainwire.copyCurlAt",
+        "title": "Copy Request as cURL",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.openRequest",
+        "title": "Open Request",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.sendRequest",
+        "title": "Send Request",
+        "category": "Plainwire",
+        "icon": "$(play)"
+      },
+      {
+        "command": "plainwire.revealRequest",
+        "title": "Show in .http File",
+        "category": "Plainwire",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "plainwire.openHistory",
+        "title": "Open History Entry",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.openAt",
+        "title": "Open in Plainwire",
+        "category": "Plainwire"
+      },
+      {
+        "command": "plainwire.sendAt",
+        "title": "Send",
+        "category": "Plainwire"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "plainwire",
+          "title": "Plainwire",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "plainwire": [
+        {
+          "id": "plainwire.collections",
+          "name": "Requests"
+        },
+        {
+          "id": "plainwire.history",
+          "name": "History"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "plainwire.collections",
+        "contents": "No .http files in this workspace yet.\n[New Request](command:plainwire.newRequest)\nComing from another client? Import your collections as plain .http files:\n[Import from Thunder Client](command:plainwire.importThunder)\n[Import Postman Collection](command:plainwire.importPostman)\n[Import cURL Command](command:plainwire.importCurl)\nNo account, no login, no limits. [Learn more](https://janwan2003.github.io/vscode-api-client/)"
+      },
+      {
+        "view": "plainwire.history",
+        "contents": "Requests you send appear here. History is stored only on this machine."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "plainwire.newRequest",
+          "when": "view == plainwire.collections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "plainwire.selectEnvironment",
+          "when": "view == plainwire.collections",
+          "group": "navigation@2"
+        },
+        {
+          "command": "plainwire.refresh",
+          "when": "view == plainwire.collections",
+          "group": "navigation@3"
+        },
+        {
+          "command": "plainwire.importThunder",
+          "when": "view == plainwire.collections",
+          "group": "import@1"
+        },
+        {
+          "command": "plainwire.importPostman",
+          "when": "view == plainwire.collections",
+          "group": "import@2"
+        },
+        {
+          "command": "plainwire.importCurl",
+          "when": "view == plainwire.collections",
+          "group": "import@3"
+        },
+        {
+          "command": "plainwire.createEnvFile",
+          "when": "view == plainwire.collections",
+          "group": "env@1"
+        },
+        {
+          "command": "plainwire.clearHistory",
+          "when": "view == plainwire.history",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "plainwire.sendRequest",
+          "when": "viewItem == plainwire.request",
+          "group": "inline@1"
+        },
+        {
+          "command": "plainwire.revealRequest",
+          "when": "viewItem == plainwire.request",
+          "group": "inline@2"
+        },
+        {
+          "command": "plainwire.copyCurlAt",
+          "when": "viewItem == plainwire.request",
+          "group": "1_actions"
+        }
+      ],
+      "editor/title/run": [
+        {
+          "command": "plainwire.sendAtCursor",
+          "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "plainwire.openRequest",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.sendRequest",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.revealRequest",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.openHistory",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.openAt",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.sendAt",
+          "when": "false"
+        },
+        {
+          "command": "plainwire.sendAtCursor",
+          "when": "resourceExtname =~ /^\\.(http|rest)$/"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "plainwire.sendAtCursor",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "editorTextFocus && resourceExtname =~ /^\\.(http|rest)$/"
+      }
+    ],
+    "languages": [
+      {
+        "id": "http",
+        "aliases": [
+          "HTTP",
+          "http"
+        ],
+        "extensions": [
+          ".http",
+          ".rest"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "http",
+        "scopeName": "source.http.plainwire",
+        "path": "./syntaxes/http.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.json": "json",
+          "meta.embedded.block.xml": "xml"
+        }
+      }
+    ],
+    "configuration": {
+      "title": "Plainwire",
+      "properties": {
+        "plainwire.environmentVariables": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Environments as `{ \"$shared\": {...}, \"dev\": { \"host\": \"...\" } }`. Also read: `http-client.env.json` / `http-client.private.env.json` files and the `rest-client.environmentVariables` setting."
+        },
+        "plainwire.timeoutMs": {
+          "type": "number",
+          "default": 60000,
+          "description": "Request timeout in milliseconds (0 = no timeout)."
+        },
+        "plainwire.followRedirects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Follow HTTP redirects. Per request: add `# @no-redirect`."
+        },
+        "plainwire.codeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Send / Open in Plainwire / Copy as cURL above requests in .http files."
+        },
+        "plainwire.importFolder": {
+          "type": "string",
+          "default": "http",
+          "description": "Workspace folder where imported collections are written as .http files."
+        },
+        "plainwire.historySize": {
+          "type": "number",
+          "default": 100,
+          "description": "How many sent requests to keep in History (stored locally in this workspace)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/ext/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
+    "watch": "esbuild src/ext/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "package": "esbuild src/ext/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js --minify && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "~1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "@vscode/vsce": "^3.2.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

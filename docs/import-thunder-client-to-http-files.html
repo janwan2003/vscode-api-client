@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convert Thunder Client collections to .http files | Plainwire</title>
+<meta name="description" content="How to export Thunder Client collections and environments and convert them to plain .http files and http-client.env.json, with a field-by-field mapping and examples.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/import-thunder-client-to-http-files.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Convert Thunder Client collections to .http files">
+<meta property="og:description" content="Export, import and a field-by-field mapping from Thunder Client JSON to .http files.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/import-thunder-client-to-http-files.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Convert Thunder Client collections to <code>.http</code> files</h1>
+    <p>Thunder Client stores collections as JSON in its own format. A <code>.http</code> file holds the same information as readable text that lives in your repository and runs in Plainwire, REST Client and JetBrains IDEs. This guide shows the one-click route with Plainwire and, for anyone who prefers to do it by hand, exactly how each Thunder Client field maps to the format.</p>
+
+    <h2>Step 1: get your data out of Thunder Client</h2>
+    <p>You need either an exported collection file or a <code>thunder-tests</code> folder.</p>
+    <ul>
+      <li><strong>Exported collection.</strong> In the Thunder Client sidebar, open <em>Collections</em>, click the <strong>&hellip;</strong> menu next to the collection and choose <strong>Export</strong>. Repeat for each collection. Export environments from the <em>Env</em> tab the same way.</li>
+      <li><strong><code>thunder-tests</code> folder.</strong> Projects that used Thunder Client&rsquo;s save-to-workspace or Git Sync option have a <code>thunder-tests</code> folder in the repository that already contains collections and environments as JSON. Plainwire can import that folder as a whole.</li>
+    </ul>
+    <p>An exported collection looks roughly like this (shortened; real exports contain more fields, and the layout varies between Thunder Client versions):</p>
+<pre>{
+  "clientName": "Thunder Client",
+  "collectionName": "Shop API",
+  "folders": [
+    { "_id": "f1", "name": "Orders", "containerId": "" }
+  ],
+  "requests": [
+    {
+      "_id": "r1",
+      "containerId": "f1",
+      "name": "Create order",
+      "method": "POST",
+      "url": "{{baseUrl}}/orders?dryRun=false",
+      "params": [ { "name": "dryRun", "value": "false" } ],
+      "headers": [ { "name": "Accept", "value": "application/json" } ],
+      "auth": { "type": "bearer", "bearer": "{{token}}" },
+      "body": { "type": "json", "raw": "{\"sku\":\"TSHIRT-M\",\"quantity\":2}" },
+      "tests": [ { "type": "res-code", "custom": "", "action": "equal", "value": "201" } ]
+    }
+  ]
+}</pre>
+
+    <h2>Step 2: import with Plainwire</h2>
+    <ol class="steps">
+      <li>Install Plainwire from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest <code>.vsix</code> release</a> (<a href="./#install">install steps</a>).</li>
+      <li>Open the folder where the requests should live, then run <strong>Plainwire: Import from Thunder Client…</strong> from the Command Palette (or the button in the Plainwire sidebar). If the workspace has a <code>thunder-tests</code> folder you can import it directly; otherwise choose <em>Thunder Client</em>.</li>
+      <li>Select the exported <code>.json</code> file or the <code>thunder-tests</code> folder. Plainwire writes <code>.http</code> files into the workspace; they appear in the sidebar under <em>Collections</em> straight away.</li>
+      <li>Open a file, check a request or two with <strong>Send Request</strong>, and commit.</li>
+    </ol>
+    <p>The request above comes out along these lines (exact header order and formatting may differ):</p>
+<pre>### Create order
+# @name createOrder
+POST {{baseUrl}}/orders?dryRun=false
+Accept: application/json
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"sku":"TSHIRT-M","quantity":2}</pre>
+
+    <h2>Field-by-field mapping</h2>
+    <p>Use this table to convert by hand or to check an import.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Thunder Client</th><th>In a <code>.http</code> file</th></tr></thead>
+        <tbody>
+          <tr><td>Collection</td><td>A <code>.http</code> file (or a folder of them)</td></tr>
+          <tr><td>Folder</td><td>A separate <code>.http</code> file or a subfolder; the format has no folders of its own</td></tr>
+          <tr><td>Request <code>name</code></td><td><code>### Create order</code> title line</td></tr>
+          <tr><td><code>method</code>, <code>url</code></td><td>Request line: <code>POST {{baseUrl}}/orders</code></td></tr>
+          <tr><td><code>params</code></td><td>Query string on the URL, or <code>?a=1</code> / <code>&amp;b=2</code> continuation lines</td></tr>
+          <tr><td><code>headers</code></td><td><code>Name: value</code> lines under the request line</td></tr>
+          <tr><td>Auth: Bearer</td><td><code>Authorization: Bearer {{token}}</code></td></tr>
+          <tr><td>Auth: Basic</td><td><code>Authorization: Basic &lt;base64 of user:password&gt;</code></td></tr>
+          <tr><td>Body: JSON / text / XML</td><td>Body after a blank line, with the matching <code>Content-Type</code></td></tr>
+          <tr><td>Body: form-encoded</td><td><code>Content-Type: application/x-www-form-urlencoded</code> and <code>a=1&amp;b=2</code></td></tr>
+          <tr><td>Environment</td><td>An entry in <code>http-client.env.json</code></td></tr>
+          <tr><td>Secret environment values</td><td><code>http-client.private.env.json</code> (gitignored)</td></tr>
+          <tr><td><code>{{variable}}</code></td><td>Unchanged: <code>{{variable}}</code></td></tr>
+          <tr><td>Tests, pre/post scripts</td><td>No equivalent in Plainwire 0.1; not imported</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>System variables</h3>
+    <p>Thunder Client writes its dynamic values with a <code>#</code> prefix; the <code>.http</code> format uses <code>$</code>. After importing, search your files for <code>{{#</code> and replace any that remain:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Thunder Client</th><th><code>.http</code></th></tr></thead>
+        <tbody>
+          <tr><td><code>{{#guid}}</code></td><td><code>{{$guid}}</code></td></tr>
+          <tr><td><code>{{#timestamp}}</code></td><td><code>{{$timestamp}}</code></td></tr>
+          <tr><td><code>{{#dateISO}}</code></td><td><code>{{$datetime iso8601}}</code></td></tr>
+          <tr><td>Random number</td><td><code>{{$randomInt 0 1000}}</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Environments</h2>
+    <p>A Thunder Client environment is a named list of variables. In the <code>.http</code> world, all environments live in one <code>http-client.env.json</code> next to your requests, keyed by name:</p>
+<pre>{
+  "local":   { "baseUrl": "http://localhost:3000" },
+  "staging": { "baseUrl": "https://staging.example.com" }
+}</pre>
+    <p>Put secrets in <code>http-client.private.env.json</code> with the same environment names, and keep that file out of git:</p>
+<pre>{
+  "local":   { "token": "dev-token" },
+  "staging": { "token": "replace-me" }
+}</pre>
+<pre># .gitignore
+http-client.private.env.json</pre>
+
+    <h2>Converting by hand</h2>
+    <p>For a handful of requests you can also copy them over manually. A layout that works well:</p>
+<pre>api/
+  orders.http            one file per Thunder Client folder
+  auth.http
+  http-client.env.json   shared, committed
+  http-client.private.env.json   secrets, gitignored</pre>
+    <p>Write each request with a <code>###</code> title, add <code># @name</code> to any request whose response you reuse (for example a login that returns a token), and replace Thunder Client&rsquo;s &ldquo;set env from response&rdquo; steps with <a href="http-file-syntax.html#chaining">request chaining</a>:</p>
+<pre>### Log in
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{user}}", "password": "{{password}}" }
+
+### Create order
+POST {{baseUrl}}/orders
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{ "sku": "TSHIRT-M", "quantity": 2 }</pre>
+
+    <h2>After the import: checklist</h2>
+    <ul>
+      <li>Search for <code>{{#</code> and replace leftover Thunder Client system variables.</li>
+      <li>Move tokens and passwords out of <code>http-client.env.json</code> into the private file.</li>
+      <li>Note which requests had tests or scripts; those checks need to be done by hand for now.</li>
+      <li>Send one request per environment to confirm the values resolve.</li>
+    </ul>
+    <p>Related: <a href="thunder-client-alternative.html">why and how to switch from Thunder Client</a>, and the <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,195 @@
+{
+  "info": {
+    "_postman_id": "6f1c2a7e-3b9d-4e11-9a0c-1d2e3f4a5b6c",
+    "name": "Pet Store API",
+    "description": "Hand-written fixture for the Postman importer.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "event": [
+    { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [""] } }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "https://petstore.example.com/v2", "type": "string" },
+    { "key": "accessToken", "value": "dev-token-123", "type": "string" },
+    { "key": "unused", "value": "x", "disabled": true }
+  ],
+  "item": [
+    {
+      "name": "Health check",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Pets",
+      "item": [
+        {
+          "name": "List pets",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('200', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "X-Debug", "value": "1", "disabled": true }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pets?limit=20&status=available",
+              "host": ["{{baseUrl}}"],
+              "path": ["pets"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "available" },
+                { "key": "sort", "value": "name", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create pet",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rex\",\n  \"tag\": \"dog\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pets",
+              "host": ["{{baseUrl}}"],
+              "path": ["pets"]
+            }
+          }
+        },
+        {
+          "name": "Admin",
+          "auth": {
+            "type": "basic",
+            "basic": [
+              { "key": "username", "value": "admin", "type": "string" },
+              { "key": "password", "value": "s3cret", "type": "string" }
+            ]
+          },
+          "item": [
+            {
+              "name": "Delete pet",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/pets/:petId",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["pets", ":petId"],
+                  "variable": [{ "key": "petId", "value": "42" }]
+                }
+              }
+            },
+            {
+              "name": "Upload photo",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "caption", "value": "Rex at the beach", "type": "text" },
+                    { "key": "photo", "type": "file", "src": "photos/rex.jpg" },
+                    { "key": "draft", "value": "true", "type": "text", "disabled": true }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/pets/:petId/photo",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["pets", ":petId", "photo"],
+                  "variable": [{ "key": "petId", "value": "" }]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": ["pm.variables.set('ts', Date.now());"] } },
+            { "listen": "test", "script": { "exec": ["pm.collectionVariables.set('accessToken', pm.response.json().token);"] } }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "username", "value": "jane@example.com", "type": "text" },
+                { "key": "password", "value": "p@ss word&1", "type": "text" },
+                { "key": "remember", "value": "1", "type": "text", "disabled": true }
+              ]
+            },
+            "url": "{{baseUrl}}/oauth/token"
+          }
+        },
+        {
+          "name": "Me (API key in query)",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                { "key": "key", "value": "api_key", "type": "string" },
+                { "key": "value", "value": "{{apiKey}}", "type": "string" },
+                { "key": "in", "value": "query", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "host": ["api", "example", "com"],
+              "protocol": "https",
+              "path": ["v1", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "GraphQL",
+      "item": [
+        {
+          "name": "Pet by id",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Request-Id", "value": "abc" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query Pet($id: ID!) {\n  pet(id: $id) { id name }\n}",
+                "variables": "{\"id\": \"42\"}"
+              }
+            },
+            "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quick ping",
+      "request": "https://petstore.example.com/ping"
+    }
+  ]
+}

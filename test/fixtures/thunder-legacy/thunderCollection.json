@@ -1,0 +1,20 @@
+[
+  {
+    "_id": "col-1",
+    "colName": "Billing",
+    "created": "2025-03-01T08:00:00.000Z",
+    "sortNum": 10000,
+    "folders": [
+      { "_id": "fold-inv", "name": "Invoices", "containerId": "", "created": "2025-03-01T08:00:00.000Z", "sortNum": 10000 },
+      { "_id": "fold-pdf", "name": "PDF", "containerId": "fold-inv", "created": "2025-03-01T08:00:00.000Z", "sortNum": 20000 }
+    ],
+    "settings": { "auth": { "type": "bearer", "bearer": "{{billingToken}}" } }
+  },
+  {
+    "_id": "col-2",
+    "colName": "Misc/Tools",
+    "created": "2025-03-02T08:00:00.000Z",
+    "sortNum": 20000,
+    "folders": []
+  }
+]

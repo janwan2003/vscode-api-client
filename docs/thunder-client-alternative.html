@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Thunder Client alternative without login | Plainwire</title>
+<meta name="description" content="Plainwire is a free, open-source Thunder Client alternative for VS Code and Cursor: no login, no request or collection limits, requests saved as .http files in git. How to switch in five minutes.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/thunder-client-alternative.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Free Thunder Client alternative without login">
+<meta property="og:description" content="No login, no limits, plain .http files in git. A feature comparison and a step-by-step switch guide.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/thunder-client-alternative.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>A free Thunder Client alternative without login</h1>
+    <p>Thunder Client made a GUI API client inside VS Code popular. Its recent versions ask you to sign in before you can send requests, and the free plan now has limits. If you only want to fill in a URL, press Send and keep your requests next to your code, Plainwire does that for free, with no account and no limits, and stores everything as plain <code>.http</code> files in your repository.</p>
+    <p class="small">Plainwire is an independent open-source project. It is not affiliated with or endorsed by Thunder Client, Postman or REST Client.</p>
+
+    <h2>What changed in Thunder Client</h2>
+    <p>According to the <a href="https://www.thunderclient.com/pricing">Thunder Client pricing page</a> (as read on 20 November 2026), the free plan allows 50 requests per collection and 50 collection runs per month, while Git Sync and custom scripting are on paid plans. Recent versions also require signing in to an account to send requests, which is the most common complaint in the extension&rsquo;s recent marketplace reviews. Thunder Client remains a capable product with features Plainwire does not have yet; if those limits do not affect you, there may be no reason to switch.</p>
+
+    <h2>Comparison</h2>
+    <p>Facts about other products are taken from their public pages and listings as of November 2026. &ldquo;Not verified&rdquo; means we could not confirm it either way.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col">Plainwire 0.1</th><th scope="col">Thunder Client (free plan)</th><th scope="col">REST Client</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Price</th><td class="yes">Free, MIT open source</td><td>Free plan; paid plans from $3/user/month (billed annually)</td><td class="yes">Free, open source</td></tr>
+          <tr><th scope="row">Sign-in to send requests</th><td class="yes">Never</td><td class="no">Required</td><td class="yes">Never</td></tr>
+          <tr><th scope="row">GUI request editor</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">No (text only)</td></tr>
+          <tr><th scope="row">Requests per collection</th><td class="yes">Unlimited</td><td>50</td><td class="yes">Unlimited</td></tr>
+          <tr><th scope="row">Storage format</th><td><code>.http</code> files in your repo</td><td>JSON; saving to the workspace with Git Sync is a paid feature</td><td><code>.http</code> files in your repo</td></tr>
+          <tr><th scope="row">Team sync</th><td>Through git, free</td><td>Git Sync on paid plans</td><td>Through git, free</td></tr>
+          <tr><th scope="row">Environments</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Request chaining</th><td class="yes">Yes (named requests)</td><td class="yes">Yes</td><td class="yes">Yes (named requests)</td></tr>
+          <tr><th scope="row">Scripting</th><td class="no">Not yet</td><td>Paid plans</td><td class="no">No</td></tr>
+          <tr><th scope="row">Test assertions / collection runner</th><td class="no">Not yet</td><td>Yes; runner limited to 50 runs/month</td><td class="no">No</td></tr>
+          <tr><th scope="row">GraphQL editor</th><td class="no">Not yet</td><td class="yes">Yes</td><td>GraphQL requests written as text</td></tr>
+          <tr><th scope="row">Import Thunder Client / Postman / cURL</th><td class="yes">Yes / Yes / Yes</td><td>n/a / Yes / Yes</td><td>No / No / Yes (cURL)</td></tr>
+          <tr><th scope="row">Telemetry</th><td class="yes">None</td><td><span class="unk">Not verified</span></td><td><span class="unk">Not verified</span></td></tr>
+          <tr><th scope="row">Last release</th><td>v0.1, November 2026</td><td>November 2026</td><td>2022</td></tr>
+          <tr><th scope="row">Install in Cursor / VSCodium</th><td><code>.vsix</code> now; Open VSX coming soon</td><td>Open VSX</td><td>Open VSX</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>How to switch in five minutes</h2>
+    <ol class="steps">
+      <li><strong>Export your collections from Thunder Client.</strong> In the Thunder Client sidebar, open the <em>Collections</em> tab, open the menu (<strong>&hellip;</strong>) next to a collection and choose <strong>Export</strong>. You get a JSON file such as <code>thunder-collection_Shop API.json</code>. Do the same for each environment in the <em>Env</em> tab. If your project already has a <code>thunder-tests</code> folder (written by Thunder Client&rsquo;s save-to-workspace or Git Sync feature), you can skip this step and import the folder directly.</li>
+      <li><strong>Install Plainwire.</strong> Download the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> and run <strong>Extensions: Install from VSIX&hellip;</strong> (see <a href="./#install">install steps</a>).</li>
+      <li><strong>Import.</strong> Run <strong>Plainwire: Import from Thunder Client…</strong> (Command Palette, or the button in the Plainwire sidebar), choose the <code>thunder-tests</code> folder or the exported files, and pick the exported file or the <code>thunder-tests</code> folder. Plainwire writes the requests as <code>.http</code> files into your workspace.</li>
+      <li><strong>Set up environments.</strong> Imported environment values go into <code>http-client.env.json</code>. Move secrets (tokens, passwords, API keys) into <code>http-client.private.env.json</code> and add that file to <code>.gitignore</code>.</li>
+      <li><strong>Commit.</strong> Review the new <code>.http</code> files, send a couple of requests from the <strong>Send Request</strong> links, and commit them. Your teammates get the collection with their next <code>git pull</code>, no account needed.</li>
+    </ol>
+    <p>The full field-by-field mapping is on <a href="import-thunder-client-to-http-files.html">Thunder Client collections to .http files</a>.</p>
+
+    <h2>What a migrated request looks like</h2>
+    <p>A Thunder Client request with a bearer token, a query parameter and a JSON body becomes a block like this:</p>
+<pre>### Create order
+POST {{baseUrl}}/orders?dryRun=false
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "sku": "TSHIRT-M",
+  "quantity": 2
+}</pre>
+    <p>It is readable in code review, works in REST Client and JetBrains IDEs, and opens as a form in Plainwire.</p>
+
+    <h2>What does not carry over</h2>
+    <ul>
+      <li><strong>Tests and scripts.</strong> Plainwire 0.1 has no scripting, test assertions or collection runner, so Thunder Client tests and pre/post-request scripts are not imported.</li>
+      <li><strong>Request history.</strong> Your Thunder Client activity history stays in Thunder Client; Plainwire starts its own local history.</li>
+      <li><strong>GraphQL, WebSocket, gRPC and OAuth2 flows</strong> are not available in Plainwire yet. Plain GraphQL-over-HTTP requests can still be sent as a JSON body.</li>
+    </ul>
+
+    <h2>Why plain files</h2>
+    <p>A collection that lives in a vendor&rsquo;s storage can be limited, moved behind a login or lost in an update. A <code>.http</code> file in your repository cannot: you can read it, diff it, review it and run it with several different tools. That is the main design choice behind Plainwire, and the reason it never needs an account.</p>
+
+    <h2>Questions</h2>
+    <details>
+      <summary>Will Plainwire add limits or a login later?</summary>
+      <p>The core client is MIT-licensed open source, so it can always be used, forked and built without an account. Sending requests, collections, environments and imports are part of that open-source core.</p>
+    </details>
+    <details>
+      <summary>Can I use Plainwire and Thunder Client side by side?</summary>
+      <p>Yes. They do not share storage. Plainwire only touches <code>.http</code> / <code>.rest</code> files and its own local history.</p>
+    </details>
+    <details>
+      <summary>Does it work in Cursor and Windsurf?</summary>
+      <p>Yes, install the same <code>.vsix</code> with <strong>Extensions: Install from VSIX&hellip;</strong>.</p>
+    </details>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

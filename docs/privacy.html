@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy | Plainwire</title>
+<meta name="description" content="Plainwire collects nothing: no telemetry, no account, no analytics. History stays in local VS Code storage and requests go only to the URLs you send them to.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/privacy.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Privacy policy | Plainwire">
+<meta property="og:description" content="Plainwire collects nothing: no telemetry, no account, no analytics.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/privacy.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Privacy policy</h1>
+    <p class="small">Last updated 20 November 2026. Applies to the Plainwire extension and this website.</p>
+
+    <div class="note"><p><strong>Short version:</strong> Plainwire collects nothing. It has no telemetry, no analytics, no account and no server of its own.</p></div>
+
+    <h2>The extension</h2>
+    <ul>
+      <li><strong>No telemetry or analytics.</strong> Plainwire does not record or report how you use it, which commands you run, errors, or anything about your machine.</li>
+      <li><strong>No account.</strong> There is no sign-in, licence key or registration, so we hold no personal data about you.</li>
+      <li><strong>No network calls of its own.</strong> The only network traffic Plainwire creates is the HTTP requests you send, and they go only to the URLs in those requests. There is no update check, no ping, and no proxy or relay operated by us in between.</li>
+      <li><strong>Your files stay yours.</strong> Requests are saved as <code>.http</code> files in your workspace, where you put them. Imports (Thunder Client, Postman, cURL) are converted locally from the file or text you choose and are not uploaded anywhere.</li>
+      <li><strong>History is stored locally.</strong> The list of requests you have sent is kept in VS Code&rsquo;s storage for the extension on your own computer. It is not synced or uploaded by Plainwire. It may contain URLs, headers and bodies you sent, so treat it like any other local data on your machine.</li>
+      <li><strong>Secrets.</strong> Values in <code>http-client.private.env.json</code> or <code>.env</code> files are read locally when a request uses them and sent only as part of that request. Keep those files out of git (add them to <code>.gitignore</code>).</li>
+    </ul>
+
+    <h2>Your editor and the extension registry</h2>
+    <p>VS Code, Cursor, Windsurf and VSCodium have their own telemetry settings, and extension registries count downloads. Those are controlled by the editor or registry vendor, not by Plainwire, and are covered by their privacy policies.</p>
+
+    <h2>This website</h2>
+    <p>This site is static HTML hosted on GitHub Pages. It sets no cookies, loads no third-party scripts, fonts or trackers, and has no analytics or forms. GitHub, as the host, may process technical data such as IP addresses in its server logs; see the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>.</p>
+
+    <h2>Verify it</h2>
+    <p>Plainwire is open source under the MIT licence. The full source is on <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>, so you can confirm these statements by reading the code or by watching the extension&rsquo;s traffic.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the new version will be published on this page with a new date, and the change will be visible in the repository history.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about privacy: open an issue at <a href="https://github.com/janwan2003/vscode-api-client/issues">github.com/janwan2003/vscode-api-client/issues</a>. Please do not paste secrets or tokens into issues.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html" aria-current="page">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

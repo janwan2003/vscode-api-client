@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convert a Postman collection to .http files | Plainwire</title>
+<meta name="description" content="Convert Postman v2.0/v2.1 collections and environments to plain .http files and http-client.env.json. Export steps, a field mapping, variable and auth handling, with examples.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/postman-collection-to-http-file.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="Convert a Postman collection to .http files">
+<meta property="og:description" content="Postman collections and environments to .http files and http-client.env.json, with a field mapping.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/postman-collection-to-http-file.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Convert a Postman collection to <code>.http</code> files</h1>
+    <p>Postman collections are JSON documents stored in a Postman workspace. Converting them to <code>.http</code> files puts your requests in the repository next to the code they test, where they are reviewed in pull requests and shared through git instead of a cloud account. Plainwire imports Postman v2.0 and v2.1 collections and Postman environments in one step; this page also shows how every part maps, so you can check the result or convert by hand.</p>
+
+    <h2>Step 1: export from Postman</h2>
+    <ol class="steps">
+      <li><strong>Collection.</strong> In Postman, open the <strong>&hellip;</strong> menu next to the collection, choose <strong>Export</strong>, select <em>Collection v2.1</em> and save the <code>.json</code> file.</li>
+      <li><strong>Environments.</strong> Open <em>Environments</em>, use the <strong>&hellip;</strong> menu on each environment and choose <strong>Export</strong>. Exported environment files can contain real tokens and passwords, so do not commit them as they are.</li>
+    </ol>
+    <p>A shortened v2.1 collection looks like this:</p>
+<pre>{
+  "info": {
+    "name": "Shop API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [ { "key": "token", "value": "{{token}}", "type": "string" } ]
+  },
+  "variable": [ { "key": "apiVersion", "value": "v2" } ],
+  "item": [
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "List orders",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/{{apiVersion}}/orders?status=open",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "{{apiVersion}}", "orders" ],
+              "query": [ { "key": "status", "value": "open" } ]
+            }
+          }
+        },
+        {
+          "name": "Create order",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"TSHIRT-M\",\n  \"quantity\": 2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/{{apiVersion}}/orders"
+          }
+        }
+      ]
+    }
+  ]
+}</pre>
+
+    <h2>Step 2: import with Plainwire</h2>
+    <ol class="steps">
+      <li>Install Plainwire from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest <code>.vsix</code> release</a> (<a href="./#install">install steps</a>).</li>
+      <li>Open your project, run <strong>Plainwire: Import Postman Collection…</strong> from the Command Palette (or the <em>Import Postman Collection</em> button in the empty Plainwire sidebar, or the <em>…</em> menu of the Requests view) and pick the exported file.</li>
+      <li>Select the collection file, then the environment files. Requests are written as <code>.http</code> files in your workspace and environments go into <code>http-client.env.json</code>.</li>
+      <li>Move secrets to <code>http-client.private.env.json</code>, add it to <code>.gitignore</code>, send a request to check, and commit.</li>
+    </ol>
+    <p>The collection above becomes something like this (exact formatting may differ):</p>
+<pre>@apiVersion = v2
+
+### List orders
+GET {{baseUrl}}/{{apiVersion}}/orders?status=open
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### Create order
+POST {{baseUrl}}/{{apiVersion}}/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "sku": "TSHIRT-M",
+  "quantity": 2
+}</pre>
+    <p>Note how the collection-level bearer auth became an <code>Authorization</code> header on each request. The <code>.http</code> format has no inheritance, so auth that Postman inherits from the collection or a folder is written out per request.</p>
+
+    <h2>Field mapping</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Postman</th><th>In a <code>.http</code> file</th></tr></thead>
+        <tbody>
+          <tr><td>Collection <code>info.name</code></td><td>File or folder name</td></tr>
+          <tr><td>Folder (an <code>item</code> with its own <code>item</code> list)</td><td>A separate <code>.http</code> file or subfolder</td></tr>
+          <tr><td>Request <code>name</code></td><td><code>### Title</code> line</td></tr>
+          <tr><td><code>request.method</code>, <code>url.raw</code></td><td>Request line</td></tr>
+          <tr><td><code>url.query</code></td><td>Query string, or <code>?</code> / <code>&amp;</code> continuation lines</td></tr>
+          <tr><td>Path variable <code>:id</code> with <code>url.variable</code></td><td><code>{{id}}</code> in the URL plus <code>@id = 42</code></td></tr>
+          <tr><td><code>header</code></td><td><code>Name: value</code> lines; disabled headers can be left as <code>#</code> comments</td></tr>
+          <tr><td><code>body.mode: raw</code> (JSON, text, XML)</td><td>Body text, with a matching <code>Content-Type</code></td></tr>
+          <tr><td><code>body.mode: urlencoded</code></td><td><code>a=1&amp;b=2</code> with <code>application/x-www-form-urlencoded</code></td></tr>
+          <tr><td><code>body.mode: graphql</code></td><td>A JSON body: <code>{"query": "...", "variables": {...}}</code></td></tr>
+          <tr><td><code>auth</code> bearer / basic (also inherited)</td><td><code>Authorization: Bearer &hellip;</code> / <code>Authorization: Basic &hellip;</code></td></tr>
+          <tr><td>Collection <code>variable</code></td><td><code>@name = value</code> at the top of the file</td></tr>
+          <tr><td>Environment</td><td>Entry in <code>http-client.env.json</code></td></tr>
+          <tr><td>Pre-request and test scripts (<code>event</code>)</td><td>No equivalent in Plainwire 0.1; not imported</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Environments to <code>http-client.env.json</code></h2>
+    <p>Each exported Postman environment is a separate file:</p>
+<pre>{
+  "name": "Staging",
+  "values": [
+    { "key": "baseUrl", "value": "https://staging.example.com", "type": "default", "enabled": true },
+    { "key": "token", "value": "", "type": "secret", "enabled": true }
+  ],
+  "_postman_variable_scope": "environment"
+}</pre>
+    <p>All environments are combined into one <code>http-client.env.json</code>, keyed by environment name. Secrets go into the private file with the same keys:</p>
+<pre>// http-client.env.json (commit)
+{
+  "local":   { "baseUrl": "http://localhost:3000" },
+  "staging": { "baseUrl": "https://staging.example.com" }
+}
+
+// http-client.private.env.json (gitignore)
+{
+  "local":   { "token": "dev-token" },
+  "staging": { "token": "replace-me" }
+}</pre>
+    <p class="small">Comments are shown above only to label the two files; JSON files themselves should not contain them.</p>
+
+    <h2>Dynamic variables</h2>
+    <p>Some Postman dynamic variables share a name with <code>.http</code> system variables; others need a change or have no equivalent.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Postman</th><th><code>.http</code></th></tr></thead>
+        <tbody>
+          <tr><td><code>{{$guid}}</code></td><td><code>{{$guid}}</code> (same)</td></tr>
+          <tr><td><code>{{$timestamp}}</code></td><td><code>{{$timestamp}}</code> (same)</td></tr>
+          <tr><td><code>{{$randomInt}}</code> (0 to 1000)</td><td><code>{{$randomInt 0 1001}}</code>; bounds are required</td></tr>
+          <tr><td><code>{{$isoTimestamp}}</code></td><td><code>{{$datetime iso8601}}</code></td></tr>
+          <tr><td><code>{{$randomEmail}}</code>, <code>{{$randomFirstName}}</code> and other fake-data variables</td><td>No equivalent; replace with fixed test values or file variables</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Scripts and tests</h2>
+    <p>Postman <code>pm.*</code> scripts do not run in Plainwire 0.1. The most common script, saving a token from a login response, is replaced by <a href="http-file-syntax.html#chaining">request chaining</a>:</p>
+<pre>### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{user}}", "password": "{{password}}" }
+
+### Profile (uses the token from the login response)
+GET {{baseUrl}}/me
+Authorization: Bearer {{login.response.body.$.access_token}}</pre>
+    <p>Test assertions (<code>pm.test</code>, <code>pm.expect</code>) have no equivalent yet; keep a note of which requests had them.</p>
+
+    <h2>Checklist</h2>
+    <ul>
+      <li>Every environment variable your requests use exists in each environment.</li>
+      <li>No secrets in <code>http-client.env.json</code> or in the <code>.http</code> files.</li>
+      <li>Path variables (<code>:id</code>) were turned into <code>{{id}}</code>.</li>
+      <li>One request per environment sends successfully.</li>
+    </ul>
+    <p>Related: <a href="curl-to-http-file.html">cURL to .http</a>, <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

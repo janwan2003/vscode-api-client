@@ -1,0 +1,33 @@
+@host = https://api.example.com
+@token = abc123
+
+### List users
+# Returns the first page
+# @name listUsers
+GET {{host}}/users
+    ?page=2
+    &size=10
+Accept: application/json
+# X-Debug: 1
+
+### Create user
+# @name createUser
+POST {{host}}/users HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Ada",
+  "tags": ["#admin"]
+}
+
+###
+// @no-redirect
+https://example.com/old
+
+### Form
+POST {{host}}/login
+Content-Type: application/x-www-form-urlencoded
+
+user=ada
+&pass=secret

@@ -1,0 +1,13 @@
+@base = {{host}}
+
+### Login
+# @name login
+POST {{base}}/login
+Content-Type: application/json
+
+{"user": "ada"}
+
+### Profile (uses the login token)
+GET {{base}}/me
+Authorization: Bearer {{login.response.body.$.token}}
+X-Env: {{envName}}
