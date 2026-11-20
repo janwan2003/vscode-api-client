@@ -3,11 +3,27 @@ import { serializeHttpFile } from '../httpFile.ts';
 import { parseCurl } from '../curl.ts';
 import { importPostman, importPostmanEnvironment, isObj, isPostmanCollection, isPostmanEnvironment, str } from './postman.ts';
 import { importOpenApi, isOpenApi } from './openapi.ts';
+import { parseYaml } from '../yaml.ts';
 import { importThunder, importThunderEnvironments, importThunderWorkspace, isThunderCollection, isThunderEnvironment } from './thunder.ts';
 
 export { importPostman, importPostmanEnvironment } from './postman.ts';
 export { importOpenApi } from './openapi.ts';
 export { importThunder, importThunderWorkspace, importThunderEnvironments } from './thunder.ts';
+
+/**
+ * YAML aliases share objects, so a small file can expand to an enormous tree ("billion laughs").
+ * Walk it with a node budget before importing; real specs (GitHub's 11 MB one) are far below it.
+ */
+function assertReasonableSize(doc: unknown, budget = 5_000_000): void {
+  const stack: unknown[] = [doc];
+  let n = 0;
+  while (stack.length) {
+    const x = stack.pop();
+    if (++n > budget) throw new Error('The YAML expands to too much data (more than 5 million values once aliases are expanded); not imported.');
+    if (Array.isArray(x)) stack.push(...x);
+    else if (x !== null && typeof x === 'object') stack.push(...Object.values(x));
+  }
+}
 
 function baseName(fileName: string | undefined): string {
   if (!fileName) return '';
@@ -37,6 +53,18 @@ export function detectAndImport(text: string, fileName?: string): ImportedCollec
   try {
     json = JSON.parse(trimmed);
   } catch (e) {
+    // OpenAPI / Swagger definitions are usually YAML.
+    if (/^(openapi|swagger)\s*:/m.test(trimmed) || /\.ya?ml$/i.test(fileName ?? '')) {
+      let doc: unknown;
+      try {
+        doc = parseYaml(trimmed);
+        assertReasonableSize(doc);
+      } catch (ye) {
+        throw new Error(`${fileName ?? 'Input'} is not valid YAML: ${(ye as Error).message}`);
+      }
+      if (isOpenApi(doc)) return [importOpenApi(doc)];
+      throw new Error(`${fileName ?? 'This YAML file'} is not an OpenAPI 3.x or Swagger 2.0 definition (no "openapi"/"swagger" version or no "paths").`);
+    }
     throw new Error(`${fileName ?? 'Input'} is not valid JSON (${(e as Error).message}), nor a curl command.`);
   }
 

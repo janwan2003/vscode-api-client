@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (2026-11-20)
 
 - **Import OpenAPI / Swagger** (new command *Plainwire: Import OpenAPI / Swagger…*, `plainwire import openapi.yaml`, and the [online converter](https://janwan2003.github.io/vscode-api-client/openapi-to-http-file.html)): OpenAPI 3.0/3.1 and Swagger 2.0, YAML or JSON. One `.http` file per tag (untagged operations grouped by path), one request per operation titled with its summary and named after its `operationId`; `{{baseUrl}}` and path parameters in the URL with their values in `http-client.env.json` (`$shared`, plus one environment per server); required query/header/cookie parameters filled from examples, defaults or the schema, optional query parameters listed in a comment; bodies from examples or generated from the schema (`$ref`, `allOf`, `oneOf`/`anyOf`, `readOnly` skipped; JSON, form with `a[b]=` nesting, multipart); Bearer/Basic/API key/OAuth 2 auth; a `# @assert status == …` check when the operation documents exactly one 2xx status. Checked on the GitHub (1,281 operations, 0.13 s), Stripe (612), Twilio (197) and both Petstore definitions: every operation becomes a request and every file reads back the same requests.
 - **YAML** support in the importer (new dependency-free parser, `src/core/yaml.ts`).

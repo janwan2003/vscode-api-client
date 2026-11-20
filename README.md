@@ -47,7 +47,7 @@ Authorization: Bearer {{login.response.body.$.token}}
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.4.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.5.0.vsix`; same for `cursor` / `codium`).
 
 ## Run the same files in CI
 
@@ -59,7 +59,7 @@ node plainwire.mjs run api/ --env staging --junit results.xml
 ```yaml
 # .github/workflows/api-tests.yml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.4.0
+- uses: janwan2003/vscode-api-client@v0.5.0
   with:
     files: api/
     env: ci

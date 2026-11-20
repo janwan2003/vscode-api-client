@@ -502,13 +502,19 @@ export function importOpenApi(doc: unknown): ImportedCollection {
   /** Path variables whose value is a made-up '1', replaced by the first real example seen. */
   const placeholders = new Set<string>();
   let skipped = 0;
+  let externalOps = 0;
   for (const [path, rawItem] of Object.entries(doc.paths as Obj)) {
     const item = deref(ctx, rawItem);
     if (!item) continue;
     for (const method of OPERATION_METHODS) {
-      const op = item[method];
-      if (!isObj(op)) continue;
+      const rawOp = item[method];
+      if (!isObj(rawOp)) continue;
       const label = `${method.toUpperCase()} ${path}`;
+      // Operations kept in other files (`get: { $ref: resources/x.yml }`) cannot be read here: the
+      // request keeps its method and path, and one summary warning asks for a bundled definition.
+      const external = typeof rawOp.$ref === 'string' && !rawOp.$ref.startsWith('#');
+      if (external) externalOps++;
+      const op = (external ? {} : deref(ctx, rawOp)) ?? {};
       const { params, body, formData } = collectParams(ctx, [item.parameters, op.parameters]);
 
       // URL: {{baseUrl}} (or the operation's own server) + path with {{params}}.
@@ -568,11 +574,17 @@ export function importOpenApi(doc: unknown): ImportedCollection {
       if (req.comments) clean.comments = req.comments;
       if (req.name) clean.name = req.name;
       // Untagged operations are grouped by their first path segment (skipping /v1-style versions).
-      const tag = str(arr(op.tags)[0]).trim() || path.split('/').find((seg) => seg && !seg.startsWith('{') && !/^v\d+(\.\d+)*$/i.test(seg)) || '';
+      const tag = str(arr(op.tags)[0]).trim() || path.split('/').find((seg) => seg && !/^[{<:]/.test(seg) && !/^v\d+(\.\d+)*$/i.test(seg)) || '';
       const list = folders.get(tag) ?? [];
       list.push(clean);
       folders.set(tag, list);
     }
+  }
+  if (externalOps) {
+    ctx.warnings.unshift(
+      `${externalOps} operation(s) are defined in other files ($ref to another file), so only their method and path were imported. ` +
+        'Bundle the definition into one file first (for example "npx @redocly/cli bundle openapi.yaml -o bundled.yaml") and import that.',
+    );
   }
   if (skipped) ctx.warnings.push(`${skipped} operation(s) could not be converted.`);
   if (!folders.size) ctx.warnings.push('The document has no operations under "paths".');

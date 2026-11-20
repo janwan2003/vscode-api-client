@@ -111,3 +111,58 @@ test('detectAndImport recognises OpenAPI JSON and the files re-parse to the same
 test('not OpenAPI: readable error', () => {
   assert.throws(() => importOpenApi({ openapi: '3.0.0' }), /Not an OpenAPI/);
 });
+
+test('YAML definitions are detected and give the same result as JSON', () => {
+  const yaml = [
+    'openapi: 3.0.3',
+    'info:',
+    '  title: Pets API',
+    '  version: "1"',
+    'servers:',
+    '  - url: https://api.example.com/v1',
+    'paths:',
+    '  /pets/{petId}:',
+    '    get:',
+    '      tags: [pets]',
+    '      summary: Get a pet',
+    '      operationId: getPet',
+    '      parameters:',
+    '        - { name: petId, in: path, required: true, schema: { type: integer, example: 7 } }',
+    "      responses: { '200': { description: ok } }",
+  ].join('\n');
+  const [c] = detectAndImport(yaml, 'pets.yaml');
+  assert.equal(c.name, 'Pets API');
+  assert.equal(c.folders[0].requests[0].url, '{{baseUrl}}/pets/{{petId}}');
+  assert.deepEqual(c.environments, { $shared: { baseUrl: 'https://api.example.com/v1', petId: '7' } });
+  assert.throws(() => detectAndImport('openapi: 3.0.0\npaths: [\n', 'x.yaml'), /x\.yaml is not valid YAML: .*line/);
+  assert.throws(() => detectAndImport('name: x\n', 'x.yml'), /not an OpenAPI/);
+});
+
+test('YAML alias bombs are rejected instead of hanging', () => {
+  const lines = ['openapi: 3.0.0', 'a0: &a0 [x, x, x, x, x, x, x, x, x, x]'];
+  for (let i = 1; i <= 9; i++) lines.push(`a${i}: &a${i} [${Array(10).fill(`*a${i - 1}`).join(', ')}]`);
+  lines.push('paths: {}');
+  const t0 = Date.now();
+  assert.throws(() => detectAndImport(lines.join('\n'), 'bomb.yaml'), /too much data/);
+  assert.ok(Date.now() - t0 < 5000);
+});
+
+test('operations in other files: method + path kept, one summary warning; <param> segments are not folder names', () => {
+  const c = importOpenApi({
+    openapi: '3.0.0',
+    info: { title: 'Split' },
+    servers: [{ url: 'https://api.example.com' }],
+    paths: {
+      '/v2/droplets/{id}': { get: { $ref: 'resources/droplets/get.yml' }, delete: { $ref: '#/components/x/del' } },
+      '/<upload_url>': { put: { summary: 'Upload', responses: {} } },
+    },
+    components: { x: { del: { summary: 'Delete droplet', tags: ['Droplets'], responses: { 204: { description: 'gone' } } } } },
+  });
+  assert.deepEqual(c.folders.map((f) => [f.name, f.requests.map((r) => `${r.method} ${r.url} ${r.title}`)]), [
+    ['droplets', ['GET {{baseUrl}}/v2/droplets/{{id}} GET /v2/droplets/{id}']],
+    ['Droplets', ['DELETE {{baseUrl}}/v2/droplets/{{id}} Delete droplet']],
+    ['', ['PUT {{baseUrl}}/<upload_url> Upload']],
+  ]);
+  assert.equal(c.warnings.length, 1);
+  assert.match(c.warnings[0], /^1 operation\(s\) are defined in other files.*bundle/i);
+});
