@@ -16,3 +16,4 @@ action.yml
 cli/**
 dist/cli/**
 dist/*.tgz
+.claude/**

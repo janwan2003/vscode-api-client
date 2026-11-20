@@ -133,7 +133,7 @@ export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'rea
     dotenv: await host.dotenv(file),
     unresolved,
   };
-  const resolved = resolveRequest(req, ctx);
+  let resolved = resolveRequest(req, ctx);
   normalizeBasicAuth(resolved);
   resolved.url = ensureScheme(resolved.url.trim());
   const ref = bodyFileRef(resolved.body);
@@ -144,6 +144,8 @@ export async function previewRequest(req: HttpRequest, host: Pick<ExecHost, 'rea
       resolved.body = `< ${ref.path}`; // unreadable here: let the snippet read the file itself
     }
   }
+  // Same GraphQL → JSON conversion as `run`, so every snippet sends what Plainwire would send.
+  if (isGraphqlRequest(resolved) && !bodyFileRef(resolved.body)) resolved = toGraphqlHttp(resolved, true);
   const method = resolved.method.toUpperCase();
   // The sender never puts a body on GET/HEAD, and normalises form and multipart bodies.
   if (method === 'GET' || method === 'HEAD') resolved.body = undefined;

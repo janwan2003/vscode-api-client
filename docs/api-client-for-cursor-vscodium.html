@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API client for Cursor, Windsurf and VSCodium (no login) | Plainwire</title>
+<meta name="description" content="A free GUI API client that runs in Cursor, Windsurf and VSCodium: install steps, what is tested, and why plain .http files suit AI editors. No account, no telemetry.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/api-client-for-cursor-vscodium.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="An API client for Cursor, Windsurf and VSCodium">
+<meta property="og:description" content="A free GUI API client for VS Code forks: install from VSIX, tested on VSCodium, plain .http files.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/api-client-for-cursor-vscodium.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>An API client for Cursor, Windsurf and VSCodium</h1>
+    <p>Cursor, Windsurf and VSCodium are built on VS Code, but they install extensions from <a href="https://open-vsx.org/">Open VSX</a> rather than from Microsoft&rsquo;s Marketplace. Some API clients are missing there, out of date, or ask you to sign in before the first request. Plainwire is a free, open-source GUI API client that runs in all of them, needs no account, and keeps your requests as plain <code>.http</code> files next to your code, where your editor&rsquo;s AI assistant can read and edit them too.</p>
+    <p class="small">Plainwire is an independent open-source project, not affiliated with Cursor, Windsurf, VSCodium, Thunder Client, Postman or REST Client.</p>
+
+    <h2>Install it in Cursor, Windsurf or VSCodium</h2>
+    <p>Plainwire is not on Open VSX yet (the listing is coming), so for now you install the same file VS Code users get:</p>
+    <ol class="steps">
+      <li><strong>Download</strong> the <code>plainwire-&lt;version&gt;.vsix</code> file from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
+      <li><strong>Install it.</strong> Open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS) and run <strong>Extensions: Install from VSIX&hellip;</strong>, or drag the file onto the Extensions view. From a terminal:
+<pre>cursor --install-extension plainwire-0.4.0.vsix
+codium --install-extension plainwire-0.4.0.vsix
+windsurf --install-extension plainwire-0.4.0.vsix</pre></li>
+      <li><strong>Open a folder with a <code>.http</code> file</strong>, or run <strong>Plainwire: New Request</strong>. A <strong>Send Request</strong> link appears above each request; <strong>Open in Plainwire</strong> opens the form editor.</li>
+    </ol>
+    <p>Updates: a manually installed <code>.vsix</code> does not update itself. Watch the <a href="https://github.com/janwan2003/vscode-api-client/releases">releases page</a> (GitHub &ldquo;Watch &rarr; Custom &rarr; Releases&rdquo;) until the Open VSX listing is live.</p>
+
+    <h2>What we test it on</h2>
+    <p>Each release runs an end-to-end suite inside a real editor started headless: activation, CodeLenses, environments, chained requests, the request panel, history, Thunder Client import, assertions and the collection runner.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Editor</th><th scope="col">Version tested</th><th scope="col">Result</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">VS Code</th><td>1.147</td><td class="yes">All end-to-end checks pass</td></tr>
+          <tr><th scope="row">VSCodium</th><td>1.143.17232</td><td class="yes">All end-to-end checks pass (20 November 2026)</td></tr>
+          <tr><th scope="row">Cursor</th><td>&ndash;</td><td><span class="unk">Not tested by us yet</span>; Cursor runs standard VS Code extensions and Plainwire uses only the stable VS Code API (1.85+)</td></tr>
+          <tr><th scope="row">Windsurf</th><td>&ndash;</td><td><span class="unk">Not tested by us yet</span>; same reasoning as Cursor</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>If something does not work in your editor, please <a href="https://github.com/janwan2003/vscode-api-client/issues">open an issue</a> with the editor name and version.</p>
+
+    <h2>Why plain files suit AI editors</h2>
+    <p>A collection stored in an extension&rsquo;s private database is invisible to your editor&rsquo;s assistant. A <code>.http</code> file is just text in the repository, so you can ask the assistant to &ldquo;add a request for the new <code>/orders</code> endpoint with a check that it returns 201&rdquo; and get a reviewable diff:</p>
+<pre>### Create order
+# @name createOrder
+# @assert status == 201
+# @assert $.id exists
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{ "sku": "TSHIRT-M", "quantity": 2 }</pre>
+    <p>The same file opens as a form in Plainwire, runs in the collection runner, and runs in CI with the <a href="run-http-files-in-ci.html">free command-line runner</a>. The format is the one REST Client and JetBrains IDEs use; see the <a href="http-file-syntax.html">.http syntax cheat sheet</a>.</p>
+
+    <h2>What you get</h2>
+    <ul>
+      <li>A form editor (method, URL, params, headers, body, auth, tests) and a response viewer with a JSON tree, headers and timing.</li>
+      <li>Environments from <code>http-client.env.json</code>, <code>.env</code> values and the REST Client settings you may already have.</li>
+      <li>Request chaining, <code># @assert</code> tests and a <strong>Run all</strong> report for a file or a folder.</li>
+      <li>One-click import from Thunder Client, Postman and cURL.</li>
+      <li>No login, no telemetry, no request or run limits. Requests are sent by Node in the extension host, so CORS does not apply and <code>localhost</code> works.</li>
+    </ul>
+
+    <h2>Questions</h2>
+    <details>
+      <summary>Do I need a Microsoft or Open VSX account?</summary>
+      <p>No. Installing a <code>.vsix</code> needs no account at all, and Plainwire itself never asks you to sign in.</p>
+    </details>
+    <details>
+      <summary>Will my settings and history follow me between editors?</summary>
+      <p>Your requests are files in the repository, so they are the same in every editor. Request history is stored per workspace by each editor, so it does not move.</p>
+    </details>
+    <details>
+      <summary>Can I use it next to REST Client or Thunder Client?</summary>
+      <p>Yes. Plainwire only reads <code>.http</code>/<code>.rest</code> files and its own local history; it does not touch other extensions&rsquo; data.</p>
+    </details>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

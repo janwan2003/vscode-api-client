@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Postman alternative for VS Code without login | Plainwire</title>
+<meta name="description" content="A free, open-source Postman alternative inside VS Code, Cursor and VSCodium: no account, requests as .http files in git, tests, a CLI for CI, and one-click Postman collection import.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/postman-alternative-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="A Postman alternative inside VS Code, without signing in">
+<meta property="og:description" content="No account, plain .http files in git, tests and a free CLI. Comparison and a two-minute migration.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/postman-alternative-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>A Postman alternative inside VS Code, without signing in</h1>
+    <p>Postman is a full API platform: workspaces in the cloud, mock servers, monitors, scripting, documentation. If what you actually do most days is send a request to the API you are building and check the response, you can do that inside your editor with Plainwire: a free, open-source GUI API client for VS Code, Cursor, Windsurf and VSCodium that needs no account and stores requests as plain <code>.http</code> files in your repository.</p>
+    <p class="small">Plainwire is an independent open-source project. It is not affiliated with or endorsed by Postman, Thunder Client or REST Client. Postman is a trademark of its owner.</p>
+
+    <h2>What Postman asks for today</h2>
+    <p>As read on 20 November 2026:</p>
+    <ul>
+      <li>The <a href="https://marketplace.visualstudio.com/items?itemName=Postman.postman-for-vscode">Postman VS Code extension</a> listing says: &ldquo;Sign in to Postman to use the VS Code extension.&rdquo;</li>
+      <li>The <a href="https://www.postman.com/pricing/">Postman pricing page</a> lists the Free plan as 1 user; the Team plan is $19 per user per month, billed annually.</li>
+      <li>The Postman desktop app has a <a href="https://learning.postman.com/docs/getting-started/basics/using-scratch-pad/">lightweight API client</a> that can send requests without signing in; it is a separate app, not the VS Code extension.</li>
+    </ul>
+    <p>None of that is a problem if you use Postman&rsquo;s platform features. It is friction if you just want requests that live next to the code, get reviewed in pull requests and run in CI.</p>
+
+    <h2>Comparison</h2>
+    <p>Facts about Postman come from the pages linked above. &ldquo;Not verified&rdquo; means we could not confirm it either way.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col">Plainwire</th><th scope="col">Postman (VS Code extension, Free plan)</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Price</th><td class="yes">Free, MIT open source</td><td>Free for 1 user; Team $19/user/month (billed annually)</td></tr>
+          <tr><th scope="row">Account to send requests</th><td class="yes">Never</td><td class="no">Sign-in required for the extension</td></tr>
+          <tr><th scope="row">Where requests live</th><td><code>.http</code> files in your repository</td><td>Postman workspaces</td></tr>
+          <tr><th scope="row">Team sharing</th><td>Through git, free, any team size</td><td>Postman workspaces (Free plan: 1 user)</td></tr>
+          <tr><th scope="row">GUI request editor and response viewer</th><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Environments and variables</th><td class="yes">Yes (<code>http-client.env.json</code>)</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Tests</th><td><code># @assert</code> lines, common <code>pm.*</code> tests converted on import</td><td class="yes">JavaScript test scripts</td></tr>
+          <tr><th scope="row">Pre-request / test scripts in JavaScript</th><td class="no">No</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Collection runner and CLI for CI</th><td class="yes">Run all + free CLI and GitHub Action</td><td>Collection Runner; Postman CLI</td></tr>
+          <tr><th scope="row">GraphQL</th><td class="yes">Yes, Query + Variables editor (<a href="graphql-requests-vscode.html">guide</a>)</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">WebSocket, gRPC</th><td class="no">Not yet</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Mock servers, monitors, API docs</th><td class="no">No</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Copy request as code</th><td class="yes">Yes: cURL, JavaScript, Node.js, Python, Go, HTTPie, PowerShell, wget, C#, PHP, Java</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Works offline</th><td class="yes">Yes, nothing but your own requests leaves your machine</td><td><span class="unk">Not verified</span></td></tr>
+          <tr><th scope="row">Telemetry</th><td class="yes">None</td><td><span class="unk">Not verified</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Move a Postman collection in two minutes</h2>
+    <ol class="steps">
+      <li><strong>Export</strong> the collection from Postman (collection menu &rarr; <strong>Export</strong> &rarr; Collection v2.1) and each environment you need.</li>
+      <li><strong>Install Plainwire</strong> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a> (<a href="./#install">install steps</a>).</li>
+      <li>Run <strong>Plainwire: Import from Postman&hellip;</strong> and pick the exported files. Each folder becomes a <code>.http</code> file; environments go to <code>http-client.env.json</code>; collection variables become <code>@name = value</code> lines; common tests become <code># @assert</code> lines; anything that cannot be converted is listed as a warning.</li>
+      <li><strong>Commit</strong> the files. Your teammates get them with <code>git pull</code>.</li>
+    </ol>
+    <p>The full field mapping is in <a href="postman-collection-to-http-file.html">Postman collections to .http files</a>. Without the extension, the <a href="run-http-files-in-ci.html">command-line runner</a> converts too: <code>node plainwire.mjs import my-collection.json</code>, with <code>plainwire.mjs</code> from the latest release.</p>
+
+    <h2>When to stay with Postman</h2>
+    <p>If your tests depend on JavaScript (<code>pm.sendRequest</code>, computed signatures, loops over responses), or your team relies on mock servers, monitors or published documentation, Postman does those things and Plainwire does not. Plainwire is for the everyday loop of writing, sending and checking requests, kept in plain files you own.</p>
+
+    <h2>Questions</h2>
+    <details>
+      <summary>Is my data sent anywhere?</summary>
+      <p>No. Plainwire makes no network calls of its own. The only traffic is the requests you send, to the URLs you wrote. See the <a href="privacy.html">privacy policy</a>.</p>
+    </details>
+    <details>
+      <summary>Can I keep Postman and use Plainwire for some projects?</summary>
+      <p>Yes. Exporting does not change anything in Postman, and the two do not share storage.</p>
+    </details>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

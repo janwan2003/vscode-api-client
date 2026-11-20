@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 (2026-11-20)
+
+- **GraphQL**: requests in REST Client's format (`X-REQUEST-TYPE: GraphQL`, the query, a blank line, a JSON variables object) are sent as `{"query", "variables", "operationName"}` JSON, from the extension and the CLI, with `{{variables}}` in both parts. New GraphQL body mode in the request editor (Query + Variables). Postman and Thunder Client GraphQL requests now import in this format instead of a JSON body.
+- **Copy as Code…**: any request as cURL, JavaScript fetch, Node.js fetch, Python requests, Go, HTTPie, PowerShell, wget, C# HttpClient, PHP cURL or Java HttpClient (CodeLens, command palette, sidebar, request editor). Remembers the last language.
+- **Copy as cURL now resolves variables** (environment, file variables, `.env`, responses already received). Unknown or not-yet-sent chained variables stay as `{{name}}` with a warning; nothing is sent. The CodeLens row now shows *Copy as Code…* in place of *Copy as cURL* (cURL is the first choice).
+- **httpYac `??` assertions** run unchanged: `?? status == 200`, `?? header content-type includes json`, `?? body $.id exists`, `?? duration < 500`, `?? js response.parsedBody.name == "Ada"`. JavaScript is never evaluated: other `?? js` expressions and `?? xpath` fail with "unsupported httpYac assertion". `??` lines are highlighted and are never sent as part of the body.
+- New operators for `# @assert` and `??`: `isTrue`, `isFalse`, `md5`, `sha256`, `sha512`.
+- **Postman import**: checks inside `if`/`else`, loops, `try` or callbacks are no longer converted into unconditional checks; each is listed as a warning.
+
 ## 0.3.0 (2026-11-20)
 
 - **Command-line runner for CI** (free, single file, Node 18+): `plainwire run [files|folders|"globs"] --env <name>` sends every request in order and checks its `# @assert` lines; exit code 1 on failure. JUnit XML, JSON and Markdown reports; `--grep`, `--bail`, `--var name=value`, `--env-file`, `--insecure`, `--proxy`, `--timeout`. In GitHub Actions it writes a job summary and marks failed requests on the PR diff. Download `plainwire.mjs` from the release, or `npm install -g` the release tarball.

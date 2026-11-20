@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GraphQL requests in VS Code with .http files | Plainwire</title>
+<meta name="description" content="Send GraphQL queries from VS Code, Cursor or VSCodium with plain .http files: query + variables, auth, environments, response checks and CI. Free, no login, REST Client compatible.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/graphql-requests-vscode.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="GraphQL requests in VS Code with .http files">
+<meta property="og:description" content="Query + variables in a plain .http file, a GraphQL editor, response checks and CI. Free, no login.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/graphql-requests-vscode.html">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>GraphQL requests in VS Code with .http files</h1>
+    <p>You do not need a separate app to query a GraphQL API. A GraphQL request is an HTTP <code>POST</code> with a JSON body, and the <code>.http</code> format has a readable way to write one: the query as plain text, the variables as JSON underneath. Plainwire (free, open source, no login) sends these from VS Code, Cursor, Windsurf or VSCodium, shows them in a Query + Variables editor, runs checks on the result and runs the same file in CI.</p>
+    <p class="small">The format is the one REST Client uses for GraphQL, so existing files work unchanged. Plainwire is an independent project, not affiliated with REST Client.</p>
+
+    <h2>The syntax</h2>
+    <p>Add the header <code>X-REQUEST-TYPE: GraphQL</code>. The body is the query; after a blank line, an optional JSON object holds the variables:</p>
+<pre>@base = https://countries.trevorblades.com
+
+### Country by code
+# @assert status == 200
+# @assert $.data.country.name == "Poland"
+POST {{base}}/graphql
+X-REQUEST-TYPE: GraphQL
+
+query Country($code: ID!) {
+  country(code: $code) { name capital currency }
+}
+
+{ "code": "PL" }</pre>
+    <p>This is a real public API; the request above passes both checks.</p>
+
+    <h2>What is actually sent</h2>
+    <ul>
+      <li>The body becomes JSON: <code>{"query": "...", "variables": {...}, "operationName": "Country"}</code>. <code>variables</code> is <code>{}</code> when you wrote none.</li>
+      <li><code>operationName</code> is added only when the query contains exactly one operation and it has a name. With several operations it is left out.</li>
+      <li><code>Content-Type: application/json</code> is added unless you set a Content-Type yourself.</li>
+      <li>The <code>X-REQUEST-TYPE</code> header is a marker for the client and is <strong>not</strong> sent to the server.</li>
+      <li><code>{{variables}}</code> are replaced first, so you can use environment values and chained responses inside the query and inside the variables JSON.</li>
+      <li>GraphQL requests must use <code>POST</code>; a <code>GET</code> gives a clear error instead of a request without a body.</li>
+    </ul>
+
+    <h2>Authentication and environments</h2>
+    <p>Headers work as in any other request. Keep the token in an environment file (<code>http-client.private.env.json</code>, git-ignored) or chain it from a login request:</p>
+<pre>### Log in
+# @name login
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "user": "{{user}}", "password": "{{password}}" }
+
+### My orders
+POST {{base}}/graphql
+Authorization: Bearer {{login.response.body.$.token}}
+X-REQUEST-TYPE: GraphQL
+
+query MyOrders($first: Int) {
+  viewer { orders(first: $first) { nodes { id total } } }
+}
+
+{ "first": {{pageSize}} }</pre>
+
+    <h2>The GraphQL editor</h2>
+    <p>Open the request with <strong>Open in Plainwire</strong> (the link above it) and choose <strong>GraphQL</strong> as the body type. The editor shows two boxes, <em>Query</em> and <em>Variables</em>, and writes them back to the file in the format above. Invalid JSON in Variables is flagged before you send. Switching between GraphQL and JSON converts the body in both directions.</p>
+
+    <h2>Test GraphQL responses</h2>
+    <p>GraphQL servers usually answer <code>200</code> even when the query failed, with the problem in an <code>errors</code> array. Check for it explicitly:</p>
+<pre># @assert status == 200
+# @assert $.errors notExists
+# @assert $.data.viewer.orders.nodes.length &gt; 0</pre>
+    <p>Run a whole file or folder with <strong>Run all</strong>, or in CI with the free command-line runner: <code>node plainwire.mjs run api/ --env ci</code>. See <a href="api-tests-in-http-files.html">API tests in .http files</a> and <a href="run-http-files-in-ci.html">run .http files in CI</a>.</p>
+
+    <h2>Copy as cURL</h2>
+    <p><strong>Copy as cURL</strong> on a GraphQL request copies the JSON body that would be sent, not the raw query, so you can paste it into a terminal or a bug report as is.</p>
+
+    <h2>Coming from Postman or Thunder Client</h2>
+    <p>Postman (<code>body.mode: graphql</code>) and Thunder Client GraphQL requests are imported in this format, with their variables. See <a href="postman-collection-to-http-file.html">Postman collections to .http files</a> and <a href="import-thunder-client-to-http-files.html">Thunder Client collections to .http files</a>.</p>
+
+    <h2>Not supported yet</h2>
+    <ul>
+      <li>Schema introspection, autocomplete and validation of the query.</li>
+      <li>Subscriptions over WebSocket or server-sent events.</li>
+      <li>GraphQL over <code>GET</code> (query in the URL), and choosing <code>operationName</code> when a document has several operations.</li>
+    </ul>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

@@ -464,3 +464,15 @@ test('previewRequest resolves variables, keeps unknown and unsent chained ones, 
   const form = await previewRequest({ method: 'POST', url: 'http://x/', headers: [{ name: 'Content-Type', value: 'application/x-www-form-urlencoded' }], body: 'a=1\n&b=2' }, host, undefined);
   assert.equal(form.request.body, 'a=1&b=2');
 });
+
+test('previewRequest converts GraphQL requests, so every snippet sends the JSON Plainwire sends', async () => {
+  const host = { readHttpFile: async () => '', readBodyFile: async () => new Uint8Array(), dotenv: async () => ({}), environment: () => ({ code: 'PL' }) };
+  const req: HttpRequest = { method: 'POST', url: 'https://countries.example/graphql', headers: [{ name: 'X-REQUEST-TYPE', value: 'GraphQL' }], body: 'query Country($code: ID!) {\n  country(code: $code) { name }\n}\n\n{ "code": "{{code}}" }' };
+  const r = await previewRequest(req, host, undefined);
+  assert.ok(!r.request.headers.some((h) => h.name.toLowerCase() === 'x-request-type'));
+  assert.ok(r.request.headers.some((h) => h.name.toLowerCase() === 'content-type' && /json/.test(h.value)));
+  const body = JSON.parse(r.request.body ?? '');
+  assert.deepEqual(body.variables, { code: 'PL' });
+  assert.equal(body.operationName, 'Country');
+  for (const t of CODE_TARGETS) assert.match(generateCode(t.id as CodeTarget, r.request), /query/, t.id);
+});

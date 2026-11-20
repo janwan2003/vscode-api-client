@@ -124,7 +124,7 @@ Content-Type: application/json
           <tr><td><code>header</code></td><td><code>Name: value</code> lines; disabled headers can be left as <code>#</code> comments</td></tr>
           <tr><td><code>body.mode: raw</code> (JSON, text, XML)</td><td>Body text, with a matching <code>Content-Type</code></td></tr>
           <tr><td><code>body.mode: urlencoded</code></td><td><code>a=1&amp;b=2</code> with <code>application/x-www-form-urlencoded</code></td></tr>
-          <tr><td><code>body.mode: graphql</code></td><td>A JSON body: <code>{"query": "...", "variables": {...}}</code></td></tr>
+          <tr><td><code>body.mode: graphql</code></td><td>A GraphQL request: <code>X-REQUEST-TYPE: GraphQL</code>, the query, a blank line, the variables JSON (<a href="graphql-requests-vscode.html">format</a>)</td></tr>
           <tr><td><code>auth</code> bearer / basic (also inherited)</td><td><code>Authorization: Bearer &hellip;</code> / <code>Authorization: Basic &hellip;</code></td></tr>
           <tr><td>Collection <code>variable</code></td><td><code>@name = value</code> at the top of the file</td></tr>
           <tr><td>Environment</td><td>Entry in <code>http-client.env.json</code></td></tr>

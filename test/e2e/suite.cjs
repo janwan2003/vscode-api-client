@@ -114,7 +114,7 @@ exports.run = async function run() {
     assert.deepEqual(JSON.parse(got.body), { query: 'query Pet($id: ID!) {\n  pet(id: $id) { id }\n}', variables: { id: 'local' }, operationName: 'Pet' });
     await vscode.commands.executeCommand('plainwire.copyCurlAt', { uri: gql, index: 0 });
     const curl = await vscode.env.clipboard.readText();
-    assert.ok(curl.includes(`--data-raw '{"query":"query Pet($id: ID!) {\\n  pet(id: $id) { id }\\n}","variables":{"id":"{{envName}}"},"operationName":"Pet"}'`), curl);
+    assert.ok(curl.includes(`--data-raw '{"query":"query Pet($id: ID!) {\\n  pet(id: $id) { id }\\n}","variables":{"id":"local"},"operationName":"Pet"}'`), curl); // Copy as cURL resolves variables since 0.4.0
     assert.ok(!/X-REQUEST-TYPE/i.test(curl), curl);
     assert.equal(fs.readFileSync(gql.fsPath, 'utf8'), text);
   });

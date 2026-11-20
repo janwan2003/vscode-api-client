@@ -116,6 +116,8 @@ Authorization: Bearer <span class="v">{{login.response.body.$.token}}</span></pr
           <tr><td><code>isEmpty</code> <code>!isEmpty</code></td><td>Empty string, empty array, empty object, null or missing (or not)</td></tr>
           <tr><td><code>isNumber</code> <code>isString</code> <code>isBoolean</code> <code>isArray</code> <code>isObject</code> <code>isNull</code></td><td>The JSON value has that type</td></tr>
           <tr><td><code>isJson</code></td><td>The text (for example <code>body</code>) parses as JSON</td></tr>
+          <tr><td><code>isTrue</code> <code>isFalse</code></td><td>The value is <code>true</code> (or <code>false</code>); no expected value</td></tr>
+          <tr><td><code>md5</code> <code>sha256</code> <code>sha512</code></td><td>The hash of the value equals the expected digest, given as hex or base64</td></tr>
         </tbody>
       </table>
     </div>
@@ -175,7 +177,18 @@ pm.response.to.have.header("X-Request-Id")       <span class="c">&rarr; header X
 pm.expect(jsonData.name).to.eql("Ada")           <span class="c">&rarr; $.name == "Ada"</span>
 pm.expect(pm.response.text()).to.include("ok")   <span class="c">&rarr; body contains "ok"</span>
 pm.expect(jsonData.items).to.have.lengthOf(3)    <span class="c">&rarr; $.items.length == 3</span></pre>
-    <p>Tests written as free-form JavaScript are reported as warnings so you can rewrite them by hand.</p>
+    <p>Tests written as free-form JavaScript are reported as warnings so you can rewrite them by hand. Checks inside an <code>if</code>, <code>else</code>, loop, <code>try</code> or callback only ran under a condition in Postman, so they are not turned into always-on checks: each one is listed as &ldquo;skipped conditional check in test '&hellip;'&rdquo;.</p>
+
+    <h2 id="httpyac">httpYac <code>??</code> lines</h2>
+    <p>If your files were written for httpYac, their <code>??</code> test lines run in Plainwire without changes, in the editor, in Run all and in the CLI:</p>
+<pre>GET {{base}}/users/1
+
+?? status == 200
+?? header content-type includes json
+?? body $.id exists
+?? duration &lt; 500
+?? js response.parsedBody.name == "Ada"</pre>
+    <p>Supported subjects: <code>status</code>, <code>duration</code>, <code>header &lt;name&gt;</code>, <code>body</code> and <code>body $.path</code>, and <code>js</code> with simple paths only (<code>response.parsedBody.&hellip;</code>, <code>response.body.&hellip;</code>, <code>response.statusCode</code>, <code>response.headers['x']</code>). Plainwire never runs JavaScript, so any other <code>?? js</code> expression, and <code>?? xpath</code>, is reported as a failed check that says &ldquo;unsupported httpYac assertion&rdquo;, never as a silent pass.</p>
 
     <div class="note">
       <p><strong>Not there yet:</strong> there is no JavaScript scripting, so pre-request scripts, test scripts with loops or custom logic, and setting variables from code are not supported. Checks cover the response of a single request; chaining covers passing values between requests.</p>

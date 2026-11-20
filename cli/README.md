@@ -10,7 +10,7 @@ curl -fsSLO https://github.com/janwan2003/vscode-api-client/releases/latest/down
 node plainwire.mjs run api/ --env staging
 
 # or install the command globally
-npm install -g https://github.com/janwan2003/vscode-api-client/releases/download/v0.3.0/plainwire-cli-0.3.0.tgz
+npm install -g https://github.com/janwan2003/vscode-api-client/releases/download/v0.4.0/plainwire-cli-0.4.0.tgz
 plainwire run "tests/**/*.http" --junit results.xml
 ```
 
@@ -70,7 +70,7 @@ In GitHub Actions it also writes a job summary and marks failed requests on the 
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.3.0
+- uses: janwan2003/vscode-api-client@v0.4.0
   with:
     files: api/
     env: ci

@@ -88,11 +88,21 @@ Complaints and paywall:
 
 ## Status
 
-**Plainwire 0.3.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action). Not yet on the VS Code Marketplace
+**Plainwire 0.4.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action). Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 57 KB `.vsix`, 72 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 68 KB `.vsix`, 83 KB CLI file):
+- 0.4.0 (2026-11-20, session 5): **GraphQL** in REST Client's format (`X-REQUEST-TYPE: GraphQL`, query, blank line, variables
+  JSON → `{query, variables, operationName}`; `src/core/graphql.ts`, applied in `exec.ts` for run and preview, GraphQL body mode
+  in the editor; Postman/Thunder GraphQL now import in this form). **Copy as Code…** (`src/core/codegen.ts`,
+  `src/ext/copyCode.ts`): cURL, JS fetch, Node fetch, Python requests, Go, HTTPie, PowerShell, wget, C#, PHP, Java; the
+  CodeLens row is now Send | Open in Plainwire | Copy as Code…; **Copy as cURL now resolves variables** via
+  `previewRequest` (sends nothing). **httpYac `??` assertions** (status/duration/header/body/`js` simple paths; other `js`
+  and `xpath` fail as "unsupported", JS never evaluated), grammar highlights them; new operators `isTrue isFalse md5 sha256
+  sha512` (28 total). **Postman import** skips checks inside `if`/loops/`try`/callbacks with a named warning.
+  Search Console: site verified (FILE method, `docs/google07cd0d9f3ba93576.html`), sitemap submitted; `scripts/gsc.py`
+  (`token` / `verify` / `status`) touches only this site.
 - 0.3.0 (2026-11-20, session 4): **CLI runner for CI** (`src/cli/`: `plainwire run [files|dirs|"globs"] --env --env-file
   --var --grep --bail --timeout --insecure --proxy --no-redirect --junit --json --markdown -v -q`, exit 0/1/2; in GitHub
   Actions writes `$GITHUB_STEP_SUMMARY` and `::error file=,line=` annotations relative to `GITHUB_WORKSPACE`;
@@ -110,14 +120,34 @@ What exists (TypeScript, no runtime dependencies, 57 KB `.vsix`, 72 KB CLI file)
   casing, gzip/deflate/br, Authorization dropped on cross-host redirects; `size` is now bytes on the wire).
 - `src/core/`: `.http` parser/serializer with byte-preserving single-request replace (`httpFile.ts`), variables
   (file vars, environments with `$shared`, `$guid`/`$timestamp`/`$randomInt`/`$datetime`/`$processEnv`/`$dotenv`,
-  request chaining with a JSONPath subset) (`variables.ts`), sender on Node fetch (`send.ts`), cURL parse/emit (`curl.ts`),
+  request chaining with a JSONPath subset) (`variables.ts`), sender on `node:http`/`https` since 0.2.0 (`send.ts`), cURL parse/emit (`curl.ts`),
   Thunder Client (export JSON + legacy `thunder-tests/` layout) and Postman v2.0/v2.1 + environment importers.
 - `src/ext/`: webview request editor/response viewer (`panel.ts` + `media/panel.js`), sidebar (Requests from all
   `.http` files, History in workspaceState), CodeLens (Send / Open in Plainwire / Copy as cURL), environments from
   `http-client(.private).env.json` + `rest-client.environmentVariables` + `plainwire.environmentVariables`, status-bar
   env picker, import commands, `.http` TextMate grammar.
-- `docs/`: GitHub Pages site, 9 pages (landing, privacy, support, 6 SEO guides incl. `run-http-files-in-ci.html`) + sitemap.
+- `docs/`: GitHub Pages site, 12 pages (landing, privacy, support, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
+  `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (14 URLs).
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (0.4.0, session 5) how:
+- `corepack pnpm@9.15.0 typecheck` clean; `node scripts/test.mjs`: 223 tests, 192 pass, 0 fail, 31 skipped (runtime snippet
+  tests for Go, HTTPie, PowerShell, C#, PHP: interpreters not installed here; string-level tests for them pass).
+  Snippets for cURL, Node fetch, browser fetch (under Node), Python requests, wget, Java were run against a local echo server.
+- e2e 12/12 in **VS Code 1.147** and 12/12 in **VSCodium 1.143.17232** (first non-Microsoft editor tested; tarball from
+  VSCodium's GitHub release, `node scripts/e2e.mjs /tmp/vscodium-dl/app/codium`), incl. GraphQL send + Copy as cURL, Copy as Code
+  picker. `plainwire-0.4.0.vsix` (67.5 KB, 14 files) installs with `codium --install-extension` and `code --install-extension`.
+- GraphQL against a real public server: `plainwire run` on a `countries.trevorblades.com/graphql` file, named query with
+  variables + `$.errors notExists` → 3/3 checks; unnamed query 1/1.
+- httpYac example from the docs page against a local server: 5/5 `??` checks pass; an unsupported `?? js JSON.stringify(...)` fails
+  with the "unsupported httpYac assertion" message.
+- Postman importer regression: 0.3.0 release CLI vs 0.4.0 `import` on 40 real exports from `gh search code pm.test` (35
+  recognised; 5 rejected by both: 3 were `package.json`, 1 collection without `info`, 1 single request) + 4 fixtures:
+  generated `.http` byte-identical except the 2 GraphQL bodies (intended). Conditional checks in 1 real collection (PhoneDB) now
+  get named warnings.
+- Search Console: verify 200, add site 204, sitemap submit 204; `status` shows the sitemap pending, 0 errors.
+- NOT verified: snippets for Go/HTTPie/PowerShell/C#/PHP at runtime; Cursor and Windsurf; `??` against real httpYac files
+  (grammar from knowledge of its docs); the GraphQL editor in a real VS Code window (only in a headless Chromium harness).
 
 Verified 2026-11-20 (0.3.0, session 4) how:
 - `corepack pnpm@9.15.0 typecheck` clean; `node scripts/test.mjs`: 121 tests, 121 pass. New: `test/cli.test.ts` (9) builds
@@ -178,15 +208,14 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.3.0.vsix` with the commands in `store/LISTING.md`. This is still the whole
-   validation channel. Optional operator click: list the Action on the GitHub Marketplace (inbox has the steps).
-2. Postman converter: multi-line `if { pm.expect(...) }` blocks are converted as if unconditional; make the converter skip
-   (warn) anything inside an `if`. Then httpYac-style `?? status == 200` lines, so httpYac users' files run unchanged.
-3. A `plainwire.noProxy` setting; `--reporter tap`; a `plainwire run --watch` mode.
-4. GraphQL body mode, SSE/WebSocket.
-5. After listing: record installs/ratings weekly in `## Metrics`; Google Search Console for the Pages site (operator).
-6. Consider one relevant awesome-list PR for the CLI/Action (e.g. an API-testing tools list) once the Marketplace
-   listing exists: listings without a store link are usually rejected.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.4.0.vsix` with the commands in `store/LISTING.md`. Still the whole
+   validation channel.
+2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04 and record impressions in `## Metrics`.
+3. CI job that installs Go, PHP, pwsh, HTTPie and .NET so the 31 skipped snippet runtime tests run (tests already written).
+4. Run real httpYac `.http` files (GitHub code search) through `plainwire run --grep` to check the `??` grammar; compact the
+   long per-test warning lists from the Postman importer (one line per request).
+5. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; SSE/WebSocket; GraphQL schema introspection/autocomplete.
+6. After listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
 
 ## Monetization plan
 
@@ -215,6 +244,10 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   Action smoke 44739356364 green, release v0.3.0 assets live, 5 Pages URLs 200.
 
 ## Metrics
+
+- 2026-11-20 (session 5): GitHub release downloads v0.3.0 `.vsix` 0, `plainwire.mjs` 0, tgz 0; v0.2.0 2; v0.1.0 2; repo 0 stars,
+  0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`,
+  `/traffic/clones`). Search Console: site added today, sitemap pending, analytics empty (source: `scripts/gsc.py status`).
 
 - 2026-11-20 (session 4): GitHub release downloads v0.2.0 `.vsix` 1 (session 3's own check), v0.1.0 2; repo 0 stars, 0 forks,
   traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`).
