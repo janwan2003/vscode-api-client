@@ -4,6 +4,8 @@ body { margin: 0; padding: 0; color: var(--vscode-foreground); font-family: var(
 #app { display: flex; flex-direction: column; height: 100vh; padding: 10px 12px 0; }
 button { font: inherit; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid transparent; border-radius: 3px; padding: 4px 10px; cursor: pointer; }
 button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+/* Recent themes (Dark Modern) make secondary buttons transparent and outline them with button.border. */
+button:not([class]), button.secondary, button.ee-use { border-color: var(--vscode-button-border, transparent); }
 button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); min-width: 72px; font-weight: 600; }
 button.primary:hover { background: var(--vscode-button-hoverBackground); }
 button.link { background: none; color: var(--vscode-textLink-foreground); padding: 2px 4px; }
@@ -121,3 +123,5 @@ table.tests td { padding: 4px 6px; border-bottom: 1px solid var(--vscode-panel-b
 table.tests td.code { font-family: var(--mono); white-space: pre-wrap; }
 table.tests tr.fail td:last-child { color: var(--vscode-errorForeground); }
 table.events td.dir { font-weight: 700; } table.events tr.ws-sent td.dir { color: var(--vscode-charts-blue); } table.events tr.ws-recv td.dir { color: var(--vscode-charts-green); }
+.ws-compose { display: flex; gap: 6px; align-items: flex-end; padding: 8px 0 2px; border-top: 1px solid var(--vscode-panel-border); }
+.ws-compose textarea { flex: 1; font-family: var(--mono); resize: vertical; min-height: 2.4em; }

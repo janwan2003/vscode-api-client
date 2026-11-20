@@ -24,9 +24,9 @@ JetBrains HTTP Client already use, so git is your sync and teammates without the
   ![Run all report](docs/run-all.png)
 - **Real-world networking**: any port, self-signed certificates (`# @insecure` per request or `plainwire.rejectUnauthorized: false`), HTTP proxies (`plainwire.proxy`, VS Code's `http.proxy`, `HTTPS_PROXY`), header names sent with your casing, gzip/deflate/brotli.
 - **Free CLI and GitHub Action for CI**: `plainwire run api/ --env staging --junit results.xml` runs the same files in your pipeline, with no account and no run limits. One file, Node 18+. [CI guide](https://janwan2003.github.io/vscode-api-client/run-http-files-in-ci.html).
-- **GraphQL**: `X-REQUEST-TYPE: GraphQL` requests (REST Client's format: query, blank line, variables JSON), with a Query + Variables editor. [Guide](https://janwan2003.github.io/vscode-api-client/graphql-requests-vscode.html).
+- **GraphQL**: `X-REQUEST-TYPE: GraphQL` requests (REST Client's format: query, blank line, variables JSON) or `GRAPHQL <url>` (JetBrains' keyword, sent as POST), with a Query + Variables editor. [Guide](https://janwan2003.github.io/vscode-api-client/graphql-requests-vscode.html).
 - **Scripts** (new in 0.13): JavaScript in the JetBrains HTTP Client format. `< {% … %}` above a request runs before it is sent (`request.variables.set('signature', …)`, `crypto.hmac.sha256()…`); `> {% … %}` after it runs on the response (`client.test`, `client.assert`, `client.global.set('token', response.body.token)`, then `{{token}}` in later requests). Also `< ./sign.js` / `> ./check.js` files. Results show next to `# @assert` checks in the editor, Run all and the CLI (`--no-scripts` to skip, `-v` for every script's log). Imported Postman scripts run with a Postman-compatible `pm` API (no `pm.sendRequest`). Scripts run only in trusted workspaces, in a Node `vm` context with a 5 s limit; that is not a security sandbox, so treat scripts like any code in your repo. Setting `plainwire.runScripts`. [Guide](https://janwan2003.github.io/vscode-api-client/javascript-scripts-http-file.html).
-- **WebSocket** (new in 0.12): `WEBSOCKET wss://…` requests in the JetBrains HTTP Client format. Messages separated by `===`, `=== wait-for-server` to wait for a reply, every message shown both ways with its time, checks on `messages[-1].data`; Stop, `# @max-events`, timeouts; same in the CLI. [Guide](https://janwan2003.github.io/vscode-api-client/websocket-client-vscode.html).
+- **WebSocket** (new in 0.12): `WEBSOCKET wss://…` requests in the JetBrains HTTP Client format. Messages separated by `===`, `=== wait-for-server` to wait for a reply, every message shown both ways with its time, checks on `messages[-1].data`; type more messages into the open connection (0.16); Stop, `# @max-events`, timeouts; same in the CLI. [Guide](https://janwan2003.github.io/vscode-api-client/websocket-client-vscode.html).
 - **Copy as Code**: cURL, JavaScript/Node.js fetch, Python requests, Go, HTTPie, PowerShell, wget, C#, PHP, Java, with variables resolved.
 - **httpYac compatible tests**: `?? status == 200`-style lines run as checks too.
 - **Sidebar with folders** (new in 0.11): your folders, the `.http` files in them and their requests, plus a local history of sent requests. Drag requests between files or reorder them, rename, duplicate, move to another file, delete; drag files into folders; run a whole folder. Edits keep the rest of each file byte for byte. [Guide](https://janwan2003.github.io/vscode-api-client/organize-api-requests-folders-vscode.html).
@@ -69,7 +69,7 @@ unchanged, as are `$schema` and the order of your keys. With several env files i
 
 Until the Marketplace and Open VSX listings are live, download `plainwire-<version>.vsix` from
 [Releases](https://github.com/janwan2003/vscode-api-client/releases/latest) and run
-**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.15.0.vsix`; same for `cursor` / `codium`).
+**Extensions: Install from VSIX…** (or `code --install-extension plainwire-0.16.0.vsix`; same for `cursor` / `codium`).
 
 ## Run the same files in CI
 
@@ -81,7 +81,7 @@ node plainwire.mjs run api/ --env staging --junit results.xml
 ```yaml
 # .github/workflows/api-tests.yml
 - uses: actions/checkout@v4
-- uses: janwan2003/vscode-api-client@v0.15.0
+- uses: janwan2003/vscode-api-client@v0.16.0
   with:
     files: api/
     env: ci

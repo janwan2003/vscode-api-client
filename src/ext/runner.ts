@@ -96,11 +96,11 @@ export class Runner {
     }
   }
 
-  async run(req: HttpRequest, source: RunSource, token?: vscode.CancellationToken, onEvent?: (e: SseEvent) => void): Promise<RunResult> {
+  async run(req: HttpRequest, source: RunSource, token?: vscode.CancellationToken, onEvent?: (e: SseEvent) => void, onWsOpen?: SendOptions['onWsOpen']): Promise<RunResult> {
     const abort = new AbortController();
     const sub = token?.onCancellationRequested(() => abort.abort(new Error('Cancelled')));
     try {
-      return await this.exec.run(req, source.uri?.toString(), abort.signal, { onEvent });
+      return await this.exec.run(req, source.uri?.toString(), abort.signal, { onEvent, onWsOpen });
     } catch (e) {
       // {{host}} undefined only because no (or the wrong) environment is selected: say which environment has it.
       const fix = e instanceof UnresolvedVariableError ? this.envs.fixFor(e.variable) : undefined;

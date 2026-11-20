@@ -175,7 +175,8 @@ function describeClose(payload: Buffer): string {
  */
 export async function sendWebSocket(req: HttpRequest, script: WsScript, opts: SendOptions = {}): Promise<HttpResponse> {
   const controller = new AbortController();
-  const timeout = opts.timeoutMs && opts.timeoutMs > 0 ? setTimeout(() => controller.abort(new Error(`Timed out after ${opts.timeoutMs} ms`)), opts.timeoutMs) : undefined;
+  const arm = () => (opts.timeoutMs && opts.timeoutMs > 0 ? setTimeout(() => controller.abort(new Error(`Timed out after ${opts.timeoutMs} ms`)), opts.timeoutMs) : undefined);
+  let timeout = arm();
   const onAbort = () => controller.abort(opts.signal!.reason instanceof Error ? opts.signal!.reason : new Error('Cancelled'));
   if (opts.signal?.aborted) onAbort();
   else opts.signal?.addEventListener('abort', onAbort, { once: true });
@@ -238,7 +239,16 @@ export async function sendWebSocket(req: HttpRequest, script: WsScript, opts: Se
       up.socket.destroy();
       throw new Error(`the server answered 101 but with a wrong Sec-WebSocket-Accept (${accept ?? 'none'})`);
     }
-    const s = await converse(up.socket, up.head, script, signal, started, opts);
+    // A message typed into the open connection restarts the timeout, so an interactive session stays open while in use.
+    const typed: SendOptions['onWsOpen'] = opts.onWsOpen && ((send) => opts.onWsOpen!((text) => {
+      const ok = send(text);
+      if (ok && timeout) {
+        clearTimeout(timeout);
+        timeout = arm();
+      }
+      return ok;
+    }));
+    const s = await converse(up.socket, up.head, script, signal, started, { ...opts, onWsOpen: typed });
     return {
       status,
       statusText: res.statusMessage ?? 'Switching Protocols',
@@ -404,6 +414,13 @@ function converse(socket: Socket, head: Buffer, script: WsScript, signal: AbortS
     signal.addEventListener('abort', onAbort, { once: true });
     // Messages before the first `=== wait-for-server` go out on open, before anything already received is read.
     advance();
+    // Messages typed into an open connection: sent at once, outside the script (they do not reset its waits).
+    opts.onWsOpen?.((text) => {
+      if (finished || closing) return false;
+      socket.write(encodeFrame(OP.text, Buffer.from(text, 'utf8')));
+      record({ event: 'sent', data: text, timeMs: ms() }, `> ${text}`);
+      return true;
+    });
     if (head.length) socket.emit('data', head);
   });
 }

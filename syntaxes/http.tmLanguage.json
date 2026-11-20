@@ -134,7 +134,7 @@
       }
     },
     "requestLine": {
-      "match": "^\\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|WEBSOCKET|WS)\\s+(\\S.*?)(\\s+HTTP/[\\d.]+)?\\s*$",
+      "match": "^\\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT|WEBSOCKET|WS|GRAPHQL)\\s+(\\S.*?)(\\s+HTTP/[\\d.]+)?\\s*$",
       "captures": {
         "1": {
           "name": "keyword.control.method.http"

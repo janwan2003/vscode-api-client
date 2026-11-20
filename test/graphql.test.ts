@@ -154,3 +154,50 @@ test('Copy as cURL emits the JSON body, keeping unresolved {{placeholders}}', ()
   );
   assert.ok(!/X-REQUEST-TYPE/i.test(c));
 });
+
+test('JetBrains GRAPHQL keyword: a GraphQL request sent as POST, round-trips unchanged, Copy as cURL says POST', async () => {
+  const req: HttpRequest = { method: 'GRAPHQL', url: 'https://api.test/graphql', headers: [], body: 'query Users($n: Int) { users(first: $n) { id } }\n\n{"n": 3}' };
+  assert.equal(isGraphqlRequest(req), true);
+  const r = toGraphqlHttp(req);
+  assert.equal(r.method, 'POST');
+  assert.deepEqual(JSON.parse(r.body!), { query: 'query Users($n: Int) { users(first: $n) { id } }', variables: { n: 3 }, operationName: 'Users' });
+  assert.deepEqual(r.headers, [{ name: 'Content-Type', value: 'application/json' }]);
+  assert.equal(req.method, 'GRAPHQL', 'input not modified');
+  assert.throws(() => toGraphqlHttp({ ...req, url: 'wss://api.test/graphql' }), /subscriptions over WebSocket/);
+  assert.match(toCurl(req), /-X POST/);
+
+  const text = '### Users\nGRAPHQL https://api.test/graphql\n\nquery Users($n: Int) { users(first: $n) { id } }\n\n{"n": 3}\n';
+  const parsed = parseHttpFile(text);
+  assert.equal(parsed.requests[0].method, 'GRAPHQL');
+  assert.equal(replaceRequest(text, 0, parsed.requests[0]), text);
+
+  // On the wire: POST with the JSON body (before 0.16.0 the literal method GRAPHQL was sent and servers answered 400).
+  const seen: { method?: string; body: string }[] = [];
+  const server = createServer((q, res) => {
+    let b = '';
+    q.on('data', (c) => (b += c));
+    q.on('end', () => {
+      seen.push({ method: q.method, body: b });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"data":{"users":[{"id":1}]}}');
+    });
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  try {
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/graphql`;
+    const exec = new Executor({
+      readHttpFile: async () => `### Users\n# @assert $.data.users[0].id == 1\nGRAPHQL ${url}\n\nquery { users { id } }\n`,
+      readBodyFile: async () => new Uint8Array(),
+      dotenv: async () => ({}),
+      environment: () => ({}),
+      sendOptions: () => ({ timeoutMs: 5000 }),
+    });
+    const out = await exec.run(parseHttpFile(`### Users\n# @assert $.data.users[0].id == 1\nGRAPHQL ${url}\n\nquery { users { id } }\n`).requests[0], 'f.http');
+    assert.equal(out.response.status, 200);
+    assert.equal(seen[0].method, 'POST');
+    assert.deepEqual(JSON.parse(seen[0].body), { query: 'query { users { id } }', variables: {} });
+    assert.ok(out.assertions.every((a) => a.passed));
+  } finally {
+    server.close();
+  }
+});

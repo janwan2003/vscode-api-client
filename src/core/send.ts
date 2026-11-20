@@ -35,6 +35,11 @@ export interface SendOptions {
   /** For a `text/event-stream` response: called for each event as it arrives. */
   onEvent?: (event: SseEvent) => void;
   /**
+   * For a WebSocket: called once the connection is open with a function that sends one more text
+   * message (typed by the user while the script runs). It returns false once the connection is closing.
+   */
+  onWsOpen?: (send: (text: string) => boolean) => void;
+  /**
    * Cookies: `Set-Cookie` of every hop (redirects included) is stored here, and matching cookies
    * are added to each hop's `Cookie` header (a cookie the request sets itself is not overridden).
    */

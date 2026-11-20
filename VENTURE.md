@@ -118,17 +118,31 @@ Complaints and paywall:
 - **No dead ends on day one** (session 15, 0.15.0): a `{{host}}` that only another environment defines names that environment with
   *Use dev and send*; Run all rows open with their response; imports land in the sidebar; Save asks for a name. Found by walking the
   GUI in a real VS Code window, not by reading code.
+- **A live WebSocket you can talk to** (session 16, 0.16.0): type messages into an open connection (Postman has this; REST Client has
+  no WebSocket at all), and JetBrains `GRAPHQL` requests run unchanged.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.15.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.16.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 135 KB `.vsix`, 171 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 137 KB `.vsix`, 172 KB CLI file):
+- 0.16.0 (2026-11-20, session 16): **third real-window hand-walk** (`scripts/shot/live/walk.sh`; `server.mjs` gained `/events` SSE,
+  a `/ws` WebSocket echo and a `/token` OAuth endpoint) of SSE and WebSocket live views, GraphQL, cURL paste into the URL box, Copy as Code
+  picker, OAuth 2 tab + Acquire, and tree Rename / Duplicate / Move to File / Delete (InputBox, QuickPick and modal answered from
+  `/eval`). Fixes: `RequestPanel.show(…, autoSend)` now waits for the webview's `ready` (`whenReady`): before, the `sending` state was reset
+  by the later `load`, so a WebSocket sent from the tree into a new tab sat connected with no view and no Stop. **`GRAPHQL <url>`**
+  (JetBrains keyword) → `isGraphqlRequest` true, `toGraphqlHttp` sends POST (was the literal method → 400), `GRAPHQL ws://` rejected
+  with a message; panel GraphQL body editor, method list, grammar. **Typing into an open WebSocket**: `SendOptions.onWsOpen(send)` →
+  `RunOptions`/`Runner.run`/panel message `wsSend`, webview `wsComposer()` (one element kept across re-renders so draft + focus survive),
+  typed messages restart the timeout (`arm()` in `sendWebSocket`). CSS: buttons without a class / `.secondary` / `.ee-use` use
+  `--vscode-button-border` (Dark Modern's secondary buttons are transparent). Real `docs/websocket.png` (typed message + echo) and
+  `docs/sse.png`. Guides: websocket page "Type messages into an open connection" (removed the "cannot type" limit), graphql page
+  `GRAPHQL` form (verified live against countries.trevorblades.com with the CLI).
 - 0.15.0 (2026-11-20, session 15): **second real-window hand-walk** (env editor, Send without an environment, Run all, Postman and
   Thunder import, Save; `scripts/shot/live/walk.sh` keeps a headless VS Code up for driving through `driver.cjs` :9444 and `cdp.mjs`;
   native dialogs answered by assigning `vscode.window.showOpenDialog` / `showQuickPick` from `/eval`) and fixes for what it showed.
@@ -536,7 +550,7 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.15.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.16.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
    especially the 3 converter pages, `rest-client-alternative.html`, and the newest feature pages (folders, cookies, SSE, import).
 3. Watch marmelab/awesome-rest PR #242 (opened session 12, one line under Testing > Querying; their link-check workflow needs
@@ -545,17 +559,18 @@ a body line starting with `###` splits the request (inherent to the format).
    200 stars + 2 contributors; awesome-vscode needs a Marketplace link (subagent research, session 12).
 4. Keep hand-walking the GUI with `scripts/shot/live/walk.sh` (session 14: empty state, New Request, Send, Params, Auth Bearer, Tests,
    Scripts tab, layout, filter; session 15: env editor incl. Secret/Save/Add to .gitignore/Use, Send with no environment, Run all + row
-   click, Postman and Thunder import, Save into a file). Not yet walked: OAuth 2 tab + Acquire, GraphQL body, OpenAPI import from a URL,
-   cURL paste, WebSocket/SSE live views, Copy as Code picker, Rename/Move/Delete in the tree, multi-root. Still webview-only renders:
-   `docs/collections.png` is real; `oauth2.png`, `sse.png`, `websocket.png`, `cookies.png` are not; re-shoot them with `shots.sh`-style
-   scripts. Ideas the walk raised but not done: a first-run hint when `http-client.env.json` exists and no environment was ever chosen
+   click, Postman and Thunder import, Save into a file; session 16: SSE + WebSocket live views and typing, GraphQL, cURL paste, Copy as
+   Code, OAuth 2 tab + Acquire, Rename/Duplicate/Move to File/Delete). Not yet walked: OpenAPI import from a URL, cookies tab, history
+   re-open, multi-root, light theme. Still webview-only renders: `oauth2.png`, `cookies.png` (re-shoot from `walk.sh`; the session-16
+   OAuth walk screenshots were not saved as docs). An e2e for "send from tree into a new tab keeps the live view" (webview state
+   is not reachable from the e2e host today). Ideas the walk raised but not done: a first-run hint when `http-client.env.json` exists and no environment was ever chosen
    (rejected auto-selecting the first environment: it could be production); the History view could group by day.
 5. Scripts follow-ups (0.13.0): a real screenshot of the Scripts tab for the guide page;
    run Postman **folder/collection-level** scripts (prepend to each request's block, or an `# @import`-style shared script);
    Thunder Client `tc.*` scripts on import with a `tc` shim like `pmShim.ts`; httpYac `{{ }}` script blocks and `?? js` with arbitrary
    JavaScript (27 of 42 unsupported `??` lines in the session-6 corpus need it); re-validate the importer on the 40 real Postman exports
    from session 4 (not in the repo: re-fetch from GitHub search) and count how many embedded scripts run without error.
-6. WebSocket follow-ups: type and send messages into an open connection from the panel (JetBrains' Services window does this);
+6. WebSocket follow-ups (typing into an open connection done in 0.16.0): saved message snippets / history of typed messages;
    `ws://` through a proxy via CONNECT; optional `permessage-deflate`; Socket.IO / graphql-transport-ws helpers.
 7. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
    handlers with injected answers), a check that an open request tab follows a moved request, and one multi-root run.
@@ -664,7 +679,21 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   `plainbyte.plainwire@0.15.0`, CI 44785920352 success (Node 20 + 22), Pages 44785918994 success, Action smoke 44786187319 success,
   release assets byte-identical, live pages 200, live `environments.png` identical.
 
+- 2026-11-20 builder (session 16): stores still blocked (no `VSCE_PAT`/`OVSX_PAT` in `.env`). Third real-window hand-walk (SSE, WebSocket,
+  GraphQL, cURL paste, Copy as Code, OAuth 2 tab, tree Rename/Duplicate/Move/Delete). It showed a WebSocket sent from the sidebar into a
+  new tab connecting invisibly (no live view, no Stop), JetBrains `GRAPHQL` requests failing with 400, and invisible secondary buttons in
+  Dark Modern. Shipped **0.16.0** with those fixed plus **typing messages into an open WebSocket**, real `websocket.png` + `sse.png`, and
+  2 guides updated. Evidence: unit 367 tests / 336 pass / 0 fail / 31 skipped (interpreters not installed), e2e 23/23, real-window checks
+  (sidebar Send → "Connected · 2 sent, 3 received" + Stop; typed message → echo row, draft kept; GraphQL 200 sent as POST; OAuth token →
+  Bearer header, 200; cURL paste → 201), CLI `GRAPHQL` against countries.trevorblades.com 2/2 checks, `.vsix` contents checked (headless
+  `--install-extension` hung this time, not verified by install); CI/Pages/release results in the Metrics entry below.
+
 ## Metrics
+
+- 2026-11-20 (session 16, 19:00): GitHub release downloads v0.15.0 `.vsix` 3, tgz 3, `plainwire.mjs` 2; v0.14.0 2/1/3; v0.13.0 2/2/3 (our
+  own checks and Action smoke runs account for most); repo 0 stars, 0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api
+  repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`). Search Console: sitemap 0 errors, 0 warnings, analytics
+  empty 2026-10-23..11-20 (`scripts/gsc.py status`). awesome-rest PR #242: open, 0 reviews, 0 comments.
 
 - 2026-11-20 (session 15, 18:55): GitHub release downloads v0.14.0 `.vsix` 2, tgz 0, `plainwire.mjs` 3; v0.13.0 2/2/3; v0.12.0 2/2/3
   (our own checks and Action smoke runs account for most); v0.15.0 just published; repo 0 stars, 0 forks, 0 watchers; traffic views 0,

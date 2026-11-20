@@ -3,7 +3,7 @@
 (function () {
   // @ts-ignore
   const vscode = acquireVsCodeApi();
-  const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'WEBSOCKET'];
+  const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'WEBSOCKET', 'GRAPHQL'];
   const BODY_TYPES = [
     ['none', 'None', ''],
     ['json', 'JSON', 'application/json'],
@@ -91,8 +91,10 @@
   }
   // GraphQL in REST Client's form: header X-REQUEST-TYPE: GraphQL, body = query, blank line, variables JSON.
   // Same rules as src/core/graphql.ts (isGraphqlRequest / splitGraphqlBody / joinGraphqlBody), which does the sending.
+  // Also the JetBrains HTTP Client's `GRAPHQL <url>` keyword (sent as POST).
+  const isGqlMethod = () => String(S.request.method).toUpperCase() === 'GRAPHQL';
   function isGraphql() {
-    return (header('x-request-type')?.value || '').trim().toLowerCase() === 'graphql';
+    return isGqlMethod() || (header('x-request-type')?.value || '').trim().toLowerCase() === 'graphql';
   }
   function splitGql(body) {
     const lines = body.split(/\r?\n/);
@@ -315,7 +317,7 @@
         h('datalist', { id: 'hdrs' }, ...['Accept', 'Authorization', 'Content-Type', 'Cookie', 'User-Agent', 'Cache-Control', 'If-None-Match', 'Origin', 'X-API-Key', 'X-Request-Id'].map((x) => h('option', { value: x }))),
         kvTable(S.request.headers, (rows) => { S.request.headers = rows; changed(); }, { namePh: 'header', list: 'hdrs' }),
         h('p', { class: 'hint' }, 'Unchecked headers are saved as # comments and not sent.'),
-        ...(isGraphql() ? [h('p', { class: 'hint' }, 'X-REQUEST-TYPE: GraphQL makes this a GraphQL request (see the Body tab); it is not sent.')] : []),
+        ...(isGraphql() && !isGqlMethod() ? [h('p', { class: 'hint' }, 'X-REQUEST-TYPE: GraphQL makes this a GraphQL request (see the Body tab); it is not sent.')] : []),
       );
     } else if (S.reqTab === 'body') {
       const type = bodyType();
@@ -323,12 +325,13 @@
         h('label', {}, h('input', { type: 'radio', name: 'bt', checked: id === type, onchange: () => {
           if (type === 'graphql') {
             setHeader('X-REQUEST-TYPE', null);
+            if (isGqlMethod()) S.request.method = 'POST';
             const j = id === 'json' ? gqlToJson(S.request.body || '') : null;
             if (j !== null) S.request.body = j;
           }
           if (id === 'none') { S.request.body = undefined; setHeader('Content-Type', null); }
           else setHeader('Content-Type', ct);
-          if (id === 'graphql') {
+          if (id === 'graphql' && !isGqlMethod()) {
             setHeader('X-REQUEST-TYPE', 'GraphQL');
             const g = jsonToGql(S.request.body || '');
             if (g !== null) S.request.body = g;
@@ -363,8 +366,10 @@
               catch (e) { err.textContent = 'Not valid JSON (maybe {{variables}} outside strings): ' + e.message; }
             } }, 'Format'), err),
           v,
-          h('p', { class: 'hint' }, 'Sent as JSON {"query", "variables"} with Content-Type: application/json; the X-REQUEST-TYPE: GraphQL header marks the request and is not sent. ',
-            'Saved in REST Client\'s format: the query, a blank line, then the variables. {{variables}} work in both.'));
+          h('p', { class: 'hint' }, isGqlMethod()
+            ? 'Sent as POST with JSON {"query", "variables"} and Content-Type: application/json. Saved in the JetBrains HTTP Client\'s format (GRAPHQL keyword): the query, a blank line, then the variables. {{variables}} work in both.'
+            : 'Sent as JSON {"query", "variables"} with Content-Type: application/json; the X-REQUEST-TYPE: GraphQL header marks the request and is not sent. ' +
+              'Saved in REST Client\'s format: the query, a blank line, then the variables. {{variables}} work in both.'));
         check();
       } else if (type === 'form') {
         const rows = (S.request.body || '').split(/\n?&|\n/).filter(Boolean).map((p) => { const i = p.indexOf('='); return i < 0 ? { name: p, value: '' } : { name: p.slice(0, i), value: p.slice(i + 1) }; });
@@ -549,17 +554,39 @@
     return n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
   }
 
+  /** Message box for an open WebSocket. Built once and re-attached, so a draft and focus survive live updates. */
+  let wsBox = null;
+  function wsComposer() {
+    if (wsBox) return wsBox;
+    const ta = h('textarea', { class: 'ws-msg', rows: 2, spellcheck: false, placeholder: 'Message to send, e.g. {"type": "ping"}   (Enter sends, Shift+Enter adds a line)' });
+    const send = () => {
+      if (!ta.value) return;
+      vscode.postMessage({ type: 'wsSend', text: ta.value });
+      ta.value = '';
+    };
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); e.stopPropagation(); send(); }
+    });
+    wsBox = h('div', { class: 'ws-compose' }, ta, h('button', { class: 'primary', onclick: send }, 'Send message'));
+    return wsBox;
+  }
+
   function renderResponse() {
     const res = $('#res');
     if (!res) return;
+    const typing = wsBox && wsBox.contains(document.activeElement);
     res.replaceChildren();
-    if (S.sending && S.stream && S.stream.length) {
+    if (S.sending && ((S.stream && S.stream.length) || S.wsOpen)) {
       const ws = isWs(S.request);
-      res.append(h('div', { class: 'status' }, h('div', { class: 'spinner' }), h('span', {}, ws ? 'Connected · ' + streamCount(S.stream, true) : 'Receiving events: ' + S.stream.length),
-        h('span', { class: 'hint' }, ws ? 'Stop closes the connection and keeps the messages. End the script with === wait-for-server, or add # @max-events N, to close by itself.' : 'Stop keeps what arrived. Add # @max-events N to stop by itself.')));
+      res.append(h('div', { class: 'status' }, h('div', { class: 'spinner' }), h('span', {}, ws ? 'Connected · ' + streamCount(S.stream || [], true) : 'Receiving events: ' + S.stream.length),
+        h('span', { class: 'hint' }, ws ? 'Type a message below to send it now. Stop closes the connection and keeps the messages; end the script with === wait-for-server, or add # @max-events N, to close by itself.' : 'Stop keeps what arrived. Add # @max-events N to stop by itself.')));
       const pane = h('div', { class: 'pane resp' });
-      pane.append(eventsTable(S.stream.slice(-MAX_LIVE_EVENTS)));
+      pane.append(eventsTable((S.stream || []).slice(-MAX_LIVE_EVENTS)));
       res.append(pane);
+      if (ws && S.wsOpen) {
+        res.append(wsComposer());
+        if (typing) wsBox.querySelector('textarea').focus();
+      }
       pane.scrollTop = pane.scrollHeight;
       return;
     }
@@ -876,18 +903,22 @@
       persist();
       render();
     } else if (m.type === 'sending') {
-      S.sending = true; S.error = null; S.useEnvs = null; S.stream = []; render();
+      S.sending = true; S.wsOpen = false; S.error = null; S.useEnvs = null; S.stream = []; render();
+    } else if (m.type === 'wsOpen') {
+      S.wsOpen = true; renderResponse();
+    } else if (m.type === 'wsClosed') {
+      S.wsOpen = false; renderResponse();
     } else if (m.type === 'events') {
       const first = !S.stream || !S.stream.length;
       S.stream = (S.stream || []).concat(m.events);
       if (first) render(); else renderResponse();
     } else if (m.type === 'response') {
-      S.sending = false; S.stream = []; S.response = m.response; S.resolved = m.resolved; S.error = null;
+      S.sending = false; S.wsOpen = false; S.stream = []; S.response = m.response; S.resolved = m.resolved; S.error = null;
       S.assertions = m.assertions || []; S.lastAssertions = S.assertions; S.logs = m.logs || [];
       if (S.resTab === 'tests' && !S.assertions.length && !S.logs.length) S.resTab = 'body';
       persist(); render();
     } else if (m.type === 'error') {
-      S.sending = false; S.stream = []; S.error = m.message; S.useEnvs = m.useEnvs || null; persist(); render();
+      S.sending = false; S.wsOpen = false; S.stream = []; S.error = m.message; S.useEnvs = m.useEnvs || null; persist(); render();
     } else if (m.type === 'layout') {
       S.meta.layout = m.layout; persist(); applyLayout();
     } else if (m.type === 'setRequest') {

@@ -51,6 +51,15 @@ query Country($code: ID!) {
 
 { "code": "PL" }</pre>
     <p>This is a real public API; the request above passes both checks.</p>
+    <p>The JetBrains HTTP Client&rsquo;s form works too (since 0.16): write <code>GRAPHQL</code> instead of <code>POST</code> and leave out the header. Plainwire sends it as a <code>POST</code> with the same JSON body, so files shared with IntelliJ users run unchanged:</p>
+<pre>### Country by code
+GRAPHQL https://countries.trevorblades.com/graphql
+
+query Country($code: ID!) {
+  country(code: $code) { name capital }
+}
+
+{ "code": "PL" }</pre>
 
     <h2>What is actually sent</h2>
     <ul>

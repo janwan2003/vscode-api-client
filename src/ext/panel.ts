@@ -36,6 +36,7 @@ export interface Outcome {
 
 type FromWebview =
   | { type: 'ready' }
+  | { type: 'wsSend'; text: string }
   | { type: 'send'; request: HttpRequest }
   | { type: 'cancel' }
   | { type: 'save'; request: HttpRequest }
@@ -77,7 +78,9 @@ export class RequestPanel {
       p = new RequestPanel(deps, request, source, key, shown);
       RequestPanel.open.set(key, p);
     }
-    if (autoSend) void p.send(request);
+    // A new tab's webview drops (or later resets) anything posted before it says 'ready', so a send started
+    // now would lose its "Sending…" / live stream state: a WebSocket would sit connected with no view and no Stop.
+    if (autoSend) p.whenReady(() => void p!.send(request));
     return p;
   }
 
@@ -169,6 +172,15 @@ export class RequestPanel {
     };
   }
 
+  private ready = false;
+  private wsSend?: (text: string) => boolean;
+  private onReady: (() => void)[] = [];
+
+  private whenReady(f: () => void): void {
+    if (this.ready) f();
+    else this.onReady.push(f);
+  }
+
   private post(msg: unknown): void {
     void this.panel.webview.postMessage(msg);
   }
@@ -179,6 +191,8 @@ export class RequestPanel {
         case 'ready':
           this.post({ type: 'load', request: this.request, ...this.pending, ...this.meta() });
           this.pending = undefined;
+          this.ready = true;
+          for (const f of this.onReady.splice(0)) f();
           break;
         case 'changed':
           this.request = m.request;
@@ -186,6 +200,10 @@ export class RequestPanel {
           break;
         case 'send':
           await this.send(m.request);
+          break;
+        case 'wsSend':
+          // Typed into an open WebSocket; the sent message comes back to the view as an event.
+          if (!this.wsSend?.(m.text)) this.post({ type: 'wsClosed' });
           break;
         case 'cancel':
           this.cts?.cancel();
@@ -258,12 +276,20 @@ export class RequestPanel {
       batch.push(e);
       timer ??= setTimeout(flush, 100);
     };
+    // A WebSocket that stays open: the message box under the live view sends through this.
+    const onWsOpen = (send: (text: string) => boolean) => {
+      if (this.cts !== cts) return;
+      this.wsSend = send;
+      this.post({ type: 'wsOpen' });
+    };
     try {
-      const { resolved, response, assertions, logs } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token, onEvent);
+      const { resolved, response, assertions, logs } = await this.deps.runner.run(request, { uri: this.source.kind === 'file' ? this.source.uri : undefined }, cts.token, onEvent, onWsOpen);
       if (timer) clearTimeout(timer);
+      if (this.cts === cts) this.wsSend = undefined;
       if (this.cts === cts) this.post({ type: 'response', response, resolved, assertions, logs });
     } catch (e) {
       if (timer) clearTimeout(timer);
+      if (this.cts === cts) this.wsSend = undefined;
       if (this.cts !== cts) return;
       // Runner.run adds `useEnvs` when another environment defines the missing variable: offer those as buttons.
       this.post({ type: 'error', message: (e as Error).message, useEnvs: (e as { useEnvs?: string[] }).useEnvs?.slice(0, 4) });

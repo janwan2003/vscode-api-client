@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.0 (2026-11-20)
+
+From a hand-walk of streams, GraphQL, cURL paste, Copy as Code, OAuth 2 and the tree in a real VS Code window.
+
+- **Type messages into an open WebSocket.** While a connection is open, a message box under the live view sends what you type at once (Enter sends, Shift+Enter adds a line); it shows up in the list with its reply. Typed messages restart the time limit, so a session stays open while you use it. Before, the only way to send another message was to edit the script and reconnect.
+- **Send from the sidebar into a new tab keeps the live view.** A request sent from the Requests view (or a CodeLens) into a tab that was not open yet lost its "Sending…" state: a WebSocket stayed connected with no messages shown and no Stop button, and a slow request showed the empty response pane until it returned. The send now waits until the tab is ready.
+- **`GRAPHQL <url>` requests** (the JetBrains HTTP Client's keyword) are sent as POST with the `{"query", "variables"}` JSON body, open with the GraphQL body editor, and work in Copy as Code and the CLI. Before, the literal method `GRAPHQL` went to the server, which answered 400. `GRAPHQL` is also in the method list and highlighted in `.http` files.
+- Secondary buttons (Save, *Acquire token now*, *Use this environment*) have a visible outline in themes that make them transparent, such as Dark Modern.
+- Real VS Code screenshots for the WebSocket and server-sent events guides.
+
 ## 0.15.0 (2026-11-20)
 
 From a hand-walk of the environment editor, Run all, imports and Save in a real VS Code window.

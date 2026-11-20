@@ -63,6 +63,8 @@ export interface ExecHost {
 export interface RunOptions {
   /** Each server-sent event of a `text/event-stream` response, as it arrives. */
   onEvent?: (event: SseEvent) => void;
+  /** WebSocket requests: receives a function that sends a typed message into the open connection. */
+  onWsOpen?: SendOptions['onWsOpen'];
 }
 
 /**
@@ -248,7 +250,7 @@ export class Executor {
 
     try {
       const cookieJar = req.meta?.['no-cookie-jar'] === undefined ? this.host.cookieJar : undefined;
-      const sendOpts: SendOptions = { ...this.host.sendOptions(req), ...requestSendOptions(req), signal, bodyOverride, onEvent: opts.onEvent, cookieJar };
+      const sendOpts: SendOptions = { ...this.host.sendOptions(req), ...requestSendOptions(req), signal, bodyOverride, onEvent: opts.onEvent, onWsOpen: opts.onWsOpen, cookieJar };
       const response = wsScript ? await sendWebSocket(resolved, wsScript, sendOpts) : await sendRequest(resolved, sendOpts);
       if (req.name) {
         named.set(req.name, {

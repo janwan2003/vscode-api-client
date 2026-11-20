@@ -17,13 +17,20 @@ import type { HttpRequest } from './model.ts';
  * (added when the request has none); the `X-REQUEST-TYPE` header itself is not sent.
  * `operationName` is included only when the document has exactly one operation and it is named.
  * The `.http` text is never rewritten: the conversion happens just before sending (and in Copy as cURL).
+ *
+ * The JetBrains HTTP Client's form is accepted too: `GRAPHQL https://api.example.com/graphql` with the
+ * same body. It is sent as POST.
  */
 
 /** Header that marks a GraphQL request (REST Client convention). Matched case-insensitively. */
 export const GRAPHQL_HEADER = 'X-REQUEST-TYPE';
 
-/** True when the request has an enabled `X-REQUEST-TYPE: GraphQL` header (any case). */
-export function isGraphqlRequest(req: Pick<HttpRequest, 'headers'>): boolean {
+/**
+ * True when the request has an enabled `X-REQUEST-TYPE: GraphQL` header (any case), or uses the
+ * JetBrains HTTP Client's `GRAPHQL <url>` keyword (sent as POST; same body: query, blank line, variables).
+ */
+export function isGraphqlRequest(req: Pick<HttpRequest, 'headers'> & { method?: string }): boolean {
+  if (req.method?.toUpperCase() === 'GRAPHQL') return true;
   return req.headers.some((h) => !h.disabled && h.name.trim().toLowerCase() === 'x-request-type' && h.value.trim().toLowerCase() === 'graphql');
 }
 
@@ -150,11 +157,17 @@ export function graphqlPayload(body: string, lenient = false): string {
  */
 export function toGraphqlHttp(req: HttpRequest, lenient = false): HttpRequest {
   if (!isGraphqlRequest(req)) return req;
-  const method = req.method.toUpperCase();
+  let method = req.method.toUpperCase();
+  if (method === 'GRAPHQL') {
+    if (!lenient && /^\s*wss?:\/\//i.test(req.url)) {
+      throw new Error('GraphQL subscriptions over WebSocket (GRAPHQL ws://…) are not supported yet: use GRAPHQL http(s)://… for queries and mutations.');
+    }
+    method = 'POST';
+  }
   if (!lenient && (method === 'GET' || method === 'HEAD')) {
     throw new Error(`GraphQL over ${method} is not supported: use POST for X-REQUEST-TYPE: GraphQL requests.`);
   }
   const headers = req.headers.filter((h) => h.name.trim().toLowerCase() !== 'x-request-type').map((h) => ({ ...h }));
   if (!headers.some((h) => !h.disabled && h.name.trim().toLowerCase() === 'content-type')) headers.push({ name: 'Content-Type', value: 'application/json' });
-  return { ...req, headers, body: graphqlPayload(req.body ?? '', lenient) };
+  return { ...req, method, headers, body: graphqlPayload(req.body ?? '', lenient) };
 }

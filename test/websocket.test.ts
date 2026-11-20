@@ -243,3 +243,41 @@ test('generateCode refuses WebSocket requests with a clear message', async () =>
   assert.throws(() => generateCode('python-requests', { method: 'GET', url: 'ws://x/ws', headers: [] }), /WebSocket/);
   assert.match(generateCode('curl', { method: 'GET', url: 'https://x/ws', headers: [] }), /^curl/);
 });
+
+test('sendWebSocket: onWsOpen sends typed messages into the open connection; refused once closing', async () => {
+  const stop = new AbortController();
+  let typed: ((t: string) => boolean) | undefined;
+  const replies: string[] = [];
+  const done = sendWebSocket({ method: 'WEBSOCKET', url: `${base}/echo`, headers: [] }, parseWsScript('first'), {
+    timeoutMs: 5000,
+    signal: stop.signal,
+    onWsOpen: (send) => (typed = send),
+    onEvent: (e) => {
+      if (e.event !== 'message') return;
+      replies.push(e.data);
+      if (e.data === 'echo:first') assert.equal(typed!('typed {"a":1}'), true);
+      if (e.data === 'echo:typed {"a":1}') stop.abort();
+    },
+  });
+  const res = await done;
+  assert.equal(res.streamEnd, 'stopped');
+  assert.deepEqual(res.events!.map((e) => [e.event, e.data]), [
+    ['sent', 'first'],
+    ['message', 'echo:first'],
+    ['sent', 'typed {"a":1}'],
+    ['message', 'echo:typed {"a":1}'],
+  ]);
+  assert.match(res.body, /> typed \{"a":1\}\n< echo:typed/);
+  assert.equal(typed!('too late'), false);
+});
+
+test('sendWebSocket: a typed message restarts the timeout (an interactive session stays open while used)', async () => {
+  const t0 = Date.now();
+  const res = await sendWebSocket({ method: 'WEBSOCKET', url: `${base}/echo`, headers: [] }, { steps: [], trailingWaits: 0 }, {
+    timeoutMs: 400,
+    onWsOpen: (send) => setTimeout(() => send('still here'), 300),
+  });
+  assert.equal(res.streamEnd, 'timeout');
+  assert.ok(Date.now() - t0 >= 650, `closed after ${Date.now() - t0} ms, before the restarted timeout`);
+  assert.deepEqual(res.events!.map((e) => e.data), ['still here', 'echo:still here']);
+});
