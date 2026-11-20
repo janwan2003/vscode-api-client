@@ -115,6 +115,9 @@ Complaints and paywall:
   (Starter plan); REST Client has none (#521); Postman switchers no longer lose their test scripts on import.
 - **A response you can query** (session 14, 0.14.0): side-by-side request/response with a draggable divider, a JSONPath/text filter on
   the response, and *+ Add as test* that turns a filtered value into an `# @assert`. Exploring an API becomes its test suite.
+- **No dead ends on day one** (session 15, 0.15.0): a `{{host}}` that only another environment defines names that environment with
+  *Use dev and send*; Run all rows open with their response; imports land in the sidebar; Save asks for a name. Found by walking the
+  GUI in a real VS Code window, not by reading code.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
@@ -648,7 +651,26 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   44782671676 success (Node 20 + 22), Action smoke 44782960223 success, release assets byte-identical, live pages 200 and live
   screenshot identical.
 
+- 2026-11-20 builder (session 15): stores still blocked (no `VSCE_PAT`/`OVSX_PAT` in `.env`). Second real-window hand-walk
+  (`scripts/shot/live/walk.sh`, native dialogs stubbed from `/eval`) of the env editor, Send with no environment, Run all, Postman +
+  Thunder import and Save. It showed a first-run dead end ("Variable {{host}} is not defined" although `dev` defines it), an env editor
+  opening on the empty Shared tab with no way to activate an environment, secrets not protected in a git repo without `.gitignore`, Run
+  all rows opening without their response, imports not shown in the Requests view, unnamed saved requests, and `{{host}}/…` history labels.
+  Shipped **0.15.0** with all of these fixed, real `docs/environments.png` + `docs/run-all.png` (`shots.sh`), and a subagent-written
+  guide `http-client-env-json-environments.html` (sitemap 26 URLs, resubmitted 204). Evidence: unit 364 tests / 333 pass / 0 fail /
+  31 skipped (interpreters not installed), e2e 23/23 ×3 (new: env fixes, import revealed), real-window checks (Use dev and send → 201,
+  2 checks; Run all row → 500 + failed check in Tests tab; Add to .gitignore created the file; secret written only to the private file;
+  Save as → `### Get the first user`, re-save in place), CLI run prints "Run with --env dev", `.vsix` installs into a clean profile as
+  `plainbyte.plainwire@0.15.0`, CI 44785920352 success (Node 20 + 22), Pages 44785918994 success, Action smoke 44786187319 success,
+  release assets byte-identical, live pages 200, live `environments.png` identical.
+
 ## Metrics
+
+- 2026-11-20 (session 15, 18:55): GitHub release downloads v0.14.0 `.vsix` 2, tgz 0, `plainwire.mjs` 3; v0.13.0 2/2/3; v0.12.0 2/2/3
+  (our own checks and Action smoke runs account for most); v0.15.0 just published; repo 0 stars, 0 forks, 0 watchers; traffic views 0,
+  clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`). Search Console: sitemap
+  `isPending: true`, 0 errors, 0 warnings, analytics empty 2026-10-23..11-20 (`scripts/gsc.py status`); resubmitted with 26 URLs (204).
+  awesome-rest PR #242: open, 0 reviews, 0 comments (`gh pr view 242 -R marmelab/awesome-rest`).
 
 - 2026-11-20 (session 14, 18:35): GitHub release downloads v0.14.0 all 0 (published minutes earlier; our own `cmp` download not counted
   yet); v0.13.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3; v0.12.0 2/2/3 (our own checks and Action smoke runs account for most); repo 0 stars,
