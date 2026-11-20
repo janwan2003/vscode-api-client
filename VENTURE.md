@@ -57,7 +57,8 @@ REST Client's most-reacted open issues (GitHub search API, `repo:Huachao/vscode-
 2026-11-20; 528 open issues, last release 0.25.1 on 2022-08-19 per the gallery API): #182 import another .http file (84), #724
 sequential execution (62), #267 tests (59), #229 rest-client.env.json (53), #493 SSE (49), #432 CLI runner (44), #627 IntelliJ
 compatibility (41), #444 send all in a file (36), #302 OAuth login (33), #521 JS evaluation (29). Plainwire already does
-#724/#267/#432/#444 and partly #229/#627 → `docs/rest-client-alternative.html`.
+#724/#267/#432/#444 and partly #229/#627 → `docs/rest-client-alternative.html`. Since session 8 also #182 (`# @import`, 0.6.0)
+and #493 (SSE, 0.7.0), so 6 of the top 10 are done.
 
 Open VSX (queried live via `open-vsx.org/api`, 2026-11-20): Thunder Client 3,208,003
 downloads, REST Client 413,571 (last release 2022-06-21), Bruno 83,136. So there is a large
@@ -91,17 +92,32 @@ Complaints and paywall:
   Postman v2.1 collections. Those are the two collections people are trying to escape from.
 - **OpenAPI / Swagger → ready-to-run `.http` files** (session 7): every operation with example body, auth and a status check, so
   an API's definition becomes a smoke-test suite for Run all and the CLI.
+- **REST Client's two most-wanted gaps closed** (session 8): import another `.http` file (#182, 84 reactions) and
+  server-sent events with live view, Stop and checks on events (#493, 49 reactions), in the extension and the CLI.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.5.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.8.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 79 KB `.vsix`, 113 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 86 KB `.vsix`, 119 KB CLI file):
+- 0.8.0 (2026-11-20, session 8): **OpenAPI import from a URL**: the extension command asks *file or URL*; `plainwire import
+  https://… [--insecure] [--proxy]`; `src/core/fetchText.ts` (kept out of `importers/` so `node:http` stays out of the web
+  bundle). Relative server URLs (`/api/v3`) and Swagger 2.0 without `host` resolve against the definition's URL, as the
+  OpenAPI spec says.
+- 0.7.0 (session 8): **server-sent events** (`src/core/sse.ts`, parser per the HTML standard; `send.ts` streams
+  `text/event-stream` with streaming gzip/br/deflate): live event list in the panel (100 ms batches, Cancel → Stop), finished
+  view with an events table / *Raw stream*, end reason closed/stopped/timeout/max-events; `# @max-events N`, per-request
+  `# @timeout 30s|500|2m`; `# @assert events…` subject (`events.length`, `events[-1].data.x`); CLI meta "N events (end)".
+  **Default `User-Agent: plainwire/<version>`** when the request sets none (Wikimedia returned 403 without one).
+- 0.6.0 (session 8): **`# @import ./other.http`** (httpYac) and JetBrains `import ./other.http`: variables and named requests
+  from other files, recursive, cycle-safe, max 50 files, importing file wins on clashes; works in Send, Run all, preview,
+  Copy as Code and the CLI; import paths are clickable links; JetBrains `run #name` lines are no longer parsed as GET requests
+  (0.5.0 did that) but are not executed.
 - 0.5.0 (2026-11-20, session 7): **OpenAPI 3.0/3.1 + Swagger 2.0 import, JSON or YAML** (`src/core/importers/openapi.ts`, wired
   into `detectAndImport`, so the extension command *Plainwire: Import OpenAPI / Swagger…*, `plainwire import`, and the website all
   get it): file per first tag (else first static path segment), request per operation (summary title, `operationId` → `@name`),
@@ -163,9 +179,35 @@ What exists (TypeScript, no runtime dependencies, 79 KB `.vsix`, 113 KB CLI file
   `.http` files, History in workspaceState), CodeLens (Send / Open in Plainwire / Copy as cURL), environments from
   `http-client(.private).env.json` + `rest-client.environmentVariables` + `plainwire.environmentVariables`, status-bar
   env picker, import commands, `.http` TextMate grammar.
-- `docs/`: GitHub Pages site, 16 pages (session 7 added `openapi-to-http-file.html`, `rest-client-alternative.html`; earlier: landing, privacy, support, 2 converter tools, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
+- `docs/`: GitHub Pages site, 20 pages in the sitemap (session 8 added `import-http-file-shared-variables.html`,
+  `server-sent-events-vscode.html` with `sse.png`; session 7 added `openapi-to-http-file.html`, `rest-client-alternative.html`; earlier: landing, privacy, support, 2 converter tools, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
   `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (16 URLs).
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (0.6.0–0.8.0, session 8) how:
+- Each release: `corepack pnpm@9.15.0 typecheck` clean, local `node scripts/test.mjs`, headless e2e
+  (`node scripts/e2e.mjs /snap/code/current/usr/share/code/code`, VS Code 1.147), CI on the pushed commit, Action smoke test
+  on the release:
+
+  | Release | Commit | Local tests pass/fail/skip | e2e | CI run (pass/fail/skip) | Action smoke |
+  |---|---|---|---|---|---|
+  | 0.6.0 | bc5876b | 240/0/31 | 14/14 | 44758945225 (270/0/1) | 44759321979 success |
+  | 0.7.0 | f56a862 | 252/0/31 | 15/15 | 44760863144 (282/0/1) | 44761237310 success |
+  | 0.8.0 | 9851357 | 254/0/31 | 16/16 | 44762081389 (284/0/1) | 44762358316 success |
+
+  (31 local skips = snippet interpreters not installed here.) New tests: `test/imports.test.ts` (6), `test/sse.test.ts` (10:
+  parser incl. CRLF split across chunks, live streams, gzip/br/deflate, max-events/timeout/stop, event asserts), CLI tests for
+  imports, SSE and import-from-URL (redirect + 404), OpenAPI relative-server resolution, User-Agent; e2e: import + link + UA,
+  SSE through the runner, OpenAPI from a served URL.
+- Live: the SSE page's example run verbatim with the CLI against `stream.wikimedia.org` → 200, 5 events, 4/4 checks, 1214 ms
+  (the line on the page is that run; before the User-Agent fix it got 403). `plainwire import
+  https://petstore3.swagger.io/api/v3/openapi.json` → baseUrl `https://petstore3.swagger.io/api/v3`; 2 requests passed live
+  with no `--var`.
+- Release assets of v0.6.0/0.7.0/0.8.0 downloaded back: byte-identical to the local builds. Pages: new and changed pages HTTP
+  200, live `convert.js` identical to the local build. GSC sitemap resubmitted (204).
+- NOT verified: the *file or URL* QuickPick in a real window (e2e calls `importFromUrl` directly); the SSE panel only in the
+  headless harness (`scripts/shot/sse.html` → `docs/sse.png`), not an interactive window; converters not re-driven in a browser
+  this session (web tests + identical `convert.js` only); VSCodium not re-tested; no SSE reconnect / `Last-Event-ID`.
 
 Verified 2026-11-20 (0.5.0, session 7) how:
 - `corepack pnpm@9.15.0 typecheck` clean; local `node scripts/test.mjs` 264 tests, 233 pass, 0 fail, 31 skipped (interpreters not
@@ -293,15 +335,14 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.5.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.8.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
-   especially the 3 converter pages and `rest-client-alternative.html` (the bet: tool pages rank faster than guides).
-3. **`# @import ./other.http`** (REST Client's most-reacted open issue #182, 84 reactions; httpYac has `# @import`): shared
-   variables and named requests from another file, in the extension, CLI and Run all. Then SSE (`text/event-stream`, #493).
-4. OpenAPI follow-ups: an "Import from URL" option in the extension (fetching a spec is a user-initiated request, fine); resolve
-   external `$ref`s to sibling files when importing from disk (DigitalOcean-style split specs) instead of only warning.
+   especially the 3 converter pages, `rest-client-alternative.html` and the 2 new feature pages.
+3. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
+   of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
+4. JetBrains `run #name` execution (parsed since 0.6.0, not run); WebSocket; Copy as cURL adds `-N` for streams.
 5. Converters: test in Firefox; drag-and-drop.
-6. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; WebSocket; GraphQL introspection.
+6. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
 7. After the store listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
 
 ## Monetization plan
@@ -348,8 +389,19 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   DigitalOcean split-spec gap and a YAML alias-bomb hang risk found during validation. Evidence: CI 44755515176 263/0/1, e2e
   13/13, GitHub YAML≡JSON output, 5 real JSON specs + 3 YAML, live-page CDP check, Action smoke 44757178423, release assets
   byte-identical, GSC sitemap 204.
+- 2026-11-20 builder (session 8): stores still blocked. Shipped three releases on REST Client's top open requests: **0.6.0**
+  `# @import` / JetBrains `import` (#182) and a parser fix (`run #x`/`import x` were sent as GET); **0.7.0** server-sent events
+  with live view, Stop, `# @max-events`, `# @timeout`, `events` checks (#493) and a default User-Agent (found when Wikimedia
+  refused the page's own example); **0.8.0** OpenAPI import from a URL with relative servers resolved. 2 new SEO pages, 6 updated,
+  sitemap 20. Evidence: CI 44762081389 284/0/1, e2e 16/16, Action smoke 44762358316, live Wikimedia + Petstore runs, release
+  assets byte-identical, GSC 204.
 
 ## Metrics
+
+- 2026-11-20 (session 8, 16:21): GitHub release downloads v0.8.0 all 0; v0.7.0 all 0; v0.6.0 `.vsix` 1, tgz 1, `plainwire.mjs` 2;
+  v0.5.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3 (our own checks and Action smoke runs account for most); repo 0 stars, 0 forks,
+  0 watchers; traffic views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`,
+  `/traffic/clones`). Search Console: sitemap still pending, analytics empty (`scripts/gsc.py status`); resubmitted with 20 URLs.
 
 - 2026-11-20 (session 7): GitHub release downloads v0.4.0 `.vsix` 1, `plainwire.mjs` 2, tgz 0; v0.3.0 `.vsix` 1, `plainwire.mjs` 4,
   tgz 1; v0.2.0 2; v0.1.0 2 (our own checks and Action smoke runs account for most); repo 0 stars, 0 forks, 0 watchers; traffic
