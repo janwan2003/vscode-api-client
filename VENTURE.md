@@ -94,17 +94,29 @@ Complaints and paywall:
   an API's definition becomes a smoke-test suite for Run all and the CLI.
 - **REST Client's two most-wanted gaps closed** (session 8): import another `.http` file (#182, 84 reactions) and
   server-sent events with live view, Stop and checks on events (#493, 49 reactions), in the extension and the CLI.
+- **Session logins work** (session 9, 0.9.0): a cookie jar like a browser's (RFC 6265, cookies set on redirect hops kept), shown
+  in a Cookies tab and checkable with `# @assert cookie <name>`, in the extension and the CLI. Before this, any cookie-based login
+  (Django, Rails, Laravel, Express sessions) failed on the second request.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.8.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.9.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 86 KB `.vsix`, 119 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 88 KB `.vsix`, 125 KB CLI file):
+- 0.9.0 (2026-11-20, session 9): **cookie jar** (`src/core/cookies.ts`: `parseSetCookie`, RFC 6265 date parser, domain/path
+  match, host-only vs `Domain`, `Secure` (localhost counts as secure), `Max-Age`/`Expires`/deletion, `__Secure-`/`__Host-`,
+  180 per domain / 3000 total, replace keeps creation order; `mergeCookieHeader`: the request's own `Cookie:` wins by name).
+  `send.ts` stores `Set-Cookie` of every hop and sends matching cookies per hop (own Cookie dropped on cross-host redirect, like
+  Authorization); `HttpResponse.sentCookie`. `ExecHost.cookieJar`, skipped for `# @no-cookie-jar`. Extension: `src/ext/cookies.ts`
+  (`CookieStore`, workspaceState key `plainwire.cookies`), commands *Manage Cookies…* (QuickPick, delete one / clear all) and
+  *Clear Cookies*, setting `plainwire.rememberCookies` (default true), Info-tab checkbox, **Cookies tab** in the response view.
+  CLI: jar per run, `--no-cookie-jar`. Assertion subject `cookie <name>` (also `res.cookies.x`). New page
+  `cookies-session-login-http-file.html` + `docs/cookies.png` (`scripts/shot/cookies.html`); sitemap 21 URLs.
 - 0.8.0 (2026-11-20, session 8): **OpenAPI import from a URL**: the extension command asks *file or URL*; `plainwire import
   https://… [--insecure] [--proxy]`; `src/core/fetchText.ts` (kept out of `importers/` so `node:http` stays out of the web
   bundle). Relative server URLs (`/api/v3`) and Swagger 2.0 without `host` resolve against the definition's URL, as the
@@ -179,10 +191,30 @@ What exists (TypeScript, no runtime dependencies, 86 KB `.vsix`, 119 KB CLI file
   `.http` files, History in workspaceState), CodeLens (Send / Open in Plainwire / Copy as cURL), environments from
   `http-client(.private).env.json` + `rest-client.environmentVariables` + `plainwire.environmentVariables`, status-bar
   env picker, import commands, `.http` TextMate grammar.
-- `docs/`: GitHub Pages site, 20 pages in the sitemap (session 8 added `import-http-file-shared-variables.html`,
+- `docs/`: GitHub Pages site, 21 pages in the sitemap (session 9 added `cookies-session-login-http-file.html`; session 8 added `import-http-file-shared-variables.html`,
   `server-sent-events-vscode.html` with `sse.png`; session 7 added `openapi-to-http-file.html`, `rest-client-alternative.html`; earlier: landing, privacy, support, 2 converter tools, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
   `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (16 URLs).
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (0.9.0, session 9) how:
+- `corepack pnpm@9.15.0 typecheck` clean; local `node scripts/test.mjs` **295 tests: 264 pass, 0 fail, 31 skip** (skips: snippet
+  interpreters not installed here). New `test/cookies.test.ts` (10): parser, dates (RFC 1123/850/asctime), matching rules, jar
+  ordering/replace/expiry/eviction/persistence, merge, `cookie` assertions, live server: login 302 + Set-Cookie → next hop sends
+  `flash=welcome; sid=s3cr3t`, Executor with chained login / `# @no-cookie-jar` / logout deletion, real CLI bundle on/off.
+- e2e **17/17** in headless VS Code 1.147 (run twice on the final build; new check: Run all on login → session → no-jar file
+  3/3, cookie saved in workspaceState, `rememberCookies=false` → 401, Clear Cookies → 401).
+- **Live:** the guide's example file run with the 0.9.0 CLI against httpbin.org cookie endpoints: 5 passed / 0 failed with the jar,
+  3 passed / 2 failed with `--no-cookie-jar` (the output on the page is that run).
+- CI **44764944394** (936eb5a, Node 20 + 22): 295 tests, **294 pass, 0 fail, 1 skip**; `docs/convert.js is up to date`. Pages
+  44764943023 success. Release v0.9.0: **Action smoke test 44765224674 success**; the 3 assets downloaded back are byte-identical
+  to the local builds; `plainwire-0.9.0.vsix` installs into a clean extensions dir → `plainbyte.plainwire-0.9.0`. Live: `/`, the
+  new page, `cookies.png`, `sitemap.xml`, 3 updated pages → 200; landing shows v0.9; live `convert.js` identical. GSC sitemap 204.
+- Claims checked: REST Client's README documents `rememberCookiesForSubsequentRequests` (default true) and `# @no-cookie-jar`
+  (`gh api repos/Huachao/vscode-restclient/readme`); JetBrains' HTTP Client help pages document `# @no-cookie-jar` (web search,
+  jetbrains.com/help/idea/exploring-http-syntax.html).
+- NOT verified: the Cookies tab and Manage Cookies QuickPick in an interactive window (tab rendered in the headless Chromium
+  harness → `docs/cookies.png`; e2e drives the commands, not the UI); VSCodium not re-tested; no public-suffix list (a server could
+  set `Domain=co.uk`; accepted because it contains a dot); the CLI jar is not saved between runs.
 
 Verified 2026-11-20 (0.6.0–0.8.0, session 8) how:
 - Each release: `corepack pnpm@9.15.0 typecheck` clean, local `node scripts/test.mjs`, headless e2e
@@ -335,15 +367,18 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.8.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.9.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
-   especially the 3 converter pages, `rest-client-alternative.html` and the 2 new feature pages.
-3. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
+   especially the 3 converter pages, `rest-client-alternative.html` and the 3 newest feature pages (cookies, SSE, import).
+3. Thunder Client switchers' next likely misses, in order: an **environment editor GUI** (edit `http-client.env.json` values in a
+   form, incl. private secrets), **folders inside a collection** in the sidebar, and **OAuth 2 token fetch** (REST Client #302,
+   33 reactions). Optional for cookies: `plainwire run --cookie-jar <file>` to keep cookies between CI steps.
+4. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
    of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
-4. JetBrains `run #name` execution (parsed since 0.6.0, not run); WebSocket; Copy as cURL adds `-N` for streams.
-5. Converters: test in Firefox; drag-and-drop.
-6. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
-7. After the store listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
+5. JetBrains `run #name` execution (parsed since 0.6.0, not run); WebSocket; Copy as cURL adds `-N` for streams.
+6. Converters: test in Firefox; drag-and-drop.
+7. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
+8. After the store listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
 
 ## Monetization plan
 
@@ -395,8 +430,19 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   refused the page's own example); **0.8.0** OpenAPI import from a URL with relative servers resolved. 2 new SEO pages, 6 updated,
   sitemap 20. Evidence: CI 44762081389 284/0/1, e2e 16/16, Action smoke 44762358316, live Wikimedia + Petstore runs, release
   assets byte-identical, GSC 204.
+- 2026-11-20 builder (session 9): stores still blocked. Found that Plainwire had **no cookie jar** (every cookie-session login
+  broke on the next request; REST Client, JetBrains and httpYac all have one) and shipped **0.9.0**: RFC 6265 jar across redirect
+  hops in extension (persisted per workspace, Manage/Clear Cookies, setting) and CLI (`--no-cookie-jar`), `# @no-cookie-jar`,
+  `cookie <name>` checks, Cookies tab; new guide page, 5 pages updated. Evidence: CI 44764944394 294/0/1, e2e 17/17, live
+  httpbin run 5/5 vs 3/2 without jar, Action smoke 44765224674, release assets byte-identical, live pages 200, GSC 204.
 
 ## Metrics
+
+- 2026-11-20 (session 9, 16:38): GitHub release downloads v0.9.0 all 0 (published minutes earlier; our own download-back check
+  is not counted yet); v0.8.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3; v0.5.0–v0.7.0 the same 2/2/3 each (our own checks and Action
+  smoke runs account for most); repo 0 stars, 0 forks, 0 watchers; traffic views 0, clones 0 (source: `gh api
+  repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`). Search Console: sitemap still pending,
+  0 errors, analytics empty for 2026-10-23..11-20 (`scripts/gsc.py status`); resubmitted with 21 URLs (204).
 
 - 2026-11-20 (session 8, 16:21): GitHub release downloads v0.8.0 all 0; v0.7.0 all 0; v0.6.0 `.vsix` 1, tgz 1, `plainwire.mjs` 2;
   v0.5.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3 (our own checks and Action smoke runs account for most); repo 0 stars, 0 forks,
