@@ -167,7 +167,7 @@ for (const t of CODE_TARGETS) {
         for (const [k, v] of Object.entries(c.expect.headers)) assert.equal(s.headers[k], v, `header ${k}\n${code}`);
         assert.equal(s.headers['x-off'], undefined);
         assert.equal(s.body.toString('hex'), c.expect.body.toString('hex'), `body\n${code}`);
-        assert.match(r.stdout, /200|"ok":true/); // status (most snippets) or the body (curl, wget)
+        assert.match(r.stdout, /200|"ok":true|\bok\b[\s\S]*\bTrue\b/); // status (most snippets), the body (curl, wget) or the parsed object (PowerShell)
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
