@@ -57,7 +57,8 @@ REST Client's most-reacted open issues (GitHub search API, `repo:Huachao/vscode-
 2026-11-20; 528 open issues, last release 0.25.1 on 2022-08-19 per the gallery API): #182 import another .http file (84), #724
 sequential execution (62), #267 tests (59), #229 rest-client.env.json (53), #493 SSE (49), #432 CLI runner (44), #627 IntelliJ
 compatibility (41), #444 send all in a file (36), #302 OAuth login (33), #521 JS evaluation (29). Plainwire already does
-#724/#267/#432/#444 and partly #229/#627 → `docs/rest-client-alternative.html`. Since session 8 also #182 (`# @import`, 0.6.0)
+#724/#267/#432/#444 and partly #229/#627 → `docs/rest-client-alternative.html`. Also open: #173 WebSocket client (28 reactions,
+GitHub search API 2026-11-20), done in 0.12.0. Since session 8 also #182 (`# @import`, 0.6.0)
 and #493 (SSE, 0.7.0), so 6 of the top 10 are done.
 
 Open VSX (queried live via `open-vsx.org/api`, 2026-11-20): Thunder Client 3,208,003
@@ -105,17 +106,32 @@ Complaints and paywall:
   requests, with drag to reorder/move, rename, duplicate, move to file, delete. Thunder Client's tree UX, but every edit is a minimal
   text edit that leaves the rest of the file byte for byte (small git diffs), which neither REST Client (no tree) nor Thunder (JSON
   storage) offers.
+- **WebSocket in the same files** (session 12, 0.12.0): JetBrains-format `WEBSOCKET` scripts with replies checked in CI. REST Client
+  has none (#173, 28 reactions); our sent/received view and `messages[-1].data` checks work in the CLI too.
 - **On Open VSX on day one,** which reaches the Cursor, Windsurf and VSCodium users many competitors ignore.
 - Open source (MIT), so anyone can check the no-telemetry claim.
 
 ## Status
 
-**Plainwire 0.11.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.12.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 115 KB `.vsix`, 142 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 119 KB `.vsix`, 146 KB CLI file):
+- 0.12.0 (2026-11-20, session 12): **WebSocket requests** in the JetBrains HTTP Client format (syntax read from the IntelliJ 2023.2
+  HTTP Client help page's "WebSocket requests" section; the current docs no longer have it). `src/core/websocket.ts`: `isWebSocketRequest`
+  (`WEBSOCKET`, httpYac `WS`, or GET + `ws(s)://`), `parseWsScript` (`===` / `=== wait-for-server`, `// comment` allowed), RFC 6455
+  `encodeFrame`/`FrameReader` (7/16/64-bit lengths, masks, 64 MB cap, reserved bits rejected), `acceptKey`, `sendWebSocket` (handshake via
+  `send.ts` `exchange(…, onUpgrade)`, now exported, so TLS/`# @insecure`/proxy CONNECT/cookie jar/User-Agent/URL basic auth are shared;
+  refused upgrade → normal response with body; wrong accept → error) and `converse` (first messages on open, wait counted since the last
+  send, trailing waits → close 1000 = new `streamEnd: 'done'`, server close → `closeReason` "4000 bye", ping→pong, fragments joined,
+  Stop/timeout → 1001). Messages are `HttpResponse.events` with `event` `sent`/`message`/`binary`; `body` is a `>`/`<` transcript.
+  `exec.ts`: per-message `< file` (binary) / `<@ file`. `assert.ts`: subject `messages…` (received only), `$` = last received JSON
+  message on a 101. Panel: WEBSOCKET in the method list, Body-tab hint, live "Connected · 1 sent, 2 received", ↑/↓ table, *Transcript*.
+  CLI: `1 sent, 2 received (done)`. Grammar: `WEBSOCKET`/`WS`, `===` lines. `codegen.ts` refuses WebSocket requests with a message.
+  Page `websocket-client-vscode.html` + `docs/websocket.png` (`scripts/shot/websocket.html`, a real echo.websocket.org response);
+  stale "no WebSocket" claims fixed on 6 pages, README "Not yet" also still listed OAuth2 (fixed); sitemap 24 URLs.
 - 0.11.0 (2026-11-20, session 11): **Requests view with folders** (`src/ext/tree.ts`: `FolderNodeItem` → `FileNode` → `RequestNode`,
   `getParent` for `reveal`, one root per workspace folder when multi-root; `src/core/folders.ts`: `buildFolderTree` with compact
   single-child folders, setting `plainwire.collections.compactFolders`, `parentFolder`, `invalidName`). **Organising**
@@ -228,10 +244,26 @@ What exists (TypeScript, no runtime dependencies, 115 KB `.vsix`, 142 KB CLI fil
   `.http` files, History in workspaceState), CodeLens (Send / Open in Plainwire / Copy as cURL), environments from
   `http-client(.private).env.json` + `rest-client.environmentVariables` + `plainwire.environmentVariables`, status-bar
   env picker, import commands, `.http` TextMate grammar.
-- `docs/`: GitHub Pages site, 23 URLs in the sitemap (session 11 added `organize-api-requests-folders-vscode.html`; session 9 added `cookies-session-login-http-file.html`; session 8 added `import-http-file-shared-variables.html`,
+- `docs/`: GitHub Pages site, 24 URLs in the sitemap (session 12 added `websocket-client-vscode.html`; session 11 added `organize-api-requests-folders-vscode.html`; session 9 added `cookies-session-login-http-file.html`; session 8 added `import-http-file-shared-variables.html`,
   `server-sent-events-vscode.html` with `sse.png`; session 7 added `openapi-to-http-file.html`, `rest-client-alternative.html`; earlier: landing, privacy, support, 2 converter tools, 9 SEO guides; new in 0.4: `graphql-requests-vscode.html`,
   `postman-alternative-vscode.html`, `api-client-for-cursor-vscodium.html`) + sitemap (16 URLs).
 - `store/LISTING.md`: listing facts and the exact publish commands.
+
+Verified 2026-11-20 (0.12.0, session 12) how:
+- `tsc --noEmit` clean; local `node scripts/test.mjs` **349 tests: 318 pass, 0 fail, 31 skip** (snippet interpreters). New
+  `test/websocket.test.ts` (13) against a local RFC 6455 server: script parsing, frame round-trips at 0/125/126/65535/65536 bytes split
+  across chunks, the RFC 6455 §1.3 accept-key example, waits + done, greeting + max-events, fragments with a ping inside, binary,
+  server close code/reason, timeout, Stop, 401 refusal, bad accept key, refused port, cookies/UA/basic auth + Set-Cookie stored,
+  Executor with variables and `<@ file`, `messages`/`events`/`$` checks, codegen refusal.
+- e2e **21/21 twice** on the packaged minified build in headless VS Code 1.147 (new: WEBSOCKET `{{host}}/ws` through the runner, live
+  events in order, `done`, 3/3 checks).
+- Live: `plainwire run` (0.12.0 build) against `wss://echo.websocket.org` → `101 · 210 ms · 1 sent, 2 received (done) · 3/3 checks`.
+- CI **44775892562** (c4d2927, Node 20 + 22): 349 tests, **348 pass, 0 fail, 1 skip** each; Pages 44775891290 success. Release v0.12.0:
+  **Action smoke 44776334267 success**; 3 assets downloaded back, sha256 identical to local builds. Live: `/` shows v0.12, new page,
+  `websocket.png`, `sitemap.xml` (24 locs), `postman-alternative-vscode.html` → 200; live `convert.js` identical. GSC sitemap 204.
+- NOT verified: the panel in a real window (the screenshot is the real `panel.js` in headless Chromium with a mocked VS Code API, fed
+  a real response); Stop pressed in the UI; `ws://` through an HTTP proxy (no CONNECT, documented); a `wss://` proxy tunnel; servers
+  that require `permessage-deflate`; Cursor/VSCodium not tried this session.
 
 Verified 2026-11-20 (0.11.0, session 11) how:
 - `tsc --noEmit` clean; local `node scripts/test.mjs` **336 tests: 305 pass, 0 fail, 31 skip** (snippet interpreters not installed).
@@ -443,20 +475,26 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.11.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.12.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
    especially the 3 converter pages, `rest-client-alternative.html`, and the newest feature pages (folders, cookies, SSE, import).
-3. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
+3. Watch marmelab/awesome-rest PR #242 (opened session 12, one line under Testing > Querying; their link-check workflow needs
+   maintainer approval for a first-time fork, and it failed on their 3 latest PRs from others). If it merges, the next candidate is
+   mrmykey/awesome-http-clients (171 stars, no stated criteria). stepci/awesome-api-clients and awesome-postman-alternatives need
+   200 stars + 2 contributors; awesome-vscode needs a Marketplace link (subagent research, session 12).
+4. WebSocket follow-ups: type and send messages into an open connection from the panel (JetBrains' Services window does this);
+   `ws://` through a proxy via CONNECT; optional `permessage-deflate`; Socket.IO / graphql-transport-ws helpers.
+5. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
    handlers with injected answers), a check that an open request tab follows a moved request, and one multi-root run.
-4. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
+6. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
    `plainwire run --cookie-jar <file>`. Hand-test the env editor and Auth tab in a real window (still not done; the CDP technique in
    `scripts/shot/sidebar.mjs` can now drive a real headless VS Code window for that).
-5. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
+7. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
    of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
-6. JetBrains `run #name` execution (parsed since 0.6.0, not run); WebSocket; Copy as cURL adds `-N` for streams.
-7. Converters: test in Firefox; drag-and-drop.
-8. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
-9. After the store listing: one relevant awesome-list PR for the CLI/Action; record installs/ratings weekly.
+8. JetBrains `run #name` execution (parsed since 0.6.0, not run); gRPC; Copy as cURL adds `-N` for streams.
+9. Converters: test in Firefox; drag-and-drop.
+10. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; GraphQL introspection.
+11. After the store listing: awesome-vscode PR; record installs/ratings weekly.
 
 ## Monetization plan
 
@@ -522,8 +560,17 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   shows folders → files → requests with drag and drop, rename, duplicate, move up/down/to file, delete, new file/folder, run folder;
   byte-preserving block edits in `core/organize.ts`; nested Postman/Thunder folders import as subdirectories; guide page + a real
   VS Code screenshot via CDP. Evidence: CI 44772687521 335/0/1, e2e 20/20 ×2, Action smoke 44773031598, assets byte-identical, GSC 204.
+- 2026-11-20 builder (session 12): stores still blocked (no `VSCE_PAT`/`OVSX_PAT` in `.env`). Shipped **0.12.0**: WebSocket requests in the
+  JetBrains format (`WEBSOCKET`, `===`, `=== wait-for-server`) in extension, panel and CLI, with `messages` checks; guide page + screenshot
+  of a real run; fixed stale "no WebSocket"/"no OAuth2" claims. Opened one directory PR (marmelab/awesome-rest#242) after a subagent
+  checked 8 lists' rules. Evidence: CI 44775892562 348/0/1, e2e 21/21 ×2, live wss echo 3/3, Action smoke 44776334267, assets identical, GSC 204.
 
 ## Metrics
+
+- 2026-11-20 (session 12, 17:50): GitHub release downloads v0.12.0 all 0 (published minutes earlier); v0.11.0 `.vsix` 2, tgz 3,
+  `plainwire.mjs` 3; v0.10.0 2/2/3 (our own checks and Action smoke runs account for most); repo 0 stars, 0 forks, 0 watchers; traffic
+  views 0, clones 0 (source: `gh api repos/janwan2003/vscode-api-client/releases`, `/traffic/views`, `/traffic/clones`). Search Console:
+  sitemap still pending, 0 errors, analytics empty 2026-10-23..11-20 (`scripts/gsc.py status`); resubmitted with 24 URLs (204).
 
 - 2026-11-20 (session 11, 17:26): GitHub release downloads v0.11.0 all 0 (published minutes earlier; our download-back not counted
   yet); v0.10.0 `.vsix` 2, tgz 2, `plainwire.mjs` 3; v0.9.0 and v0.8.0 the same 2/2/3 (our own checks and Action smoke runs account for
