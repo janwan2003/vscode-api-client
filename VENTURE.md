@@ -145,4 +145,4 @@ free features: gating them is the exact mistake that is driving Thunder Client's
 
 ## Metrics
 
-- 2026-11-20: no store listing yet, so no installs to read. GitHub release downloads: 0 (just published).
+- 2026-11-20: no store listing yet, so no installs to read. GitHub release `.vsix` downloads: 1, which was this session's own verification fetch (source: curl of releases/latest/download). Pages live, HTTP 200 on 6 checked URLs.
