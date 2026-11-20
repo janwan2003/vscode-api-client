@@ -419,3 +419,14 @@ export function joinQuery(base: string, params: { name: string; value: string }[
   const q = params.filter((p) => p.name !== '').map((p) => (p.value === '' ? p.name : `${p.name}=${p.value}`));
   return q.length ? `${base}?${q.join('&')}` : base;
 }
+
+/**
+ * A short human label for a request: its `###` title, else its `@name`, else the URL without the leading `{{host}}`
+ * variable or scheme://host ("/users/1"). Used for history rows and request tab titles.
+ */
+export function shortLabel(r: { url: string; title?: string; name?: string }): string {
+  if (r.title?.trim()) return r.title.trim();
+  if (r.name?.trim()) return r.name.trim();
+  const path = r.url.replace(/^\{\{[^{}]+\}\}(?=[/?#])/, '').replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+(?=[/?#])/i, '');
+  return path || r.url || 'New request';
+}

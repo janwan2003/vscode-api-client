@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { parseHttpFile } from '../core/httpFile.ts';
+import { parseHttpFile, shortLabel } from '../core/httpFile.ts';
 import type { HttpRequest } from '../core/model.ts';
 import type { History, HistoryEntry } from './history.ts';
 import { readText } from './runner.ts';
@@ -62,6 +62,13 @@ export class CollectionsProvider implements vscode.TreeDataProvider<CollectionNo
       this.roots = undefined;
       this.emitter.fire();
     }, 300);
+  }
+
+  /** Rebuild now (not debounced), e.g. before revealing files that were just written. */
+  refreshNow(): void {
+    clearTimeout(this.timer);
+    this.roots = undefined;
+    this.emitter.fire();
   }
 
   /** Folder trees per workspace folder, built once per refresh. */
@@ -179,13 +186,14 @@ export class HistoryProvider implements vscode.TreeDataProvider<HistoryEntry> {
     return e ? [] : this.history.entries();
   }
   getTreeItem(e: HistoryEntry): vscode.TreeItem {
-    const item = new vscode.TreeItem(`${e.request.method} ${e.request.url}`, vscode.TreeItemCollapsibleState.None);
+    const item = new vscode.TreeItem(`${e.request.method} ${shortLabel(e.request)}`, vscode.TreeItemCollapsibleState.None);
     const when = new Date(e.at);
     item.description = e.response ? `${e.response.status} · ${e.response.timeMs} ms · ${when.toLocaleTimeString()}` : `failed · ${when.toLocaleTimeString()}`;
-    item.tooltip = `${when.toLocaleString()}\n${e.error ?? `${e.response?.status} ${e.response?.statusText}`}`;
+    item.tooltip = `${e.request.method} ${e.request.url}\n${when.toLocaleString()}\n${e.error ?? `${e.response?.status} ${e.response?.statusText}`}`;
     item.iconPath = new vscode.ThemeIcon(e.error ? 'error' : 'history', e.error || (e.response && e.response.status >= 400) ? new vscode.ThemeColor('errorForeground') : undefined);
     item.command = { command: 'plainwire.openHistory', title: 'Open', arguments: [e] };
     item.contextValue = 'plainwire.history';
     return item;
   }
 }
+

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { addEnvironments, mergeEnvironment } from '../core/variables.ts';
+import { addEnvironments, envHint, envsDefining, mergeEnvironment } from '../core/variables.ts';
 
 type Envs = Record<string, Record<string, string>>;
 
@@ -69,6 +69,12 @@ export class EnvironmentManager implements vscode.Disposable {
     await this.state.update(STATE_KEY, name);
     this.updateStatus();
     this.changed.fire();
+  }
+
+  /** When `variable` is undefined only because the wrong (or no) environment is selected: the hint and the environments to offer. */
+  fixFor(variable: string): { hint: string; envs: string[] } | undefined {
+    const hint = envHint(this.envs, variable, this.selected);
+    return hint ? { hint, envs: envsDefining(this.envs, variable) } : undefined;
   }
 
   variables(): Record<string, string> {

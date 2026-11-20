@@ -19,6 +19,12 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 }
 
 /** Write imported collections as .http files under `<workspace>/<plainwire.importFolder>/`. */
+let revealImported: ((first: vscode.Uri) => Promise<void>) | undefined;
+/** Set by activate(): after an import, show the new files in Plainwire's Requests view (switchers expect their collection there). */
+export function onImported(fn: (first: vscode.Uri) => Promise<void>): void {
+  revealImported = fn;
+}
+
 export async function writeCollections(imported: ImportedCollection[], output: vscode.OutputChannel): Promise<void> {
   const collections = attachEnvironments(imported);
   const root = vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -44,7 +50,10 @@ export async function writeCollections(imported: ImportedCollection[], output: v
     for (const w of warnings) output.appendLine(`  - ${w}`);
   }
   const firstHttp = written.find((w) => w.path.endsWith('.http'));
-  if (firstHttp) await vscode.window.showTextDocument(firstHttp, { preview: false });
+  if (firstHttp) {
+    await vscode.window.showTextDocument(firstHttp, { preview: false });
+    await revealImported?.(firstHttp).catch((e) => output.appendLine(`Could not show the import in the Requests view: ${(e as Error).message}`));
+  }
   const msg = `Plainwire: imported ${requests} request${requests === 1 ? '' : 's'} into ${written.length} file${written.length === 1 ? '' : 's'} under ${folder}/.`;
   // Not awaited: the notification resolves only when the user dismisses it.
   void vscode.window

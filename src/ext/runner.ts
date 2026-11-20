@@ -5,7 +5,7 @@ import { Executor, type ExecResult, type PreviewResult } from '../core/exec.ts';
 import type { SendOptions } from '../core/send.ts';
 import { authConfigs, OAuth2Manager, readAuthConfig } from '../core/oauth2.ts';
 import { sendRequest } from '../core/send.ts';
-import { parseDotenv, resolveText } from '../core/variables.ts';
+import { parseDotenv, resolveText, UnresolvedVariableError } from '../core/variables.ts';
 import type { CookieStore } from './cookies.ts';
 import type { EnvironmentManager } from './environments.ts';
 import type { History } from './history.ts';
@@ -101,6 +101,11 @@ export class Runner {
     const sub = token?.onCancellationRequested(() => abort.abort(new Error('Cancelled')));
     try {
       return await this.exec.run(req, source.uri?.toString(), abort.signal, { onEvent });
+    } catch (e) {
+      // {{host}} undefined only because no (or the wrong) environment is selected: say which environment has it.
+      const fix = e instanceof UnresolvedVariableError ? this.envs.fixFor(e.variable) : undefined;
+      if (fix) throw Object.assign(new Error(`${(e as Error).message}. ${fix.hint}`), { useEnvs: fix.envs });
+      throw e;
     } finally {
       sub?.dispose();
     }

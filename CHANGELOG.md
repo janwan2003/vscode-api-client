@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.0 (2026-11-20)
+
+From a hand-walk of the environment editor, Run all, imports and Save in a real VS Code window.
+
+- **A missing `{{host}}` tells you which environment has it.** Sending a request while no environment (or the wrong one) is selected used to stop at "Variable {{host}} is not defined". Now the message says "It is defined in environment "dev" and "staging", but no environment is selected", with **Use dev and send** buttons (and *Edit environments…*). Run all shows the same sentence, and the CLI adds "Run with --env dev".
+- **Environment editor:** opens on the active environment (before: the empty *Shared* tab), has a **Use this environment** button and a ✓ Active mark, and offers **Add to .gitignore** in a git repository that has no `.gitignore` yet (before it only showed a hint, so `git add .` could commit `http-client.private.env.json`).
+- **Run all:** clicking a row opens the request **with that run's response and checks** (the Tests tab when a check failed), not an empty response pane.
+- **Import** from Thunder Client, Postman, OpenAPI or cURL now shows the imported collection in Plainwire's Requests view, expanded and selected, next to the first file.
+- **Save** of a new request asks for its name (the `### title` shown in the Requests view, like naming a request in Thunder Client); leave it empty to show the URL.
+- **History** rows read "POST Create user" or "GET /users/1" instead of "POST {{host}}/us…".
+- The response summary (status, time, size, checks) wraps between items instead of inside them in a narrow pane.
+- Real VS Code screenshots of the environment editor and the Run all report in the README.
+
 ## 0.14.0 (2026-11-20)
 
 - **Request and response side by side.** The request editor now puts the response next to the request whenever the tab is at least 820 px wide (before: only from 1100 px, so on most laptops the response sat under the request and shrank when the request had scripts or many headers). A **Side by side / Stack** button switches the layout, and the divider between the two halves can be dragged (double-click resets it). The choice is remembered for every request tab.

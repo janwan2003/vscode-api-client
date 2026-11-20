@@ -12,7 +12,7 @@ import { OAuth2Manager } from '../core/oauth2.ts';
 import { describeNetworkError, sendRequest, type SendOptions } from '../core/send.ts';
 import type { HttpRequest } from '../core/model.ts';
 import { spawn } from 'node:child_process';
-import { mergeEnvironment, parseDotenv } from '../core/variables.ts';
+import { envHint, envsDefining, mergeEnvironment, parseDotenv, UnresolvedVariableError } from '../core/variables.ts';
 import { loadEnvironments } from './env.ts';
 import { findHttpFiles, walk } from './files.ts';
 import { failureText, githubAnnotations, jsonReport, junitReport, type CliRow } from './report.ts';
@@ -247,6 +247,10 @@ async function run(args: string[]): Promise<number> {
     } catch (e) {
       row.state = 'error';
       row.error = describeNetworkError(e).replace(/Set "plainwire\.rejectUnauthorized": false to accept it \(or add # @insecure above the request\)\./, 'Run with --insecure to accept it (or add # @insecure above the request).');
+      if (e instanceof UnresolvedVariableError) {
+        const hint = envHint(envs, e.variable, o.env);
+        if (hint) row.error += `. ${hint} Run with --env ${envsDefining(envs, e.variable)[0]}.`;
+      }
     }
     const ok = row.state === 'pass';
     if (!o.quiet || !ok) {

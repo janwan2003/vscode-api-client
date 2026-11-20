@@ -71,7 +71,8 @@ textarea.code.script { height: 30%; min-height: 110px; }
 .gql-label { font-size: .9em; margin: 6px 0 3px; }
 .tools { display: flex; gap: 10px; align-items: center; margin: 4px 0; }
 pre.code, .json { font-family: var(--mono); font-size: var(--vscode-editor-font-size); white-space: pre-wrap; word-break: break-word; margin: 0; }
-.status { display: flex; gap: 14px; align-items: center; padding: 6px 0; font-size: .95em; }
+.status { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 6px 0; font-size: .95em; }
+.status > :not(.hint) { white-space: nowrap; }
 .status .spacer { flex: 1; }
 .status .code { font-weight: 700; padding: 1px 8px; border-radius: 3px; }
 .s2 { color: var(--vscode-testing-iconPassed, #3fb950); } .s3 { color: var(--vscode-charts-blue); } .s4 { color: var(--vscode-editorWarning-foreground); } .s5 { color: var(--vscode-errorForeground); }
@@ -79,6 +80,7 @@ pre.code, .json { font-family: var(--mono); font-size: var(--vscode-editor-font-
 kbd { font-family: var(--mono); border: 1px solid var(--vscode-panel-border); border-radius: 3px; padding: 0 4px; }
 .error-box { border-left: 3px solid var(--vscode-errorForeground); padding: 6px 10px; margin-top: 8px; background: var(--vscode-inputValidation-errorBackground, transparent); }
 .error-box pre { white-space: pre-wrap; margin: 6px 0 0; font-family: var(--mono); }
+.error-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--vscode-descriptionForeground); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 table.hdrs { border-collapse: collapse; font-family: var(--mono); font-size: var(--vscode-editor-font-size); }

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>http-client.env.json: environments and secrets for .http files in VS Code | Plainwire</title>
+<meta name="description" content="How http-client.env.json and http-client.private.env.json work: {{host}} variables, $shared, keeping secrets out of git, picking an environment in VS Code, and --env in CI.">
+<link rel="canonical" href="https://janwan2003.github.io/vscode-api-client/http-client-env-json-environments.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plainwire">
+<meta property="og:title" content="http-client.env.json: environments and secrets for .http files">
+<meta property="og:description" content="Public values in http-client.env.json, secrets in http-client.private.env.json, {{variables}} in requests, and the same files in VS Code and CI.">
+<meta property="og:url" content="https://janwan2003.github.io/vscode-api-client/http-client-env-json-environments.html">
+<meta property="og:image" content="https://janwan2003.github.io/vscode-api-client/environments.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Plainwire</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="http-file-syntax.html">.http syntax</a>
+      <a href="convert-to-http-file.html">Converters</a>
+      <a href="./#guides">Guides</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <div class="wrap narrow">
+    <h1>Environments for <code>.http</code> files: <code>http-client.env.json</code> and <code>http-client.private.env.json</code></h1>
+    <p>An environment is a named set of variables, such as <code>dev</code>, <code>staging</code> or <code>production</code>. You write <code>{{host}}</code> in a request once, and the selected environment decides what it becomes. In <code>.http</code> files, environments live in two JSON files next to your requests: <code>http-client.env.json</code> for values you can commit, and <code>http-client.private.env.json</code> for tokens and passwords that stay on your machine. Plainwire reads both in VS Code, Cursor and VSCodium, and in its command-line runner for CI.</p>
+
+    <figure>
+      <img src="environments.png" width="1280" height="800" alt="Plainwire's environment editor in VS Code: tabs for Shared (all environments) and each environment on the left; the active dev environment's variables as name and value rows, with the secret ones masked and their Secret box ticked; above them, the two file paths and whether http-client.private.env.json is git-ignored.">
+      <figcaption class="small">The environment editor (<strong>Plainwire: Edit Environments&hellip;</strong>). Ticked <strong>Secret</strong> values are written to <code>http-client.private.env.json</code>.</figcaption>
+    </figure>
+
+    <h2 id="files">The two files</h2>
+    <p><code>http-client.env.json</code> has one object per environment. Commit it: it holds what every teammate needs and nothing secret.</p>
+<pre>{
+  "$shared": {
+    "apiVersion": "v1"
+  },
+  "dev": {
+    "host": "http://localhost:3000",
+    "user": "ada@example.com"
+  },
+  "staging": {
+    "host": "https://staging.example.com",
+    "user": "qa@example.com"
+  }
+}</pre>
+    <p><code>http-client.private.env.json</code> has the same shape, for secrets. Its values are added to the environment of the same name, and a value in the private file overrides the same name in the public one. Keep it out of git.</p>
+<pre>{
+  "dev": {
+    "token": "dev-secret-123"
+  },
+  "staging": {
+    "token": "staging-secret-456"
+  }
+}</pre>
+    <p><code>$shared</code> holds values for every environment. The selected environment is laid over it, so an environment&rsquo;s own <code>host</code> wins over a shared <code>host</code>. A value can also refer to a shared one with <code>{{$shared apiVersion}}</code>. With no environment selected, only <code>$shared</code> applies.</p>
+    <p>Plainwire reads every <code>http-client.env.json</code> and <code>http-client.private.env.json</code> in the workspace (except under <code>node_modules</code>) and reloads them when they change. The editor checks the keys as you type them, using a JSON schema that comes with the extension. Values that are not strings, such as an OAuth 2 <code>"Security": { "Auth": &hellip; }</code> object, are merged key by key, so the private file can add a <code>Client Secret</code> to a configuration from the public file (see <a href="oauth2-http-file-vscode.html">OAuth 2.0 tokens in .http files</a>).</p>
+
+    <h2 id="variables">Using variables in requests</h2>
+    <p>Write the variable name in double curly braces anywhere in the URL, a header or the body:</p>
+<pre>@pageSize = 20
+
+### List users
+# @assert status == 200
+GET {{host}}/{{apiVersion}}/users?limit={{pageSize}}
+Authorization: Bearer {{token}}</pre>
+    <p><code>@pageSize = 20</code> is a <strong>file variable</strong>: it is defined in the <code>.http</code> file itself and is the same in every environment. <code>host</code>, <code>apiVersion</code> and <code>token</code> come from the environment. A file variable can use an environment variable, for example <code>@baseUrl = {{host}}/v1</code>.</p>
+    <p>When the same name is defined in several places, the first match in this list wins:</p>
+    <ol>
+      <li>Variables set with <code>request.variables.set()</code> in this request&rsquo;s <a href="javascript-scripts-http-file.html">pre-request script</a>.</li>
+      <li>File variables (<code>@name = value</code>). If the name is defined twice, the later line wins.</li>
+      <li>The selected environment: <code>http-client.private.env.json</code> over <code>http-client.env.json</code>, both over the VS Code settings described <a href="#compatibility">below</a>, and the environment over <code>$shared</code>.</li>
+      <li>Values saved with <code>client.global.set()</code> by earlier scripts.</li>
+    </ol>
+    <p>Names that start with <code>$</code> are system variables. Two of them read secrets from outside the JSON files:</p>
+    <ul>
+      <li><code>{{$dotenv API_TOKEN}}</code> reads <code>API_TOKEN</code> from a <code>.env</code> file. Plainwire looks next to the <code>.http</code> file first, then at the root of the workspace folder (in the CLI: the directory you run it from).</li>
+      <li><code>{{$processEnv API_TOKEN}}</code> reads an environment variable of the editor or CLI process. <code>{{$processEnv %tokenVar}}</code> takes the name of that variable from the environment&rsquo;s <code>tokenVar</code>.</li>
+    </ul>
+    <p>Both work inside environment files too: <code>"token": "{{$dotenv API_TOKEN}}"</code> in the private file keeps the actual value in <code>.env</code>. The full list of system variables is in the <a href="http-file-syntax.html#system">.http syntax cheat sheet</a>.</p>
+
+    <h2 id="select">Selecting an environment</h2>
+    <ul>
+      <li><strong>Status bar:</strong> the globe item at the bottom shows the selected environment, or <em>No environment</em>. Click it (or run <strong>Plainwire: Select Environment</strong>) to pick one. The list shows how many variables each environment has, and offers <strong>Create http-client.env.json&hellip;</strong> when there is none yet and <strong>Edit environments&hellip;</strong>.</li>
+      <li><strong>Request editor:</strong> the <strong>Env:</strong> link next to the request shows the same choice and opens the same list.</li>
+      <li><strong>Environment editor:</strong> <strong>Use this environment</strong> at the top of an environment&rsquo;s tab selects it. The tab then shows <em>Active</em>. A new or renamed environment has to be saved first.</li>
+      <li><strong>From the error (new in 0.15):</strong> if you send a request while no environment, or the wrong one, is selected, the error says where the variable is defined: <code>Variable {{host}} is not defined. It is defined in environment "dev" and "staging", but no environment is selected.</code> Below it are buttons such as <strong>Use dev and send</strong> and <strong>Use staging and send</strong>, which select that environment and send the request again, and an <strong>Edit environments&hellip;</strong> link.</li>
+    </ul>
+    <p>The choice is saved per workspace and applies to every request, Run all, and Copy as cURL.</p>
+
+    <h2 id="editor">Editing environments in a form</h2>
+    <p><strong>Plainwire: Edit Environments&hellip;</strong> (also in the status bar list) opens the files as a form: one tab per environment, plus <strong>Shared (all environments)</strong> for <code>$shared</code>. Each variable has a name, a value and a <strong>Secret</strong> box.</p>
+    <ul>
+      <li>Values with <strong>Secret</strong> ticked are saved to <code>http-client.private.env.json</code>, the others to <code>http-client.env.json</code>. Secret values are masked until you click <strong>Show</strong>.</li>
+      <li>Values that are not strings (objects, arrays, numbers) are shown read-only with an <strong>Open JSON</strong> link, and are written back unchanged. So are <code>$schema</code> and the order of your keys. A file with no changes is not rewritten.</li>
+      <li>With environment files in several folders, pick the folder at the top of the editor.</li>
+      <li>If the files change on disk while you edit, the editor asks whether to reload or to keep your changes.</li>
+    </ul>
+
+    <h2 id="secrets">Keeping secrets out of git</h2>
+    <p>Add <code>http-client.private.env.json</code> to <code>.gitignore</code>. The environment editor checks this for you:</p>
+    <ul>
+      <li>If a <code>.gitignore</code> already covers the file, it says so: the file is git-ignored, so secrets stay on this machine.</li>
+      <li>If not, it shows a warning with an <strong>Add to .gitignore</strong> button. The button appends these lines to the <code>.gitignore</code> at the root of the workspace folder:
+<pre># Secrets for .http requests (Plainwire / JetBrains HTTP Client / REST Client)
+http-client.private.env.json</pre></li>
+      <li>In a git repository that has no <code>.gitignore</code> yet (new in 0.15), the same button creates one, because <code>git add .</code> would otherwise commit the secrets.</li>
+    </ul>
+    <p>A <code>.gitignore</code> in a subfolder that covers the file counts too. For teammates, commit a <code>http-client.env.json</code> with every non-secret value, and tell them which secret names to put in their own private file.</p>
+
+    <h2 id="cli">The same files in the CLI and CI</h2>
+    <p>The <a href="run-http-files-in-ci.html">Plainwire CLI</a> reads the same files. It looks for them under the directory you run it from:</p>
+<pre>plainwire run api/ --env staging
+plainwire run api/ --env ci --env-file ci.env.json
+plainwire run api/ --env staging --var token=$API_TOKEN</pre>
+    <ul>
+      <li><code>--env &lt;name&gt;</code> (or <code>-e</code>) selects the environment. Without it, only <code>$shared</code> applies.</li>
+      <li><code>--env-file &lt;file&gt;</code> adds another file in the same format, read after the private file, so its values win. Repeat it for several files. This is a convenient way to write a CI secret to a file and use it.</li>
+      <li><code>--var name=value</code> replaces one environment value. Repeat it as needed.</li>
+      <li>Secrets from your CI&rsquo;s secret store can also be read with <code>{{$processEnv NAME}}</code>.</li>
+    </ul>
+    <p>Run without <code>--env</code>, a request that needs <code>{{host}}</code> fails with the same hint as in the editor. These are real runs (20 November 2026) of the 0.15.0 CLI, with the files above in the working directory. The only differences: <code>dev</code>&rsquo;s <code>host</code> pointed at a local echo server, and the request had a second check that the server received <code>Bearer dev-secret-123</code>.</p>
+<pre>$ plainwire run api/
+plainwire 0.15.0 · 1 request in 1 file · no environment (available: dev, staging)
+
+api/users.http
+  ✗ GET List users
+      Variable {{host}} is not defined. It is defined in environment "dev" and "staging", but no environment is selected. Run with --env dev.
+      at api/users.http:6
+
+0 passed, 0 failed, 1 errors (1 requests, 3 ms)</pre>
+    <p>With <code>--env dev</code>, the first line names the files it read, and the request sends the token from the private file:</p>
+<pre>$ plainwire run api/ --env dev
+plainwire 0.15.0 · 1 request in 1 file · environment dev from http-client.env.json, http-client.private.env.json
+
+api/users.http
+  ✓ GET List users 200 · 19 ms · 2/2 checks
+
+1 passed, 0 failed (1 requests, 25 ms)</pre>
+    <p>An unknown name stops the run with exit code 2 and lists the environments it found, for example <code>Environment "nope" not found. Available: dev, staging</code>. In the GitHub Action, set <code>env: staging</code>.</p>
+
+    <h2 id="compatibility">Compatibility with JetBrains and REST Client</h2>
+    <ul>
+      <li><strong>JetBrains HTTP Client</strong> (IntelliJ IDEA, WebStorm and others) uses the same two file names, the same layout, and the same rule that private values override public ones. A team can use both editors on one set of files.</li>
+      <li><strong>REST Client</strong> keeps environments in the <code>rest-client.environmentVariables</code> setting, usually in <code>.vscode/settings.json</code>. Plainwire reads that setting too, in the extension and in the CLI, so you can keep it. Plainwire&rsquo;s own <code>plainwire.environmentVariables</code> setting uses the same format. When a setting and a file define the same environment variable, the file wins.</li>
+      <li>The <code>$shared</code> environment works as in REST Client: it applies in every environment, and the selected one wins.</li>
+      <li>Postman and Thunder Client environments become <code>http-client.env.json</code> when you <a href="postman-collection-to-http-file.html">import a collection</a>.</li>
+    </ul>
+
+    <h2>FAQ</h2>
+    <details><summary>Where do I put the files?</summary><p>Anywhere in the workspace; next to your <code>.http</code> files is usual. Plainwire reads every pair it finds and merges them, so give each environment a distinct name if you have files in several folders.</p></details>
+    <details><summary>Why is <code>{{host}}</code> not defined?</summary><p>Usually because no environment is selected. Check the status bar, or use the <strong>Use dev and send</strong> button on the error. If the error has no such hint, no environment defines the name: check the spelling, or add it in the environment editor.</p></details>
+    <details><summary>Does it work in Cursor, Windsurf and VSCodium?</summary><p>Yes, it is the same extension. Install the <code>.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest release</a>; see <a href="api-client-for-cursor-vscodium.html">installing in Cursor and VSCodium</a>.</p></details>
+    <details><summary>Are my secrets sent anywhere?</summary><p>No. They are read from files on your machine and sent only in the requests you write. There is no account and no telemetry; the source is on <a href="https://github.com/janwan2003/vscode-api-client">GitHub</a> (MIT).</p></details>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <span>About: Plainwire</span>
+    <a href="https://github.com/janwan2003/vscode-api-client">GitHub repository</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="support.html">Support</a>
+  </div>
+</footer>
+</body>
+</html>

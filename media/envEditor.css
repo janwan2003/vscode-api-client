@@ -48,3 +48,4 @@ tr.ro td { vertical-align: middle; }
 .ee-kind { white-space: nowrap; color: var(--vscode-descriptionForeground); font-style: italic; }
 .ee-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); }
 @media (max-width: 640px) { .ee-body { grid-template-columns: 1fr; } .ee-envs { border-right: 0; padding-right: 0; } }
+.ee-active { color: var(--vscode-testing-iconPassed, #73c991); font-size: .9em; }

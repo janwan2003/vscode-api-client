@@ -56,6 +56,13 @@
     const idx = S.model.envs.map((_, i) => i);
     return [...idx.filter((i) => S.model.envs[i].name === SHARED), ...idx.filter((i) => S.model.envs[i].name !== SHARED)];
   }
+  /** Open on the active environment, else the first real one (Shared is empty in most projects), else Shared. */
+  function firstPick() {
+    const active = S.model.envs.findIndex((e) => e.name !== SHARED && e.name === S.active);
+    if (active >= 0) return active;
+    const ord = order();
+    return ord.find((i) => S.model.envs[i].name !== SHARED) ?? ord[0] ?? 0;
+  }
   const envLabel = (e) => (e.name === SHARED ? 'Shared (all environments)' : e.name || '(unnamed)');
 
   function save(force = false) {
@@ -141,7 +148,7 @@
         changed();
         render();
       } }, '+ Add environment'),
-      h('div', { class: 'hint ee-pick' }, 'Choose the active environment in the status bar.'));
+      h('div', { class: 'hint ee-pick' }, 'The active environment is also shown and switched in the status bar.'));
 
     const env = S.model.envs[S.sel];
     app.replaceChildren(h('div', { class: 'ee' }, head, fileLine, git, ...banners, h('div', { class: 'ee-body' }, nav, env ? envPane(env) : h('div', { class: 'empty' }, 'No environments yet. Add one.'))));
@@ -162,7 +169,11 @@
     const secretNames = new Set(env.vars.filter((v) => v.secret).map((v) => v.name.trim()));
     const rows = env.vars.map((v, i) => varRow(env, v, i, !v.secret && secretNames.has(v.name.trim())));
     return h('section', { class: 'ee-env' },
-      h('div', { class: 'ee-env-head' }, title, h('span', { class: 'spacer' }),
+      h('div', { class: 'ee-env-head' }, title,
+        shared ? null : env.name === S.active
+          ? h('span', { class: 'badge ee-active', title: 'Requests use this environment (status bar)' }, '✓ Active')
+          : h('button', { class: 'ee-use', disabled: !env.orig || env.name !== env.orig ? '' : null, title: env.orig && env.name === env.orig ? 'Send requests with this environment' : 'Save first', onclick: () => vscode.postMessage({ type: 'activate', name: env.name }) }, 'Use this environment'),
+        h('span', { class: 'spacer' }),
         shared ? null : h('button', { class: 'link danger', onclick: () => {
           S.model.envs.splice(S.sel, 1);
           S.sel = order()[0] ?? 0;
@@ -221,7 +232,7 @@
         S = { ...S, model, baseline: JSON.stringify(model), files: m.files, folders: m.folders, folder: m.folder, gitignore: m.gitignore, active: m.active,
           loadError: m.error, error: m.error, notice: m.notice, conflict: false, loaded: true };
         const again = model.envs.findIndex((e) => e.name === prevName);
-        S.sel = again >= 0 ? again : order()[0] ?? 0;
+        S.sel = again >= 0 ? again : firstPick();
         lastDirty = true;
         changed();
         render();

@@ -161,7 +161,7 @@ test('usage errors exit 2 with a readable message', async () => {
   // An unresolved variable is a request error, not a crash.
   const noEnv = await runCli(['run', 'api/nested/checks.rest', '-q']);
   assert.equal(noEnv.code, 1);
-  assert.match(noEnv.stdout, /Variable \{\{base\}\} is not defined/);
+  assert.match(noEnv.stdout, /Variable \{\{base\}\} is not defined\. It is defined in environment "local" and "other", but no environment is selected\. Run with --env local\./);
 });
 
 test('import: Postman collection → .http files + env file', async () => {

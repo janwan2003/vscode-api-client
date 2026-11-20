@@ -267,6 +267,26 @@ export function parseDotenv(text: string): Record<string, string> {
  * Merge environments the way REST Client does: `$shared` first, then the selected one.
  * Values may reference `{{$shared varName}}`.
  */
+/** Environments (never `$shared`) that define `variable`, in file order: used to say which environment to pick. */
+export function envsDefining(all: Record<string, Record<string, string>>, variable: string): string[] {
+  const name = variable.trim();
+  return Object.keys(all).filter((n) => n !== '$shared' && Object.prototype.hasOwnProperty.call(all[n], name));
+}
+
+/**
+ * The second sentence of an "is not defined" error when an environment would have defined the variable, e.g.
+ * `It is defined in environment "dev" and "staging", but no environment is selected.` Undefined when no environment has it.
+ */
+export function envHint(all: Record<string, Record<string, string>>, variable: string, selected: string | undefined): string | undefined {
+  const names = envsDefining(all, variable);
+  if (!names.length) return undefined;
+  const list = names.map((n) => `"${n}"`);
+  const where = `environment ${list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0]}`;
+  return selected && all[selected]
+    ? `It is defined in ${where}, not in the selected environment "${selected}".`
+    : `It is defined in ${where}, but no environment is selected.`;
+}
+
 export function mergeEnvironment(all: Record<string, Record<string, string>>, selected: string | undefined): Record<string, string> {
   const shared = all['$shared'] ?? {};
   const env = selected ? all[selected] ?? {} : {};

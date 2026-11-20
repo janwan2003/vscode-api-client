@@ -1,9 +1,18 @@
 import * as vscode from 'vscode';
 import { markdownReport, rowState, summarize, type RunRow as CoreRunRow, type RunSummary } from '../core/exec.ts';
 import { parseHttpFile } from '../core/httpFile.ts';
-import type { ParsedRequest } from '../core/model.ts';
+import type { HttpResponse, ParsedRequest } from '../core/model.ts';
+import type { AssertionResult } from '../core/assert.ts';
 import { readText, type Runner } from './runner.ts';
 import { requestLabel } from './tree.ts';
+
+/** What a run produced for one row: clicking the row opens the request with this response and its checks. */
+export interface RowResult {
+  response?: HttpResponse;
+  assertions?: AssertionResult[];
+  logs?: string[];
+  error?: string;
+}
 
 /** One row in the run report; `uri` lets the report open the request. */
 export interface RunRow extends CoreRunRow {
@@ -37,6 +46,8 @@ export class RunAllPanel {
   private static current?: RunAllPanel;
   private readonly panel: vscode.WebviewPanel;
   private rows: RunRow[] = [];
+  /** Per row (same index as `rows`) of the latest run, kept for the panel's lifetime. */
+  private results: RowResult[] = [];
   private files: vscode.Uri[] = [];
   private title = '';
   private running = false;
@@ -44,7 +55,7 @@ export class RunAllPanel {
   private started = 0;
   private elapsed = 0;
 
-  static async run(runner: Runner, files: vscode.Uri[], title: string, open: (uri: vscode.Uri, index: number) => void): Promise<RunSummary> {
+  static async run(runner: Runner, files: vscode.Uri[], title: string, open: (uri: vscode.Uri, index: number, result?: RowResult) => void): Promise<RunSummary> {
     const p = RunAllPanel.current ?? new RunAllPanel(runner, open);
     RunAllPanel.current = p;
     p.panel.reveal(undefined, false);
@@ -55,7 +66,7 @@ export class RunAllPanel {
 
   private constructor(
     private readonly runner: Runner,
-    private readonly open: (uri: vscode.Uri, index: number) => void,
+    private readonly open: (uri: vscode.Uri, index: number, result?: RowResult) => void,
   ) {
     this.panel = vscode.window.createWebviewPanel('plainwire.runAll', 'Plainwire: Run', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
     this.panel.webview.html = this.html();
@@ -63,11 +74,11 @@ export class RunAllPanel {
       this.cts?.cancel();
       if (RunAllPanel.current === this) RunAllPanel.current = undefined;
     });
-    this.panel.webview.onDidReceiveMessage((m: { type: string; uri?: string; index?: number }) => {
+    this.panel.webview.onDidReceiveMessage((m: { type: string; uri?: string; index?: number; row?: number }) => {
       if (m.type === 'stop') this.cts?.cancel();
       else if (m.type === 'rerun' && !this.running) void this.start();
       else if (m.type === 'rerunFailed' && !this.running) void this.start(true);
-      else if (m.type === 'open' && m.uri !== undefined && m.index !== undefined) this.open(vscode.Uri.parse(m.uri), m.index);
+      else if (m.type === 'open' && m.uri !== undefined && m.index !== undefined) this.open(vscode.Uri.parse(m.uri), m.index, m.row !== undefined ? this.results[m.row] : undefined);
       else if (m.type === 'copy') void vscode.env.clipboard.writeText(this.markdown()).then(() => vscode.window.setStatusBarMessage('$(check) Copied run report', 2500));
       else if (m.type === 'ready') this.post();
     });
@@ -96,6 +107,7 @@ export class RunAllPanel {
       state: req.meta && 'skip' in req.meta ? 'skipped' : 'pending',
       assertions: [],
     }));
+    this.results = [];
     this.cts?.cancel();
     const cts = new vscode.CancellationTokenSource();
     this.cts = cts;
@@ -115,7 +127,8 @@ export class RunAllPanel {
       row.state = 'running';
       this.post();
       try {
-        const { response, assertions } = await this.runner.run(plan[i].req, { uri: plan[i].uri }, cts.token);
+        const { response, assertions, logs } = await this.runner.run(plan[i].req, { uri: plan[i].uri }, cts.token);
+        this.results[i] = { response, assertions, logs };
         row.status = response.status;
         row.timeMs = response.timeMs;
         row.assertions = assertions;
@@ -123,6 +136,7 @@ export class RunAllPanel {
       } catch (e) {
         row.state = 'error';
         row.error = (e as Error).message;
+        this.results[i] = { error: row.error };
       }
       this.elapsed = Date.now() - this.started;
       this.post();
@@ -194,10 +208,10 @@ function render(s) {
     el('span', { class: 'muted' }, done + '/' + (sum.total - sum.skipped) + ' requests · ' + sum.timeMs + ' ms'));
   const bar = el('div', { class: 'bar' }, el('div', { class: 'p', width: (sum.total ? 100 * sum.passed / sum.total : 0) + '%' }), el('div', { class: 'f', width: (sum.total ? 100 * (sum.failed + sum.errors) / sum.total : 0) + '%' }));
   const oneFile = s.rows.every((r) => r.file === (s.rows[0] && s.rows[0].file));
-  const rows = s.rows.map((r) => {
+  const rows = s.rows.map((r, i) => {
     const failed = r.assertions.filter((a) => !a.passed);
     const checks = r.assertions.length ? (r.assertions.length - failed.length) + '/' + r.assertions.length + ' checks' : (r.status !== undefined ? 'no checks' : '');
-    return el('tr', { class: 'row', title: 'Open this request', onclick: () => vscode.postMessage({ type: 'open', uri: r.uri, index: r.index }) },
+    return el('tr', { class: 'row', title: r.status !== undefined || r.error ? 'Open this request with this response' : 'Open this request', onclick: () => vscode.postMessage({ type: 'open', uri: r.uri, index: r.index, row: i }) },
       el('td', { class: r.state }, ICON[r.state]),
       el('td', { class: 'm' }, r.method),
       el('td', {}, r.label, oneFile ? null : ' ', oneFile ? null : el('span', { class: 'file' }, r.file),

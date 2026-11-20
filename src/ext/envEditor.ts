@@ -12,7 +12,8 @@ type FromWebview =
   | { type: 'reload' }
   | { type: 'folder'; value: string }
   | { type: 'openJson'; which: Which; env?: string; name?: string }
-  | { type: 'addGitignore' };
+  | { type: 'addGitignore' }
+  | { type: 'activate'; name: string };
 
 interface FileState {
   uri: vscode.Uri;
@@ -135,6 +136,10 @@ export class EnvEditorPanel {
         case 'addGitignore':
           await this.addGitignore();
           return;
+        case 'activate':
+          // The status bar item and every open request tab follow (EnvironmentManager.onDidChange).
+          await this.envs.select(m.name);
+          return;
       }
     } catch (e) {
       this.post({ type: 'error', message: (e as Error).message });
@@ -215,15 +220,18 @@ export class EnvEditorPanel {
       if (gitignoreCovers(text, [...dirs.slice(i), PRIVATE].join('/'))) covered = true;
     }
     if (covered) return { state: 'covered' };
-    return rootExists ? { state: 'missing', uri: rootIgnore } : { state: 'none' };
+    if (rootExists) return { state: 'missing', uri: rootIgnore };
+    // A git repository without a .gitignore yet: `git add .` would commit the secrets, so offer to create one.
+    const isRepo = await vscode.workspace.fs.stat(vscode.Uri.joinPath(ws.uri, '.git')).then(() => true, () => false);
+    return isRepo ? { state: 'missing', uri: rootIgnore } : { state: 'none' };
   }
 
   private async addGitignore(): Promise<void> {
     const g = await this.gitignore();
     if (g.state !== 'missing' || !g.uri) return this.postLoad();
     const text = (await readFileText(g.uri)) ?? '';
-    const sep = text === '' || text.endsWith('\n') ? '' : '\n';
-    await vscode.workspace.fs.writeFile(g.uri, new TextEncoder().encode(`${text}${sep}\n# Secrets for .http requests (Plainwire / JetBrains HTTP Client / REST Client)\n${PRIVATE}\n`));
+    const sep = text === '' ? '' : text.endsWith('\n') ? '\n' : '\n\n';
+    await vscode.workspace.fs.writeFile(g.uri, new TextEncoder().encode(`${text}${sep}# Secrets for .http requests (Plainwire / JetBrains HTTP Client / REST Client)\n${PRIVATE}\n`));
     void vscode.window.setStatusBarMessage(`$(check) Added ${PRIVATE} to .gitignore`, 3000);
     this.postLoad();
   }

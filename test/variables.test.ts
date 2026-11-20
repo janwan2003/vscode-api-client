@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { jsonPath, mergeEnvironment, parseDotenv, referencedRequestNames, resolveRequest, resolveText, UnresolvedVariableError, type VariableContext } from '../src/core/variables.ts';
+import { envHint, envsDefining, jsonPath, mergeEnvironment, parseDotenv, referencedRequestNames, resolveRequest, resolveText, UnresolvedVariableError, type VariableContext } from '../src/core/variables.ts';
 
 function ctx(over: Partial<VariableContext> = {}): VariableContext {
   return {
@@ -87,4 +87,19 @@ test('jsonPath .length on strings and arrays', () => {
   assert.equal(jsonPath({ id: 'abcde', items: [1, 2] }, '$.id.length'), 5);
   assert.equal(jsonPath({ id: 'abcde', items: [1, 2] }, '$.items.length'), 2);
   assert.equal(jsonPath({ id: 'abcde' }, '$.id.foo'), undefined);
+});
+
+test('envHint names the environments that define a missing variable', () => {
+  const envs = { $shared: { host: 'shared-is-not-offered' }, dev: { host: 'http://localhost', token: 't' }, staging: { host: 'https://s' }, prod: {} };
+  assert.deepEqual(envsDefining(envs, ' host '), ['dev', 'staging']);
+  assert.deepEqual(envsDefining(envs, 'token'), ['dev']);
+  assert.deepEqual(envsDefining(envs, 'nowhere'), []);
+  assert.equal(envHint(envs, 'host', undefined), 'It is defined in environment "dev" and "staging", but no environment is selected.');
+  assert.equal(envHint(envs, 'token', 'prod'), 'It is defined in environment "dev", not in the selected environment "prod".');
+  // A selected name that no longer exists counts as none.
+  assert.equal(envHint(envs, 'token', 'gone'), 'It is defined in environment "dev", but no environment is selected.');
+  assert.equal(envHint({ a: { x: '1' }, b: { x: '2' }, c: { x: '3' } }, 'x', undefined), 'It is defined in environment "a", "b" and "c", but no environment is selected.');
+  assert.equal(envHint(envs, 'nowhere', undefined), undefined);
+  // Inherited object keys are not variables.
+  assert.deepEqual(envsDefining(envs, 'toString'), []);
 });

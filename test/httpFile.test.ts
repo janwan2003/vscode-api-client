@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { appendRequest, joinQuery, parseHttpFile, replaceRequest, serializeHttpFile, serializeRequest, splitQuery } from '../src/core/httpFile.ts';
+import { appendRequest, joinQuery, parseHttpFile, replaceRequest, serializeHttpFile, serializeRequest, shortLabel, splitQuery } from '../src/core/httpFile.ts';
 
 const sample = readFileSync(new URL('./fixtures/sample.http', import.meta.url), 'utf8');
 
@@ -293,4 +293,16 @@ test('a request line only splits when it looks like one; comments directly after
   assert.deepEqual(two.map((x) => `${x.method} ${x.url}`), ['GET http://x.test/a', 'GET example.com/b', 'DELETE localhost:8080/c']);
   // An unterminated script or block comment is not one.
   assert.equal(parseHttpFile('POST http://x.test/a\n\n{{\n"a": 1\n').requests[0].body, '{{\n"a": 1');
+});
+
+test('shortLabel: title, then @name, then the URL without its host', () => {
+  assert.equal(shortLabel({ url: '{{host}}/users', title: ' Create user ' }), 'Create user');
+  assert.equal(shortLabel({ url: '{{host}}/users', name: 'createUser' }), 'createUser');
+  assert.equal(shortLabel({ url: '{{host}}/users/1?x=1' }), '/users/1?x=1');
+  assert.equal(shortLabel({ url: '{{ baseUrl }}?q=1' }), '?q=1');
+  assert.equal(shortLabel({ url: 'https://api.example.com/v1/orders' }), '/v1/orders');
+  assert.equal(shortLabel({ url: 'wss://echo.example.com/socket' }), '/socket');
+  assert.equal(shortLabel({ url: 'https://api.example.com' }), 'https://api.example.com');
+  assert.equal(shortLabel({ url: '{{host}}' }), '{{host}}');
+  assert.equal(shortLabel({ url: '' }), 'New request');
 });

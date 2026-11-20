@@ -10,17 +10,19 @@ import { CookieStore } from './cookies.ts';
 import { EnvEditorPanel } from './envEditor.ts';
 import { EnvironmentManager } from './environments.ts';
 import { History, type HistoryEntry } from './history.ts';
-import { importFromFiles, importFromUrl, importOpenApi, writeCollections } from './importer.ts';
+import { importFromFiles, importFromUrl, importOpenApi, onImported, writeCollections } from './importer.ts';
 import { detectAndImport } from '../core/importers/index.ts';
 import { RequestPanel, type PanelDeps } from './panel.ts';
 import { readText, Runner } from './runner.ts';
-import { filesFor, RunAllPanel } from './runAll.ts';
-import { CollectionsProvider, HistoryProvider, type RequestNode } from './tree.ts';
+import { filesFor, RunAllPanel, type RowResult } from './runAll.ts';
+import { CollectionsProvider, FileNode, HistoryProvider, type RequestNode } from './tree.ts';
 import { Organizer } from './organize.ts';
 
 interface At {
   uri: vscode.Uri;
   index: number;
+  /** From a run report row: show that run's response, checks and logs instead of an empty response pane. */
+  result?: RowResult;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
@@ -33,6 +35,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const deps: PanelDeps = { extensionUri: context.extensionUri, runner, envs, copier, ui: context.globalState };
   const collections = new CollectionsProvider();
   const organizer = new Organizer(deps, collections);
+  onImported(async (first) => {
+    await vscode.commands.executeCommand('workbench.view.extension.plainwire');
+    collections.refreshNow();
+    await organizer.view?.reveal(new FileNode(first), { select: true, focus: false, expand: true });
+  });
   void envs.reload();
 
   const requestAt = async (at: At): Promise<HttpRequest> => {
@@ -74,7 +81,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     vscode.commands.registerCommand('plainwire.newRequest', () => RequestPanel.show(deps, { method: 'GET', url: '', headers: [] }, { kind: 'scratch' })),
     vscode.commands.registerCommand('plainwire.openRequest', (n: RequestNode) => RequestPanel.show(deps, n.request, { kind: 'file', uri: n.uri, index: n.index })),
     vscode.commands.registerCommand('plainwire.sendRequest', guard(async (n: RequestNode) => RequestPanel.show(deps, await requestAt(n), { kind: 'file', uri: n.uri, index: n.index }, undefined, true))),
-    vscode.commands.registerCommand('plainwire.openAt', guard(async (at: At) => RequestPanel.show(deps, await requestAt(at), { kind: 'file', ...at }))),
+    vscode.commands.registerCommand('plainwire.openAt', guard(async (at: At) => RequestPanel.show(deps, await requestAt(at), { kind: 'file', uri: at.uri, index: at.index }, at.result?.response, false, at.result))),
     vscode.commands.registerCommand('plainwire.sendAt', guard(async (at: At) => RequestPanel.show(deps, await requestAt(at), { kind: 'file', ...at }, undefined, true))),
     vscode.commands.registerCommand('plainwire.sendAtCursor', guard(async () => {
       const at = atCursor();
@@ -156,13 +163,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       const files = await filesFor(target);
       if (!files.length) throw new Error('No .http or .rest files to run.');
       const title = files.length === 1 ? vscode.workspace.asRelativePath(files[0]) : target ? `${vscode.workspace.asRelativePath(target instanceof vscode.Uri ? target : (target as { uri: vscode.Uri }).uri)} (${files.length} files)` : `workspace (${files.length} files)`;
-      return RunAllPanel.run(runner, files, title, (uri, index) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index }));
+      return RunAllPanel.run(runner, files, title, (uri, index, result) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index, result }));
     })),
     vscode.commands.registerCommand('plainwire.runFolder', (target?: unknown) => vscode.commands.executeCommand('plainwire.runFile', target)),
     vscode.commands.registerCommand('plainwire.runAll', guard(async () => {
       const files = await filesFor(null);
       if (!files.length) throw new Error('No .http or .rest files in this workspace.');
-      return RunAllPanel.run(runner, files, `workspace (${files.length} files)`, (uri, index) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index }));
+      return RunAllPanel.run(runner, files, `workspace (${files.length} files)`, (uri, index, result) => void vscode.commands.executeCommand('plainwire.openAt', { uri, index, result }));
     })),
     vscode.commands.registerCommand('plainwire.selectEnvironment', guard(() => envs.pick())),
     vscode.commands.registerCommand('plainwire.editEnvironments', guard(() => EnvEditorPanel.show(context.extensionUri, envs))),

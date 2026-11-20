@@ -568,7 +568,9 @@
       return;
     }
     if (S.error) {
-      res.append(h('div', { class: 'error-box' }, h('b', {}, 'Could not send the request'), h('pre', {}, S.error)));
+      const fixes = (S.useEnvs || []).map((name, i) => h('button', { class: i ? '' : 'primary', onclick: () => { S.useEnvs = null; vscode.postMessage({ type: 'useEnv', name, request: S.request }); } }, 'Use ' + name + ' and send'));
+      res.append(h('div', { class: 'error-box' }, h('b', {}, 'Could not send the request'), h('pre', {}, S.error),
+        fixes.length ? h('div', { class: 'error-actions' }, ...fixes, h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'editEnvs' }) }, 'Edit environments…')) : null));
       return;
     }
     const r = S.response;
@@ -855,7 +857,14 @@
       S.request = m.request;
       S.request.headers = S.request.headers || [];
       S.meta = { sourceLabel: m.sourceLabel, canSave: m.canSave, env: m.env, envNames: m.envNames, authIds: m.authIds || [], layout: m.layout || S.meta.layout };
-      if (m.response) { S.response = m.response; S.error = null; S.assertions = []; S.lastAssertions = []; S.logs = []; }
+      if (m.response) {
+        // Opened from history, or from a run report row with that run's checks and script log.
+        S.response = m.response; S.error = null; S.useEnvs = null;
+        S.assertions = m.assertions || []; S.lastAssertions = S.assertions; S.logs = m.logs || [];
+        if (S.assertions.some((a) => !a.passed)) S.resTab = 'tests';
+      } else if (m.error) {
+        S.response = null; S.error = m.error; S.useEnvs = null; S.assertions = []; S.logs = [];
+      }
       S.dirty = false;
       S.sending = false;
       persist();
@@ -867,7 +876,7 @@
       persist();
       render();
     } else if (m.type === 'sending') {
-      S.sending = true; S.error = null; S.stream = []; render();
+      S.sending = true; S.error = null; S.useEnvs = null; S.stream = []; render();
     } else if (m.type === 'events') {
       const first = !S.stream || !S.stream.length;
       S.stream = (S.stream || []).concat(m.events);
@@ -878,7 +887,7 @@
       if (S.resTab === 'tests' && !S.assertions.length && !S.logs.length) S.resTab = 'body';
       persist(); render();
     } else if (m.type === 'error') {
-      S.sending = false; S.stream = []; S.error = m.message; persist(); render();
+      S.sending = false; S.stream = []; S.error = m.message; S.useEnvs = m.useEnvs || null; persist(); render();
     } else if (m.type === 'layout') {
       S.meta.layout = m.layout; persist(); applyLayout();
     } else if (m.type === 'setRequest') {

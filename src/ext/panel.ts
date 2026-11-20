@@ -1,8 +1,9 @@
 import type { SseEvent } from '../core/sse.ts';
 import * as vscode from 'vscode';
 import { parseCurl } from '../core/curl.ts';
-import { appendRequest, parseHttpFile, replaceRequest } from '../core/httpFile.ts';
+import { appendRequest, parseHttpFile, replaceRequest, shortLabel } from '../core/httpFile.ts';
 import type { HttpRequest, HttpResponse } from '../core/model.ts';
+import type { AssertionResult } from '../core/assert.ts';
 import type { CodeCopier } from './copyCode.ts';
 import type { EnvironmentManager } from './environments.ts';
 import { readText, type Runner } from './runner.ts';
@@ -26,6 +27,13 @@ export interface PanelLayout {
 }
 const LAYOUT_KEY = 'plainwire.panelLayout';
 
+/** A finished run's checks, script log or error, shown with its response when a run report row is opened. */
+export interface Outcome {
+  assertions?: AssertionResult[];
+  logs?: string[];
+  error?: string;
+}
+
 type FromWebview =
   | { type: 'ready' }
   | { type: 'send'; request: HttpRequest }
@@ -36,6 +44,8 @@ type FromWebview =
   | { type: 'copyCode'; request: HttpRequest }
   | { type: 'openText' }
   | { type: 'selectEnv' }
+  | { type: 'useEnv'; name: string; request: HttpRequest }
+  | { type: 'editEnvs' }
   | { type: 'acquireToken'; id: string }
   | { type: 'changed'; request: HttpRequest }
   | { type: 'openBody'; body: string; contentType: string }
@@ -54,16 +64,17 @@ export class RequestPanel {
   private cts?: vscode.CancellationTokenSource;
   private readonly disposables: vscode.Disposable[] = [];
 
-  static show(deps: PanelDeps, request: HttpRequest, source: PanelSource, response?: HttpResponse, autoSend = false): RequestPanel {
+  static show(deps: PanelDeps, request: HttpRequest, source: PanelSource, response?: HttpResponse, autoSend = false, outcome?: Outcome): RequestPanel {
     const key = RequestPanel.key(source);
     let p = RequestPanel.open.get(key);
+    const shown = { response, assertions: outcome?.assertions, logs: outcome?.logs, error: outcome?.error };
     if (p) {
       p.panel.reveal(undefined, false);
       p.request = request;
       p.snapshot = { method: request.method, url: request.url, name: request.name };
-      p.post({ type: 'load', request, response, ...p.meta() });
+      p.post({ type: 'load', request, ...shown, ...p.meta() });
     } else {
-      p = new RequestPanel(deps, request, source, key, response);
+      p = new RequestPanel(deps, request, source, key, shown);
       RequestPanel.open.set(key, p);
     }
     if (autoSend) void p.send(request);
@@ -122,7 +133,7 @@ export class RequestPanel {
     request: HttpRequest,
     source: PanelSource,
     private key: string,
-    private pendingResponse?: HttpResponse,
+    private pending?: Outcome & { response?: HttpResponse },
   ) {
     this.source = source;
     this.request = request;
@@ -143,8 +154,7 @@ export class RequestPanel {
 
   private title(): string {
     const r = this.request;
-    const label = r.title || r.name || r.url.replace(/^\{\{[^}]+\}\}/, '').replace(/^https?:\/\/[^/]+/, '') || r.url || 'New request';
-    return `${r.method} ${label}`.slice(0, 60);
+    return `${r.method} ${shortLabel(r)}`.slice(0, 60);
   }
 
   private meta() {
@@ -167,8 +177,8 @@ export class RequestPanel {
     try {
       switch (m.type) {
         case 'ready':
-          this.post({ type: 'load', request: this.request, response: this.pendingResponse, ...this.meta() });
-          this.pendingResponse = undefined;
+          this.post({ type: 'load', request: this.request, ...this.pending, ...this.meta() });
+          this.pending = undefined;
           break;
         case 'changed':
           this.request = m.request;
@@ -195,6 +205,14 @@ export class RequestPanel {
           break;
         case 'selectEnv':
           await this.deps.envs.pick();
+          break;
+        case 'useEnv':
+          // From the "Use dev" button on an undefined-variable error: select it and send again.
+          await this.deps.envs.select(m.name);
+          await this.send(m.request);
+          break;
+        case 'editEnvs':
+          await vscode.commands.executeCommand('plainwire.editEnvironments');
           break;
         case 'acquireToken':
           await vscode.commands.executeCommand('plainwire.acquireOAuthToken', m.id);
@@ -246,7 +264,9 @@ export class RequestPanel {
       if (this.cts === cts) this.post({ type: 'response', response, resolved, assertions, logs });
     } catch (e) {
       if (timer) clearTimeout(timer);
-      if (this.cts === cts) this.post({ type: 'error', message: (e as Error).message });
+      if (this.cts !== cts) return;
+      // Runner.run adds `useEnvs` when another environment defines the missing variable: offer those as buttons.
+      this.post({ type: 'error', message: (e as Error).message, useEnvs: (e as { useEnvs?: string[] }).useEnvs?.slice(0, 4) });
     }
   }
 
@@ -291,6 +311,16 @@ export class RequestPanel {
       });
       if (!uri) return;
     }
+    if (!request.title?.trim()) {
+      // Like naming a request in Thunder Client: the name becomes the `### title` line shown in the Requests view.
+      const name = await vscode.window.showInputBox({
+        title: 'Name this request',
+        prompt: `Shown in the Requests view (the text after ###). Leave empty to show the URL instead.`,
+        placeHolder: 'For example: Get user',
+      });
+      if (name === undefined) return;
+      if (name.trim()) request = { ...request, title: name.trim() };
+    }
     let text = '';
     try {
       text = await readText(uri);
@@ -304,6 +334,7 @@ export class RequestPanel {
     this.request = request;
     this.snapshot = { method: request.method, url: request.url, name: request.name };
     this.panel.title = this.title();
+    if (request.title) this.post({ type: 'setRequest', request });
     this.post({ type: 'saved', ...this.meta() });
   }
 

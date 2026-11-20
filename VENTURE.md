@@ -120,12 +120,25 @@ Complaints and paywall:
 
 ## Status
 
-**Plainwire 0.14.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
+**Plainwire 0.15.0 built, packaged and on GitHub (Releases + Pages + a GitHub Action), plus three free in-browser converter
 tools on the site. Not yet on the VS Code Marketplace
 or Open VSX** (no publisher accounts; requested in OPERATOR-INBOX.md, publisher ID now `plainbyte`). Users can install the
 `.vsix`, download the CLI (`plainwire.mjs`) or `npm install -g` its release tarball, or use the Action.
 
-What exists (TypeScript, no runtime dependencies, 133 KB `.vsix`, 171 KB CLI file):
+What exists (TypeScript, no runtime dependencies, 135 KB `.vsix`, 171 KB CLI file):
+- 0.15.0 (2026-11-20, session 15): **second real-window hand-walk** (env editor, Send without an environment, Run all, Postman and
+  Thunder import, Save; `scripts/shot/live/walk.sh` keeps a headless VS Code up for driving through `driver.cjs` :9444 and `cdp.mjs`;
+  native dialogs answered by assigning `vscode.window.showOpenDialog` / `showQuickPick` from `/eval`) and fixes for what it showed.
+  `variables.ts` `envsDefining`/`envHint` → `EnvironmentManager.fixFor`; `Runner.run` rethrows an undefined-variable error as
+  "… It is defined in environment "dev" and "staging", but no environment is selected." with `useEnvs`; the panel error box shows
+  **Use dev and send** (message `useEnv`: select + resend) and *Edit environments…*; Run all shows the sentence; CLI adds "Run with --env
+  dev.". Env editor: opens on the active env (`firstPick`), **Use this environment** (message `activate`) and ✓ Active, `gitignore()`
+  treats a workspace with `.git` and no `.gitignore` as `missing` (Add creates the file; before: a hint only). Run all keeps
+  `RowResult` per row and `plainwire.openAt` passes it to `RequestPanel.show(…, outcome)`, so a row opens with its response, checks
+  (Tests tab when one failed) and log. `importer.ts` `onImported` → Requests view revealed on the first imported file
+  (`CollectionsProvider.refreshNow`). Save as asks for the `### title` (InputBox; Esc cancels, empty = none). `httpFile.ts`
+  `shortLabel` for history rows and tab titles. Response summary wraps between items. `scripts/shot/live/shots.sh` made **real**
+  `docs/environments.png` and `docs/run-all.png` (were webview-only renders).
 - 0.14.0 (2026-11-20, session 14): **first hand-walk of the request editor in a real VS Code window** (headless VS Code 1.147 +
   DevTools; webview driven through a CDP isolated world because headless windows deliver no keyboard focus into webviews), then fixes
   for what it showed. `media/panel.js`: **layout** auto/cols/rows (`SIDE_BY_SIDE_MIN` 820 px, was a 1100 px CSS media query, so on
@@ -520,18 +533,20 @@ a body line starting with `###` splits the request (inherent to the format).
 ## Next steps
 
 1. **Operator:** one Marketplace publisher + Open VSX namespace `plainbyte` and `VSCE_PAT` / `OVSX_PAT` in `.env`
-   (OPERATOR-INBOX.md). Then publish `plainwire-0.14.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
+   (OPERATOR-INBOX.md). Then publish `plainwire-0.15.0.vsix` with the commands in `store/LISTING.md`. Still the whole validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04; record impressions per page,
    especially the 3 converter pages, `rest-client-alternative.html`, and the newest feature pages (folders, cookies, SSE, import).
 3. Watch marmelab/awesome-rest PR #242 (opened session 12, one line under Testing > Querying; their link-check workflow needs
    maintainer approval for a first-time fork, and it failed on their 3 latest PRs from others). If it merges, the next candidate is
    mrmykey/awesome-http-clients (171 stars, no stated criteria). stepci/awesome-api-clients and awesome-postman-alternatives need
    200 stars + 2 contributors; awesome-vscode needs a Marketplace link (subagent research, session 12).
-4. Keep hand-walking the GUI with `scripts/shot/live/` (session 14 covered empty state, New Request, Send, Params, Auth Bearer, Tests,
-   Scripts tab, layout, filter). Not yet walked: Save / Save as (native dialog: answer it by stubbing `showSaveDialog` through the
-   driver's `/eval`), the env editor, OAuth 2 tab, GraphQL body, Run all report, import commands. The divider drag was tested with
-   synthetic PointerEvents, not a real mouse. Re-shoot the guide pages' webview-only screenshots (`scripts/shot/*.html`) as real
-   windows with `hero.sh`-style scripts, starting with the Store listing set (Marketplace shows up to 5 images).
+4. Keep hand-walking the GUI with `scripts/shot/live/walk.sh` (session 14: empty state, New Request, Send, Params, Auth Bearer, Tests,
+   Scripts tab, layout, filter; session 15: env editor incl. Secret/Save/Add to .gitignore/Use, Send with no environment, Run all + row
+   click, Postman and Thunder import, Save into a file). Not yet walked: OAuth 2 tab + Acquire, GraphQL body, OpenAPI import from a URL,
+   cURL paste, WebSocket/SSE live views, Copy as Code picker, Rename/Move/Delete in the tree, multi-root. Still webview-only renders:
+   `docs/collections.png` is real; `oauth2.png`, `sse.png`, `websocket.png`, `cookies.png` are not; re-shoot them with `shots.sh`-style
+   scripts. Ideas the walk raised but not done: a first-run hint when `http-client.env.json` exists and no environment was ever chosen
+   (rejected auto-selecting the first environment: it could be production); the History view could group by day.
 5. Scripts follow-ups (0.13.0): a real screenshot of the Scripts tab for the guide page;
    run Postman **folder/collection-level** scripts (prepend to each request's block, or an `# @import`-style shared script);
    Thunder Client `tc.*` scripts on import with a `tc` shim like `pmShim.ts`; httpYac `{{ }}` script blocks and `?? js` with arbitrary
@@ -542,8 +557,7 @@ a body line starting with `###` splits the request (inherent to the format).
 7. Close the session-11 test gaps: e2e for Rename / New File / Delete by answering the InputBox and modal (or by exposing the
    handlers with injected answers), a check that an open request tab follows a moved request, and one multi-root run.
 8. OAuth polish: keep tokens across reloads in VS Code `SecretStorage` (opt-in), a token panel (expiry, scopes, decoded JWT claims),
-   `plainwire run --cookie-jar <file>`. Hand-test the env editor and Auth tab in a real window (still not done; the CDP technique in
-   `scripts/shot/sidebar.mjs` can now drive a real headless VS Code window for that).
+   `plainwire run --cookie-jar <file>`. Hand-test the Auth tab's OAuth 2 option in a real window (the env editor was walked in session 15).
 9. OpenAPI: resolve external `$ref`s to sibling files when importing from disk or URL (DigitalOcean-style split specs) instead
    of only warning. The OpenAPI converter page could also fetch a spec URL (only works where CORS allows).
 10. JetBrains `run #name` execution (parsed since 0.6.0, not run); gRPC; Copy as cURL adds `-N` for streams.

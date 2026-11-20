@@ -15,6 +15,13 @@ exports.run = async function run() {
       results.push('FAIL ' + name + ': ' + (e && e.stack || e));
     }
   };
+  const until = async (what, fn, ms = 8000) => {
+    const end = Date.now() + ms;
+    while (!(await fn())) {
+      if (Date.now() > end) throw new Error('timed out waiting for ' + what);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  };
   const seen = [];
   const server = http.createServer((req, res) => {
     let body = '';
@@ -147,6 +154,11 @@ exports.run = async function run() {
     assert.ok(files.length >= 1, 'no files written');
     const content = fs.readFileSync(files[0].fsPath, 'utf8');
     assert.match(content, /^(GET|POST|PUT|PATCH|DELETE) /m);
+    // The imported collection is shown in Plainwire's Requests view, not just as a text file.
+    await until('import revealed in the Requests view', () => {
+      const sel = api.organizerForTest.view && api.organizerForTest.view.selection[0];
+      return sel && sel.uri && /\/http\/.+\.http$/.test(sel.uri.path) && api.organizerForTest.view.visible;
+    });
   });
 
   await check('OpenAPI YAML import writes .http + env files and the request sends with $shared baseUrl', async () => {
@@ -411,13 +423,6 @@ exports.run = async function run() {
   });
 
   await check('Edit Environments: opens the editor, saves secrets to the private file, keeps Security objects, environments reload', async () => {
-    const until = async (what, fn, ms = 8000) => {
-      const end = Date.now() + ms;
-      while (!(await fn())) {
-        if (Date.now() > end) throw new Error('timed out waiting for ' + what);
-        await new Promise((r) => setTimeout(r, 100));
-      }
-    };
     const all = await vscode.commands.getCommands(true);
     assert.ok(all.includes('plainwire.editEnvironments'));
     const pubPath = path.join(ws.fsPath, 'http-client.env.json');
@@ -490,6 +495,28 @@ exports.run = async function run() {
     await picking;
     await until('editor opened from the picker', () => api.envEditorForTest());
     assert.equal(api.deps.envs.selected, 'local');
+  });
+
+  await check('Environment fixes: "Use this environment", and a missing {{variable}} names the environment that has it', async () => {
+    const api = vscode.extensions.getExtension('plainbyte.plainwire').exports;
+    const envs = api.deps.envs;
+    await vscode.commands.executeCommand('plainwire.editEnvironments');
+    const panel = api.envEditorForTest();
+    await until('webview ready', () => panel.readyCount > 0);
+    await panel.handle({ type: 'activate', name: 'qa' });
+    assert.equal(envs.selected, 'qa');
+    await envs.select(undefined);
+    const req = { method: 'GET', url: '{{host}}/x', headers: [], body: '' };
+    const err = await api.deps.runner.run(req, {}).then(() => undefined, (e) => e);
+    assert.ok(err, 'request without an environment should fail');
+    assert.match(err.message, /Variable \{\{host\}\} is not defined\. It is defined in environment "local".* but no environment is selected\./);
+    assert.ok(err.useEnvs.includes('local') && err.useEnvs.includes('qa'), JSON.stringify(err.useEnvs));
+    // A variable no environment defines keeps the plain message (nothing to offer).
+    const plain = await api.deps.runner.run({ ...req, url: '{{nowhere}}/x' }, {}).then(() => undefined, (e) => e);
+    assert.equal(plain.message, 'Variable {{nowhere}} is not defined');
+    assert.equal(plain.useEnvs, undefined);
+    await envs.select('local');
+    panel.dispose();
   });
 
   await check('Collections: folders in the tree, drag requests between files and within one, duplicate, Move Up, move a file into a folder', async () => {

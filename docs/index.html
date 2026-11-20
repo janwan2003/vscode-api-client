@@ -32,7 +32,7 @@
 <main id="content">
   <div class="wrap">
     <section class="hero">
-      <span class="tagline">Free and open source (MIT) &middot; v0.10</span>
+      <span class="tagline">Free and open source (MIT) &middot; v0.15</span>
       <h1>A GUI API client for VS Code that saves plain <code>.http</code> files</h1>
       <p class="lead">Plainwire gives you a form-style request editor (method, URL, params, headers, body, auth, Send) and a response viewer right inside VS Code, Cursor, Windsurf and VSCodium. There is no login, no account and no limit on requests, collections or runs. Every request is saved as a plain <code>.http</code> file in your repository, in the same format REST Client and the JetBrains HTTP Client use, so git is your sync and teammates without the extension can still read and run them.</p>
       <div class="cta">
@@ -48,11 +48,11 @@
     <section id="install">
       <h2>Install</h2>
       <ol class="steps">
-        <li><strong>Download</strong> <code>plainwire-0.14.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
+        <li><strong>Download</strong> <code>plainwire-0.15.0.vsix</code> from the <a href="https://github.com/janwan2003/vscode-api-client/releases/latest">latest GitHub release</a>.</li>
         <li><strong>Install it.</strong> In VS Code, Cursor, Windsurf or VSCodium open the Command Palette (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), run <strong>Extensions: Install from VSIX&hellip;</strong> and pick the file. Or from a terminal:
-<pre>code --install-extension plainwire-0.14.0.vsix
-cursor --install-extension plainwire-0.14.0.vsix
-codium --install-extension plainwire-0.14.0.vsix</pre></li>
+<pre>code --install-extension plainwire-0.15.0.vsix
+cursor --install-extension plainwire-0.15.0.vsix
+codium --install-extension plainwire-0.15.0.vsix</pre></li>
         <li><strong>Open any folder with a <code>.http</code> file</strong> (or create one). A <strong>Send Request</strong> and an <strong>Open in editor</strong> link appear above each request. Requires VS Code 1.85 or newer, or an editor built on it.</li>
       </ol>
       <p class="small">Listings on the VS Code Marketplace and on Open VSX (the registry Cursor, Windsurf and VSCodium use) are coming soon.</p>
@@ -61,18 +61,18 @@ codium --install-extension plainwire-0.14.0.vsix</pre></li>
 
   <div class="section-soft">
     <div class="wrap">
-      <h2 style="margin-top:0">What you get in v0.14</h2>
+      <h2 style="margin-top:0">What you get in v0.15</h2>
       <div class="grid">
         <div class="card"><h3>Request editor</h3><p>Method, URL, a query-params table, a headers table, JSON / text / form bodies, and Bearer or Basic auth helpers. Press Send.</p></div>
         <div class="card"><h3>Response viewer <span class="small">(filter new in 0.14)</span></h3><p>Next to the request, with a draggable divider. Status, time and size at a glance; a collapsible JSON tree you can filter with JSONPath (<code>$.items[?(@.active)].id</code>) or text, and <strong>+ Add as test</strong> to turn a value into a check.</p></div>
         <div class="card"><h3>Plain .http files</h3><p>Saved in your repo in the REST Client / JetBrains HTTP Client format: <code>###</code>, <code>@var = value</code>, <code>{{var}}</code>, <code># @name</code>.</p></div>
         <div class="card"><h3>CodeLens in any .http file</h3><p><strong>Send Request</strong> and <strong>Open in editor</strong> above every request, including files you already have.</p></div>
-        <div class="card"><h3>Environments</h3><p><code>http-client.env.json</code>, <code>http-client.private.env.json</code> for secrets, and the <code>rest-client.environmentVariables</code> setting.</p></div>
+        <div class="card"><h3>Environments</h3><p><code>http-client.env.json</code>, <code>http-client.private.env.json</code> for secrets, and the <code>rest-client.environmentVariables</code> setting. <a href="http-client-env-json-environments.html">How it works</a>.</p></div>
         <div class="card"><h3>Scripts <span class="small">(new in 0.13)</span></h3><p>JetBrains-style JavaScript in the file: <code>&lt; {% %}</code> before a request to sign it, <code>&gt; {% %}</code> after it for <code>client.test</code> and <code>client.global.set('token', &hellip;)</code>. Imported Postman <code>pm.test</code> scripts run too. <a href="javascript-scripts-http-file.html">How it works</a>.</p></div>
         <div class="card"><h3>WebSocket <span class="small">(new in 0.12)</span></h3><p>Open a WebSocket from the same file: send messages, wait for replies with <code>=== wait-for-server</code>, see every message both ways, and check the replies with <code>messages[-1].data</code>. JetBrains syntax. <a href="websocket-client-vscode.html">How it works</a>.</p></div>
         <div class="card"><h3>Folders and drag and drop <span class="small">(new in 0.11)</span></h3><p>The sidebar shows your folders, files and requests. Drag requests between files, reorder, rename, duplicate and delete; move files into folders. Every edit keeps the rest of the file as it was. <a href="organize-api-requests-folders-vscode.html">How it works</a>.</p></div>
         <div class="card"><h3>OAuth 2.0 tokens <span class="small">(new in 0.10)</span></h3><p>Write <code>{{$auth.token("my-api")}}</code> and the token is fetched, cached and refreshed: Client Credentials, Authorization Code with PKCE, Password, Device flow. JetBrains-compatible config. <a href="oauth2-http-file-vscode.html">Set it up</a>.</p></div>
-        <div class="card"><h3>Environment editor <span class="small">(new in 0.10)</span></h3><p>Edit <code>http-client.env.json</code> in a form: environments as tabs, a Secret box that writes the value to the git-ignored private file, and nothing you did not touch is changed.</p></div>
+        <div class="card"><h3>Environment editor <span class="small">(updated in 0.15)</span></h3><p>Edit <code>http-client.env.json</code> in a form: environments as tabs, a Secret box that writes the value to the git-ignored private file, and nothing you did not touch is changed. Send a request that needs another environment&rsquo;s <code>{{host}}</code> and the error offers <strong>Use dev and send</strong>.</p></div>
         <div class="card"><h3>Cookies and session logins <span class="small">(new in 0.9)</span></h3><p>Log in once: the session cookie is sent with the requests after it, redirects included. A Cookies tab, <code># @assert cookie sid exists</code>, and the same jar in the CLI. <a href="cookies-session-login-http-file.html">How it works</a>.</p></div>
         <div class="card"><h3>Server-sent events <span class="small">(new in 0.7)</span></h3><p>Streaming responses show event by event, with Stop, <code># @max-events</code> and checks on <code>events[0].data</code>. <a href="server-sent-events-vscode.html">Test SSE and streaming APIs</a>.</p></div>
         <div class="card"><h3>Shared files <span class="small">(new in 0.6)</span></h3><p><code># @import ../shared/auth.http</code> brings in another file&rsquo;s variables and its login request, so every file reuses one token. <a href="import-http-file-shared-variables.html">How it works</a>.</p></div>
@@ -135,6 +135,7 @@ X-Request-Id: <span class="v">{{$guid}}</span></pre>
         <div class="card"><h3><a href="postman-collection-to-http-file.html">Postman collections to .http files</a></h3><p>Collections, folders, auth and environments to <code>http-client.env.json</code>.</p></div>
         <div class="card"><h3><a href="curl-to-http-file.html">cURL to .http and back</a></h3><p>Every common cURL flag and its <code>.http</code> equivalent.</p></div>
         <div class="card"><h3><a href="http-file-syntax.html">.http file syntax cheat sheet</a></h3><p>Requests, headers, bodies, variables, environments, system variables, chaining.</p></div>
+        <div class="card"><h3><a href="http-client-env-json-environments.html">Environments: http-client.env.json</a></h3><p>Public and private env files, <code>$shared</code>, selecting an environment, secrets out of git, <code>--env</code> in CI.</p></div>
         <div class="card"><h3><a href="organize-api-requests-folders-vscode.html">Organize API requests in folders</a></h3><p>Collections as files, folders as folders: drag, reorder, rename, duplicate, and what each does on disk.</p></div>
         <div class="card"><h3><a href="oauth2-http-file-vscode.html">OAuth 2.0 tokens in .http files</a></h3><p>Client Credentials, Authorization Code + PKCE, Password and Device flow, cached and refreshed, in VS Code and CI.</p></div>
         <div class="card"><h3><a href="cookies-session-login-http-file.html">Cookies and session logins in .http files</a></h3><p>A cookie jar: log in once, later requests send the session cookie, in VS Code and CI.</p></div>
@@ -163,7 +164,7 @@ X-Request-Id: <span class="v">{{$guid}}</span></pre>
       </details>
       <details>
         <summary>Does it work in Cursor, Windsurf and VSCodium?</summary>
-        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.14.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
+        <p>Yes. They are built on VS Code and install the same <code>.vsix</code> file: use <strong>Extensions: Install from VSIX&hellip;</strong> or <code>cursor --install-extension plainwire-0.15.0.vsix</code> (<code>codium</code> for VSCodium). An Open VSX listing, which these editors search by default, is coming soon.</p>
       </details>
       <details>
         <summary>Can I keep using my REST Client files?</summary>
