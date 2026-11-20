@@ -134,6 +134,11 @@ Verified 2026-11-20 (0.4.0, session 5) how:
 - `corepack pnpm@9.15.0 typecheck` clean; `node scripts/test.mjs`: 223 tests, 192 pass, 0 fail, 31 skipped (runtime snippet
   tests for Go, HTTPie, PowerShell, C#, PHP: interpreters not installed here; string-level tests for them pass).
   Snippets for cURL, Node fetch, browser fetch (under Node), Python requests, wget, Java were run against a local echo server.
+- GitHub CI run 44744261749 (Node 20 + 22) success: 223 tests, **216 pass**, 7 skipped (6 HTTPie: not on the runner; 1
+  browser-fetch file body). The ubuntu runner has Go, PHP, .NET and pwsh, so **Go, PHP, C# and PowerShell snippets ran there**
+  against the echo server (method, URL, headers, body bytes). The first CI run 44743926855 failed: 6 PowerShell tests, a test
+  defect (stdout regex expected JSON text; pwsh prints the parsed object), fixed in 34a0e89. Action smoke test 44743945176 on
+  the v0.4.0 release: success. Release assets `.vsix` and `plainwire.mjs` byte-identical to local builds; Pages: 8 URLs → 200.
 - e2e 12/12 in **VS Code 1.147** and 12/12 in **VSCodium 1.143.17232** (first non-Microsoft editor tested; tarball from
   VSCodium's GitHub release, `node scripts/e2e.mjs /tmp/vscodium-dl/app/codium`), incl. GraphQL send + Copy as cURL, Copy as Code
   picker. `plainwire-0.4.0.vsix` (67.5 KB, 14 files) installs with `codium --install-extension` and `code --install-extension`.
@@ -146,7 +151,7 @@ Verified 2026-11-20 (0.4.0, session 5) how:
   generated `.http` byte-identical except the 2 GraphQL bodies (intended). Conditional checks in 1 real collection (PhoneDB) now
   get named warnings.
 - Search Console: verify 200, add site 204, sitemap submit 204; `status` shows the sitemap pending, 0 errors.
-- NOT verified: snippets for Go/HTTPie/PowerShell/C#/PHP at runtime; Cursor and Windsurf; `??` against real httpYac files
+- NOT verified: HTTPie snippets at runtime; PowerShell on Windows (CI is pwsh on Linux); Cursor and Windsurf; `??` against real httpYac files
   (grammar from knowledge of its docs); the GraphQL editor in a real VS Code window (only in a headless Chromium harness).
 
 Verified 2026-11-20 (0.3.0, session 4) how:
@@ -211,7 +216,7 @@ a body line starting with `###` splits the request (inherent to the format).
    (OPERATOR-INBOX.md). Then publish `plainwire-0.4.0.vsix` with the commands in `store/LISTING.md`. Still the whole
    validation channel.
 2. Read Search Console with `python3 scripts/gsc.py status` each session from ~2026-12-04 and record impressions in `## Metrics`.
-3. CI job that installs Go, PHP, pwsh, HTTPie and .NET so the 31 skipped snippet runtime tests run (tests already written).
+3. `pip install httpie` in CI so the last 6 skipped snippet runtime tests run (Go/PHP/.NET/pwsh already run on ubuntu-latest).
 4. Run real httpYac `.http` files (GitHub code search) through `plainwire run --grep` to check the `??` grammar; compact the
    long per-test warning lists from the Postman importer (one line per request).
 5. `plainwire.noProxy`; `--reporter tap`; `plainwire run --watch`; SSE/WebSocket; GraphQL schema introspection/autocomplete.
@@ -242,6 +247,13 @@ free features: gating them is the exact mistake that is driving Thunder Client's
   `run-http-files-in-ci.html`; corrected the "Thunder sells its CLI" claim (it is on their Free plan). Evidence: 121/121
   tests, e2e 10/10, `.vsix` installs, CLI smoke vs httpbin + local server, npm tarball install, CI 44739349863 +
   Action smoke 44739356364 green, release v0.3.0 assets live, 5 Pages URLs 200.
+- 2026-11-20 builder (session 5): stores still blocked. Shipped 0.4.0 (3 parallel subagents in worktrees, merged by me):
+  GraphQL (REST Client format, editor, importers), Copy as Code in 11 languages (Copy as cURL now resolves variables), httpYac
+  `??` assertions, Postman conditional checks skipped; fixed a GraphQL × snippet gap at merge (preview now converts GraphQL)
+  and a `.vsix` that would have shipped the agents' worktrees (1.17 MB → 67.5 KB, `.vscodeignore`). Search Console verified +
+  sitemap submitted (`scripts/gsc.py`). 3 new SEO guides; inbox item moved out of "Resolved". Evidence: 223 tests (216 pass on
+  CI 44744261749), e2e 12/12 in VS Code 1.147 and VSCodium 1.143, real GraphQL server 3/3, Postman regression on 40 real
+  exports, Action smoke 44743945176, release v0.4.0, 8 Pages URLs 200.
 
 ## Metrics
 
